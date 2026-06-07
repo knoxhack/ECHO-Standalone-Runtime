@@ -1,0 +1,309 @@
+{
+  "id": "echoashfallprotocol:standalone/client_content/ashfall_crash_site",
+  "worldTemplate": {
+    "slotIdPrefix": "ashfall-crash-site",
+    "displayName": "Ashfall Crash Site",
+    "saveProfile": {
+      "schema": "echo.standalone.client_save_profile.v1",
+      "profileId": "echo-client",
+      "displayName": "ECHO Standalone Client",
+      "packId": "echoashfallprotocol",
+      "formatVersion": 1,
+      "metadata": {
+        "runtime": "echo-standalone-client",
+        "saveSurface": "echoscreencore:world_select"
+      }
+    },
+    "presentation": {
+      "windowTitle": "ECHO Ashfall - Standalone Client",
+      "settingsFileComment": "ECHO Ashfall standalone client options",
+      "createWorldActionLabel": "Create Ashfall World",
+      "worldTypeLabel": "World Type: Ashfall Crash Site",
+      "packLabel": "AdapterCore Pack: Ashfall Live",
+      "newWorldModalMessage": "Start a new Ashfall world session?",
+      "loadingInitialDetail": "Preparing Ashfall crash site",
+      "newWorldGenerationLabel": "Generating Ashfall crash site",
+      "newWorldDetailSuffix": "AdapterCore Pack Ashfall Live",
+      "newWorldLoadingFooter": "Preparing standalone runtime services",
+      "savedWorldLoadingFooter": "Restoring standalone save data",
+      "moduleSourceLabels": {
+        "echoadaptercore": "adaptercore",
+        "echoashfallprotocol": "ashfall"
+      },
+      "hostileDamageSourceId": "echoashfallprotocol:hostile"
+    },
+    "audioProfile": {
+      "deviceProfileId": "echoashfallprotocol:audio/device/standalone_default",
+      "volumeProfileId": "echoashfallprotocol:audio/volume/survival_mix"
+    }
+  },
+  "entityCatalog": {
+    "fallbackHostile": {
+      "id": "echoashfallprotocol:rad_zombie",
+      "displayName": "Rad Zombie",
+      "maxHealth": 20,
+      "aiProfile": "hostile_scavenger"
+    },
+    "spawnRules": [
+      {
+        "biomeTags": ["toxic"],
+        "definition": {
+          "id": "echoashfallprotocol:toxic_slime",
+          "displayName": "Toxic Slime",
+          "maxHealth": 16,
+          "aiProfile": "toxic_lurker"
+        }
+      },
+      {
+        "biomeTags": ["radiation"],
+        "definition": {
+          "id": "echoashfallprotocol:glowing_ghoul",
+          "displayName": "Glowing Ghoul",
+          "maxHealth": 24,
+          "aiProfile": "radiation_stalker"
+        }
+      },
+      {
+        "biomeTags": ["industrial"],
+        "definition": {
+          "id": "echoashfallprotocol:rust_walker",
+          "displayName": "Rust Walker",
+          "maxHealth": 22,
+          "aiProfile": "industrial_guardian"
+        }
+      },
+      {
+        "biomeTags": ["city"],
+        "definition": {
+          "id": "echoashfallprotocol:scavenger_bandit",
+          "displayName": "Scavenger Bandit",
+          "maxHealth": 18,
+          "aiProfile": "hostile_scavenger"
+        }
+      },
+      {
+        "biomeTags": ["cold"],
+        "definition": {
+          "id": "echoashfallprotocol:cryo_wraith",
+          "displayName": "Cryo Wraith",
+          "maxHealth": 18,
+          "aiProfile": "cold_ambush"
+        }
+      },
+      {
+        "biomeTags": ["nexus", "anomaly"],
+        "definition": {
+          "id": "echoashfallprotocol:echo_drone",
+          "displayName": "ECHO Drone",
+          "maxHealth": 14,
+          "aiProfile": "nexus_patrol"
+        }
+      }
+    ],
+    "renderProfiles": [
+      {
+        "definitionId": "echoashfallprotocol:toxic_slime",
+        "argb": "0xFF5CD66E",
+        "shape": "SLIME"
+      },
+      {
+        "definitionId": "echoashfallprotocol:glowing_ghoul",
+        "argb": "0xFFA6E34A",
+        "shape": "HUMANOID"
+      },
+      {
+        "definitionId": "echoashfallprotocol:rust_walker",
+        "argb": "0xFFB56A38",
+        "shape": "HUMANOID"
+      },
+      {
+        "definitionId": "echoashfallprotocol:scavenger_bandit",
+        "argb": "0xFF8E7858",
+        "shape": "HUMANOID"
+      },
+      {
+        "definitionId": "echoashfallprotocol:cryo_wraith",
+        "argb": "0xFF7EC7E8",
+        "shape": "HUMANOID"
+      },
+      {
+        "definitionId": "echoashfallprotocol:echo_drone",
+        "argb": "0xFF8F63E6",
+        "shape": "DRONE"
+      }
+    ]
+  },
+  "hazardCatalog": {
+    "rules": [
+      {
+        "biomeTags": ["nexus", "anomaly"],
+        "profile": {
+          "id": "echoashfallprotocol:nexus_anomaly",
+          "label": "Nexus",
+          "exposurePerSecond": 12.0,
+          "damage": 2
+        }
+      },
+      {
+        "biomeTags": ["radiation", "hazard"],
+        "profile": {
+          "id": "echoashfallprotocol:radiation",
+          "label": "Radiation",
+          "exposurePerSecond": 10.0,
+          "damage": 2
+        }
+      },
+      {
+        "biomeTags": ["toxic"],
+        "profile": {
+          "id": "echoashfallprotocol:toxic_air",
+          "label": "Toxic",
+          "exposurePerSecond": 8.0,
+          "damage": 1
+        }
+      },
+      {
+        "biomeTags": ["cold"],
+        "profile": {
+          "id": "echoashfallprotocol:cold_exposure",
+          "label": "Cold",
+          "exposurePerSecond": 5.0,
+          "damage": 1
+        }
+      }
+    ]
+  },
+  "starterLoadout": {
+    "playerInventoryId": "inventory:client-player",
+    "playerInventoryLabel": "Player Inventory",
+    "openContainerId": "container:ashfall-crash-cache",
+    "openContainerLabel": "Crash Cache",
+    "items": [
+      {
+        "id": "echoashfallprotocol:clean_water_bottle",
+        "displayName": "Clean Water Bottle",
+        "category": "CONSUMABLE",
+        "maxStackSize": 4,
+        "tags": ["consumable", "hydration"],
+        "tooltipLines": ["Loaded from Ashfall client content profile"]
+      },
+      {
+        "id": "echoashfallprotocol:scrap_metal",
+        "displayName": "Scrap Metal",
+        "category": "MATERIAL",
+        "maxStackSize": 16,
+        "tags": ["crafting", "salvage"],
+        "tooltipLines": ["Loaded from Ashfall client content profile"]
+      },
+      {
+        "id": "echoashfallprotocol:compressed_scrap",
+        "displayName": "Compressed Scrap",
+        "category": "MATERIAL",
+        "maxStackSize": 64,
+        "tags": ["crafting", "machine_output", "salvage"],
+        "tooltipLines": ["Loaded from Ashfall client content profile"]
+      },
+      {
+        "id": "echoashfallprotocol:filter_cartridge_basic",
+        "displayName": "Filter Cartridge",
+        "category": "TOOL",
+        "maxStackSize": 16,
+        "tags": ["crafting", "breathing"],
+        "tooltipLines": ["Loaded from Ashfall client content profile"]
+      },
+      {
+        "id": "echoashfallprotocol:scrap_vest",
+        "displayName": "Scrap Vest",
+        "category": "TOOL",
+        "maxStackSize": 1,
+        "tags": ["armor", "chest", "vest"],
+        "tooltipLines": ["Loaded from Ashfall client content profile"]
+      },
+      {
+        "id": "echoashfallprotocol:salvage_pick",
+        "displayName": "Salvage Pick",
+        "category": "TOOL",
+        "maxStackSize": 1,
+        "tags": ["tool", "mining", "pickaxe", "salvage"],
+        "tooltipLines": ["Loaded from Ashfall client content profile"]
+      }
+    ],
+    "openContainerStacks": [
+      {
+        "slotIndex": 0,
+        "itemId": "echoashfallprotocol:clean_water_bottle",
+        "quantity": 2
+      },
+      {
+        "slotIndex": 1,
+        "itemId": "echoashfallprotocol:scrap_metal",
+        "quantity": 5
+      },
+      {
+        "slotIndex": 3,
+        "itemId": "echoashfallprotocol:scrap_vest",
+        "quantity": 1
+      },
+      {
+        "slotIndex": 4,
+        "itemId": "echoashfallprotocol:salvage_pick",
+        "quantity": 1
+      }
+    ],
+    "workbenchRecipes": [
+      {
+        "recipeId": "echoscreencore:starter_filter_patch",
+        "ingredients": {
+          "echoashfallprotocol:scrap_metal": 2
+        },
+        "outputItemId": "echoashfallprotocol:filter_cartridge_basic",
+        "outputQuantity": 1
+      },
+      {
+        "recipeId": "echoscreencore:starter_salvage_pick",
+        "ingredients": {
+          "echoashfallprotocol:scrap_metal": 3
+        },
+        "outputItemId": "echoashfallprotocol:salvage_pick",
+        "outputQuantity": 1
+      }
+    ]
+  },
+  "interactionCatalog": {
+    "rules": [
+      {
+        "matchTokens": ["cache", "crate", "chest", "container"],
+        "command": "OPEN_CONTAINER"
+      },
+      {
+        "matchTokens": [
+          "workbench",
+          "crafting_table",
+          "crafting table",
+          "bench",
+          "runtime_marker"
+        ],
+        "command": "OPEN_WORKBENCH"
+      },
+      {
+        "matchTokens": [
+          "scrap_press",
+          "factory_controller",
+          "research_lab",
+          "filter_workbench",
+          "power_node"
+        ],
+        "command": "OPEN_MACHINE"
+      },
+      {
+        "matchTokens": ["terminal"],
+        "command": "OPEN_REGISTERED_SCREEN",
+        "targetId": "echoterminal:ui/field_terminal"
+      },
+      {
+        "matchTokens": ["scanner", "diagnostic"],
+        "command": "OPEN_DIAGNOSTICS"
+      }
+    ]
+  }
+}

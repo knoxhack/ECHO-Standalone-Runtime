@@ -1,0 +1,25 @@
+package dev.echo.standalone.runtime.client;
+
+enum EchoClientScreenKind {
+    MAIN_MENU,
+    PAUSE_MENU,
+    DEATH_SCREEN,
+    WORLD_SELECT,
+    CREATE_WORLD,
+    OPTIONS,
+    CONTROLS,
+    VIDEO_SETTINGS,
+    AUDIO_SETTINGS,
+    ACCESSIBILITY_SETTINGS,
+    LANGUAGE_SETTINGS,
+    MODS,
+    RESOURCE_PACKS,
+    RESOURCE_PACK_DETAIL,
+    INVENTORY,
+    CONTAINER,
+    WORKBENCH,
+    MACHINE,
+    TERMINAL,
+    DIAGNOSTICS,
+    REGISTERED_SCREEN
+}
