@@ -1,4 +1,4 @@
-# Standalone Showcase Package
+# Ashfall Standalone Edition Package
 
 This package demonstrates ECHO Addons running in the Standalone Runtime.
 
