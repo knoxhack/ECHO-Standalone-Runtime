@@ -13,4 +13,5 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/docs-audit.mjs
+      - run: node scripts/public-alpha-package-audit.mjs
       - run: node scripts/verify-release-index-product.mjs

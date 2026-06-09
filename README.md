@@ -24,6 +24,8 @@ Run commands from the repository root.
 
 - Windows: `.\gradlew.bat build`
 - macOS/Linux: `./gradlew build`
+- Public alpha staging: `.\gradlew.bat packagePublicAlphaRelease` writes `build/public-alpha/echo-standalone-runtime-0.1.0-alpha.zip`, readiness reports, and `checksums.txt` for GitHub release upload.
+- Public alpha publishing: run the `Release Public Alpha` workflow with tag `v0.1.0-standalone-runtime-alpha`; it stages assets, attests `checksums.txt`, and uploads the exact files to the GitHub Release.
 
 ## Artifact Ownership
 
@@ -31,7 +33,7 @@ Standalone runtime binaries and runtime metadata belong here. Standalone Ashfall
 
 ## Release Index Product Routing
 
-Runtime update metadata is routed through the canonical Release Index product entry `echo-standalone-runtime`. Run `node scripts/verify-release-index-product.mjs` to audit the indexed product record, or add `--strict` in release gates once the entry has approved artifacts.
+Runtime update metadata is routed through the canonical Release Index product entry `echo-standalone-runtime`. Run `node scripts/verify-release-index-product.mjs` to audit the indexed product record, or add `--strict` in release gates once the entry has approved artifacts. The public alpha archive must be uploaded as `echo-standalone-runtime-0.1.0-alpha.zip` so the Release Index can approve the exact `archive` artifact.
 
 ## Docs Index
 

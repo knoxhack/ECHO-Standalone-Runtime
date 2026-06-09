@@ -5702,11 +5702,13 @@ tasks.register('packagePublicAlphaRelease') {
     group = 'distribution'
     description = 'Stages public alpha Standalone Runtime release assets under build/public-alpha.'
     dependsOn tasks.named('build')
+    dependsOn tasks.named('refreshStandalonePackagedRuntimeImage')
 
     doLast {
         def outDir = file("${buildDir}/public-alpha")
         delete outDir
         outDir.mkdirs()
+        def releaseArchiveName = 'echo-standalone-runtime-0.1.0-alpha.zip'
 
         def writeJson = { String name, Map payload ->
             new File(outDir, name).text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
@@ -5731,11 +5733,13 @@ tasks.register('packagePublicAlphaRelease') {
         ])
 
         def portableZip = file("${buildDir}/distributions/EchoStandaloneRuntime-portable-opengl-client.zip")
-        if (portableZip.isFile()) {
-            copy {
-                from portableZip
-                into outDir
-            }
+        if (!portableZip.isFile()) {
+            throw new GradleException("Missing packaged runtime archive: ${portableZip}")
+        }
+        copy {
+            from portableZip
+            into outDir
+            rename { releaseArchiveName }
         }
 
         def digest = java.security.MessageDigest.getInstance('SHA-256')

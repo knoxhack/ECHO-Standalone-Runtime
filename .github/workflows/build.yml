@@ -15,3 +15,11 @@ jobs:
           java-version: 25
       - name: Build
         run: .\gradlew.bat build --console=plain
+      - name: Stage public alpha release assets
+        run: .\gradlew.bat packagePublicAlphaRelease --console=plain
+      - name: Upload public alpha release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: echo-standalone-runtime-public-alpha
+          path: build/public-alpha
+          if-no-files-found: error
