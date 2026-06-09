@@ -42,7 +42,7 @@ jobs:
           java-version: 25
       - name: Stage public alpha release assets
         env:
-          ECHO_MODULES_ROOT: ${{ github.workspace }}\ECHO-Modules
+          ECHO_MODULES_ROOT: ${{ github.workspace }}\ECHO-Modules\addons
         run: .\gradlew.bat packagePublicAlphaRelease --console=plain
       - name: Attest public alpha checksums
         uses: actions/attest@v4
