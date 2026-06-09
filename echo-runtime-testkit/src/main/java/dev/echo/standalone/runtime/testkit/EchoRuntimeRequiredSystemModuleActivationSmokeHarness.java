@@ -55,9 +55,6 @@ public final class EchoRuntimeRequiredSystemModuleActivationSmokeHarness {
                 "signalosexample should activate as runtime-dev-only");
         require(result.require("echobridgecore").runtimeStatus() == EchoRuntimeModuleStatus.RUNTIME_DEV_ONLY,
                 "echobridgecore should activate as runtime-dev-only");
-        require(result.require("echomodpackcommandcenter").runtimeStatus()
-                        == EchoRuntimeModuleStatus.RUNTIME_TOOLING_ONLY,
-                "Command Center should activate as runtime-tooling-only");
         require(result.require("echoagentcore").runtimeDomains().contains("commands"),
                 "AgentCore activation should expose command contracts");
         require(result.require("echometadatacore").runtimeDomains().contains("data"),

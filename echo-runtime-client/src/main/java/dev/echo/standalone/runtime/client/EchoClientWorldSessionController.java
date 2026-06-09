@@ -74,7 +74,7 @@ final class EchoClientWorldSessionController {
         clearPendingWorldLoad();
         boolean canContinue = runtimeServices.hasContinuableSession();
         runtimeServices.unloadWorld();
-        screens.beginQuitToTitle(canContinue);
+        screens.showMainMenu(canContinue);
     }
 
     void showInGameOrDeathScreen() {

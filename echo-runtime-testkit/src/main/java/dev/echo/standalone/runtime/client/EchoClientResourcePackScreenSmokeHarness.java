@@ -75,14 +75,11 @@ public final class EchoClientResourcePackScreenSmokeHarness {
 
     private static void requireClientModuleLaunchDiscoversAshfallResources() throws IOException {
         Path clientModuleRoot = Path.of("echo-runtime-client").toAbsolutePath().normalize();
-        Path ashfallResources = Path.of(
-                "..",
-                "addons",
-                "echoashfallprotocol",
-                "src",
-                "main",
-                "resources"
-        ).toAbsolutePath().normalize();
+        Path ashfallResources = EchoClientWorkspaceRoots.echoModuleAddonRoots(List.of(clientModuleRoot)).stream()
+                .map(root -> root.resolve("echoashfallprotocol/src/main/resources").toAbsolutePath().normalize())
+                .filter(Files::isDirectory)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Client module launch should resolve the Ashfall addon resource root"));
         List<Path> candidates = EchoClientResourcePackService.candidateRoots(List.of(clientModuleRoot));
         require(candidates.contains(ashfallResources),
                 "Client module launch roots should still mount Ashfall addon resources");

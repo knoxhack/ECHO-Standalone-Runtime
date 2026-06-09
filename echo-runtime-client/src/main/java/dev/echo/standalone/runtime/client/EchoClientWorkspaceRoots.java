@@ -9,6 +9,10 @@ import java.util.List;
 
 final class EchoClientWorkspaceRoots {
     private static final String STANDALONE_ROOT_NAME = "echo-standalone-runtime";
+    private static final String STANDALONE_REPO_NAME = "ECHO-Standalone-Runtime";
+    private static final String MODULES_REPO_NAME = "ECHO-Modules";
+    private static final String MODULES_ROOT_PROPERTY = "echo.modules.root";
+    private static final String MODULES_ROOT_ENV = "ECHO_MODULES_ROOT";
 
     private EchoClientWorkspaceRoots() {
     }
@@ -63,6 +67,27 @@ final class EchoClientWorkspaceRoots {
         return List.copyOf(roots);
     }
 
+    static List<Path> echoModuleAddonRoots() {
+        return echoModuleAddonRoots(launchAnchors());
+    }
+
+    static List<Path> echoModuleAddonRoots(List<Path> anchors) {
+        LinkedHashSet<Path> roots = new LinkedHashSet<>();
+        addIfDirectory(roots, configuredModulesRoot());
+        for (Path echoRoot : echoWorkspaceRoots(anchors)) {
+            addIfDirectory(roots, echoRoot.resolve("addons"));
+            addIfDirectory(roots, echoRoot.resolve(MODULES_REPO_NAME).resolve("addons"));
+        }
+        for (Path standaloneRoot : standaloneRuntimeRoots(anchors)) {
+            Path parent = standaloneRoot.getParent();
+            if (parent != null) {
+                addIfDirectory(roots, parent.resolve(MODULES_REPO_NAME).resolve("addons"));
+                addIfDirectory(roots, parent.resolve("addons"));
+            }
+        }
+        return List.copyOf(roots);
+    }
+
     private static void addStandaloneRoots(LinkedHashSet<Path> roots, Path anchor) {
         Path current = directoryAnchor(anchor);
         while (current != null) {
@@ -94,6 +119,27 @@ final class EchoClientWorkspaceRoots {
         }
     }
 
+    private static void addIfDirectory(LinkedHashSet<Path> roots, Path path) {
+        if (path == null) {
+            return;
+        }
+        Path normalized = path.toAbsolutePath().normalize();
+        if (Files.isDirectory(normalized)) {
+            roots.add(normalized);
+        }
+    }
+
+    private static Path configuredModulesRoot() {
+        String configured = System.getProperty(MODULES_ROOT_PROPERTY, "").trim();
+        if (configured.isBlank()) {
+            configured = System.getenv(MODULES_ROOT_ENV);
+        }
+        if (configured == null || configured.isBlank()) {
+            return null;
+        }
+        return Path.of(configured);
+    }
+
     private static Path directoryAnchor(Path anchor) {
         Path normalized = anchor.toAbsolutePath().normalize();
         return Files.isRegularFile(normalized) ? normalized.getParent() : normalized;
@@ -107,7 +153,11 @@ final class EchoClientWorkspaceRoots {
 
     private static boolean workspaceLike(Path path) {
         return path != null
-                && Files.isDirectory(path.resolve(STANDALONE_ROOT_NAME))
-                && (Files.isDirectory(path.resolve("addons")) || Files.isDirectory(path.resolve("core")));
+                && (Files.isDirectory(path.resolve(STANDALONE_ROOT_NAME))
+                        || Files.isDirectory(path.resolve(STANDALONE_REPO_NAME)))
+                && (Files.isDirectory(path.resolve("addons"))
+                        || Files.isDirectory(path.resolve("core"))
+                        || Files.isDirectory(path.resolve(MODULES_REPO_NAME).resolve("addons"))
+                        || Files.isDirectory(path.resolve(MODULES_REPO_NAME).resolve("core")));
     }
 }

@@ -205,7 +205,7 @@ public final class EchoRuntimeModuleSmokeHarness {
 
         EchoRuntimeSystemModuleStatusReport systemStatus = EchoRuntimeSystemModuleStatusReport.forRequiredModules(
                 registry,
-                List.of("echo-core", "echoreportcore", "signalosexample", "echomodpackcommandcenter")
+                List.of("echo-core", "echoreportcore", "signalosexample")
         );
         require(systemStatus.require("echo-core").status() == EchoRuntimeModuleStatus.RUNTIME_ACTIVE,
                 "required loaded system module should report runtime-active");
@@ -213,13 +213,7 @@ public final class EchoRuntimeModuleSmokeHarness {
                 "required tooling system module should report runtime-tooling-only");
         require(systemStatus.require("signalosexample").status() == EchoRuntimeModuleStatus.RUNTIME_DEV_ONLY,
                 "required example system module should report runtime-dev-only");
-        require(systemStatus.require("echomodpackcommandcenter").status()
-                        == EchoRuntimeModuleStatus.RUNTIME_DISABLED_WITH_REASON,
-                "missing command center descriptor should report runtime-disabled-with-reason");
-        require(systemStatus.require("echomodpackcommandcenter").reason().equals("missing runtime descriptor"),
-                "missing command center status should explain the missing descriptor");
-
-        System.out.println("phase14.3 module runtime smoke PASS descriptors=6 failed=1 statuses=4");
+        System.out.println("phase14.3 module runtime smoke PASS descriptors=6 failed=1 statuses=3");
     }
 
     private static void writeDescriptor(Path path, String content) throws IOException {

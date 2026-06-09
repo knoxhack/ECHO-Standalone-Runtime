@@ -833,66 +833,6 @@ public final class EchoAdapterCoreStandaloneContentBridge {
                                 "MetadataCore Pack Metadata Scan"
                         ),
                         virtual(
-                                "echomodpackcommandcenter",
-                                "echomodpackcommandcenter:data/catalog",
-                                EchoAdapterCoreContentKind.DATA_COMPONENT,
-                                EchoAdapterCoreDomain.DATA,
-                                "commandcenter.data.catalog",
-                                "echomodpackcommandcenter:catalog",
-                                "echomodpackcommandcenter:catalog",
-                                "commandcenter:data/catalog",
-                                "echomodpackcommandcenter:data/catalog",
-                                "Command Center Catalog"
-                        ),
-                        virtual(
-                                "echomodpackcommandcenter",
-                                "echomodpackcommandcenter:diagnostic/readiness",
-                                EchoAdapterCoreContentKind.DIAGNOSTIC,
-                                EchoAdapterCoreDomain.DIAGNOSTICS,
-                                "commandcenter.diagnostics.readiness",
-                                "echomodpackcommandcenter:readiness",
-                                "echomodpackcommandcenter:readiness",
-                                "commandcenter:diagnostic/readiness",
-                                "echomodpackcommandcenter:diagnostic/readiness",
-                                "Command Center Readiness"
-                        ),
-                        virtual(
-                                "echomodpackcommandcenter",
-                                "echomodpackcommandcenter:command/local_tooling",
-                                EchoAdapterCoreContentKind.COMMAND,
-                                EchoAdapterCoreDomain.COMMANDS,
-                                "commandcenter.commands.local_tooling",
-                                "echomodpackcommandcenter:local_tooling",
-                                "echomodpackcommandcenter:local_tooling",
-                                "commandcenter:command/local_tooling",
-                                "echomodpackcommandcenter:command/local_tooling",
-                                "Command Center Local Tooling"
-                        ),
-                        virtual(
-                                "echomodpackcommandcenter",
-                                "echomodpackcommandcenter:pack/launcher_metadata",
-                                EchoAdapterCoreContentKind.DATA_COMPONENT,
-                                EchoAdapterCoreDomain.PACKS,
-                                "commandcenter.packs.launcher_metadata",
-                                "echomodpackcommandcenter:launcher_metadata",
-                                "echomodpackcommandcenter:launcher_metadata",
-                                "commandcenter:pack/launcher_metadata",
-                                "echomodpackcommandcenter:pack/launcher_metadata",
-                                "Command Center Launcher Metadata"
-                        ),
-                        virtual(
-                                "echomodpackcommandcenter",
-                                "echomodpackcommandcenter:asset/report_bundle",
-                                EchoAdapterCoreContentKind.DATA_COMPONENT,
-                                EchoAdapterCoreDomain.ASSETS,
-                                "commandcenter.assets.report_bundle",
-                                "echomodpackcommandcenter:report_bundle",
-                                "echomodpackcommandcenter:report_bundle",
-                                "commandcenter:asset/report_bundle",
-                                "echomodpackcommandcenter:asset/report_bundle",
-                                "Command Center Report Bundle"
-                        ),
-                        virtual(
                                 "echobridgecore",
                                 "echobridgecore:command/safe_action",
                                 EchoAdapterCoreContentKind.COMMAND,

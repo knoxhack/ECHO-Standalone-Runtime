@@ -11,7 +11,7 @@ import java.util.Objects;
 
 public final class EchoRequiredSystemModuleStandaloneRuntime {
     public static final List<String> REQUIRED_SYSTEM_MODULES = List.of(
-            "echomodpackcommandcenter",
+            "echocore",
             "signalos",
             "signalosexample",
             "echobridgecore",

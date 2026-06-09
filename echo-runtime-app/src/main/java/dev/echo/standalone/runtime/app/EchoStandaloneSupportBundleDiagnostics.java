@@ -341,22 +341,11 @@ final class EchoStandaloneSupportBundleDiagnostics {
     }
 
     private static Path repoRoot(Path workspaceRoot) {
-        Path root = workspaceRoot.toAbsolutePath().normalize();
-        if (root.getFileName() != null
-                && root.getFileName().toString().equals("echo-standalone-runtime")
-                && root.getParent() != null
-                && Files.isDirectory(root.getParent().resolve("addons"))) {
-            return root.getParent();
-        }
-        return root;
+        return EchoStandaloneModuleRoots.modulesRepoRoot(workspaceRoot);
     }
 
     private static List<Path> moduleRoots(Path repoRoot) {
-        ArrayList<Path> roots = new ArrayList<>();
-        addIfDirectory(roots, repoRoot.resolve("core"));
-        addIfDirectory(roots, repoRoot.resolve("addons"));
-        addIfDirectory(roots, repoRoot.resolve("src/main/resources"));
-        return List.copyOf(roots);
+        return EchoStandaloneModuleRoots.resolve(repoRoot);
     }
 
     private static void addIfDirectory(List<Path> roots, Path path) {

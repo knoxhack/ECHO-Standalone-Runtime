@@ -212,19 +212,7 @@ public final class EchoLiveWindowRuntime implements EchoRuntime {
     }
 
     private static List<Path> moduleRoots(Path workspaceRoot) {
-        Path normalizedRoot = workspaceRoot.toAbsolutePath().normalize();
-        Path repoRoot = normalizedRoot.getFileName() != null
-                && normalizedRoot.getFileName().toString().equals("echo-standalone-runtime")
-                ? normalizedRoot.getParent()
-                : normalizedRoot;
-        if (repoRoot == null) {
-            return List.of();
-        }
-        ArrayList<Path> roots = new ArrayList<>();
-        addModuleRoot(roots, repoRoot.resolve("core"));
-        addModuleRoot(roots, repoRoot.resolve("addons"));
-        addModuleRoot(roots, repoRoot.resolve("src/main/resources"));
-        return List.copyOf(roots);
+        return EchoStandaloneModuleRoots.resolve(workspaceRoot);
     }
 
     private EchoSaveRuntimeResult openLiveSave() {

@@ -38,18 +38,17 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
         Path standaloneRoot = args.length > 0
                 ? Path.of(args[0]).toAbsolutePath().normalize()
                 : Path.of(".").toAbsolutePath().normalize();
-        Path repoRoot = standaloneRoot.getFileName() != null
-                && standaloneRoot.getFileName().toString().equals("echo-standalone-runtime")
-                ? standaloneRoot.getParent()
-                : standaloneRoot;
-        require(repoRoot != null && Files.isDirectory(repoRoot.resolve("addons")),
-                "coverage smoke requires the ECHO repo root with addons/");
+        Path modulesRoot = args.length > 1
+                ? Path.of(args[1]).toAbsolutePath().normalize()
+                : echoModulesRoot(standaloneRoot);
+        require(Files.isDirectory(modulesRoot),
+                "coverage smoke requires the ECHO modules root. Set -PechoModulesRoot or ECHO_MODULES_ROOT.");
 
         EchoDefaultRuntimeServiceRegistry services = new EchoDefaultRuntimeServiceRegistry();
         EchoRuntimeLogBridge diagnostics = new EchoRuntimeLogBridge();
         services.register(EchoRuntimeDiagnosticSink.class, diagnostics);
 
-        List<Path> roots = moduleRoots(repoRoot);
+        List<Path> roots = moduleRoots(standaloneRoot, modulesRoot);
         EchoRuntimeModuleRuntimeResult modules = EchoRuntimeModuleManager.descriptorOnly()
                 .run(roots, services);
         EchoAdapterCoreStandaloneContentBridge bridge = EchoAdapterCoreStandaloneContentBridge.ashfallLive();
@@ -248,7 +247,6 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
         EchoRuntimeSystemModuleStatusReport systemStatus = EchoRuntimeSystemModuleStatusReport.forRequiredModules(
                 modules.registry(),
                 List.of(
-                        "echomodpackcommandcenter",
                         "signalos",
                         "signalosexample",
                         "echobridgecore",
@@ -272,12 +270,6 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
                 "echometadatacore should load as runtime-tooling-only");
         require(systemStatus.require("echomodulegraph").status() == EchoRuntimeModuleStatus.RUNTIME_TOOLING_ONLY,
                 "echomodulegraph should load as runtime-tooling-only");
-        require(systemStatus.require("echomodpackcommandcenter").status()
-                        == EchoRuntimeModuleStatus.RUNTIME_TOOLING_ONLY,
-                "echomodpackcommandcenter should load as runtime-tooling-only");
-        require(systemStatus.require("echomodpackcommandcenter").reason().contains("runtime-tooling-only"),
-                "echomodpackcommandcenter status should explain its tooling-only runtime role");
-
         System.out.println("adaptercore module coverage smoke PASS total="
                 + coverage.totalCount()
                 + " active=" + coverage.activeCount()
@@ -440,11 +432,33 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
                 .toList();
     }
 
-    private static List<Path> moduleRoots(Path repoRoot) {
+    private static Path echoModulesRoot(Path standaloneRoot) {
+        String configured = System.getProperty("echo.modules.root");
+        if (configured == null || configured.isBlank()) {
+            configured = System.getenv("ECHO_MODULES_ROOT");
+        }
+        if (configured != null && !configured.isBlank()) {
+            return Path.of(configured).toAbsolutePath().normalize();
+        }
+        Path workspaceRoot = standaloneRoot.getParent();
+        if (workspaceRoot != null) {
+            Path workspaceModules = workspaceRoot.resolve("ECHO-Modules/addons");
+            if (Files.isDirectory(workspaceModules)) {
+                return workspaceModules.toAbsolutePath().normalize();
+            }
+            Path legacyAddons = workspaceRoot.resolve("addons");
+            if (Files.isDirectory(legacyAddons)) {
+                return legacyAddons.toAbsolutePath().normalize();
+            }
+            return workspaceModules.toAbsolutePath().normalize();
+        }
+        return standaloneRoot.resolve("../ECHO-Modules/addons").toAbsolutePath().normalize();
+    }
+
+    private static List<Path> moduleRoots(Path standaloneRoot, Path modulesRoot) {
         ArrayList<Path> roots = new ArrayList<>();
-        addIfDirectory(roots, repoRoot.resolve("core"));
-        addIfDirectory(roots, repoRoot.resolve("addons"));
-        addIfDirectory(roots, repoRoot.resolve("src/main/resources"));
+        addIfDirectory(roots, modulesRoot);
+        addIfDirectory(roots, standaloneRoot.resolve("src/main/resources"));
         return List.copyOf(roots);
     }
 

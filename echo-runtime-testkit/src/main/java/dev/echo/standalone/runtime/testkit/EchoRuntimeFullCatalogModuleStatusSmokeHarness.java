@@ -24,7 +24,7 @@ import java.util.TreeSet;
 public final class EchoRuntimeFullCatalogModuleStatusSmokeHarness {
     private static final int MIN_REAL_MODULE_DESCRIPTORS = 90;
     private static final List<String> REQUIRED_SYSTEM_MODULES = List.of(
-            "echomodpackcommandcenter",
+            "echocore",
             "signalos",
             "signalosexample",
             "echobridgecore",
@@ -97,6 +97,8 @@ public final class EchoRuntimeFullCatalogModuleStatusSmokeHarness {
         );
         require(systemStatus.entries().size() == REQUIRED_SYSTEM_MODULES.size(),
                 "every required system module should have a formal runtime status entry");
+        require(systemStatus.require("echocore").status() == EchoRuntimeModuleStatus.RUNTIME_ACTIVE,
+                "echocore should load as runtime-active");
         require(systemStatus.require("signalos").status() == EchoRuntimeModuleStatus.RUNTIME_ACTIVE,
                 "signalos should load as runtime-active");
         require(systemStatus.require("signalosexample").status() == EchoRuntimeModuleStatus.RUNTIME_DEV_ONLY,
@@ -111,10 +113,6 @@ public final class EchoRuntimeFullCatalogModuleStatusSmokeHarness {
                 "echometadatacore should load as runtime-tooling-only");
         require(systemStatus.require("echomodulegraph").status() == EchoRuntimeModuleStatus.RUNTIME_TOOLING_ONLY,
                 "echomodulegraph should load as runtime-tooling-only");
-        require(systemStatus.require("echomodpackcommandcenter").status()
-                        == EchoRuntimeModuleStatus.RUNTIME_TOOLING_ONLY,
-                "echomodpackcommandcenter should load as runtime-tooling-only");
-
         writeReport(standaloneRoot, descriptors.size(), counts, moduleStatuses, moduleReasons, systemStatus);
         System.out.println("agent3 full catalog runtime status smoke PASS total="
                 + descriptors.size()

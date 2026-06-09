@@ -5,8 +5,10 @@ import dev.echo.standalone.runtime.compat.EchoAdapterCoreDomain;
 import dev.echo.standalone.runtime.compat.EchoAdapterCoreRegistryEntry;
 import dev.echo.standalone.runtime.compat.EchoAdapterCoreRuntimeKind;
 import dev.echo.standalone.runtime.compat.EchoAdapterCoreStandaloneContentBridge;
-import dev.echo.standalone.runtime.compat.EchoModpackCommandCenterStandaloneAdapter;
+import dev.echo.standalone.runtime.compat.EchoPackCoreStandaloneAdapter;
+import dev.echo.standalone.runtime.compat.EchoReportCoreStandaloneAdapter;
 
+import java.util.List;
 import java.util.Map;
 
 public final class EchoModpackCommandCenterAdapterCoreParitySmokeHarness {
@@ -14,64 +16,65 @@ public final class EchoModpackCommandCenterAdapterCoreParitySmokeHarness {
     }
 
     public static void main(String[] args) {
-        EchoAdapterCoreStandaloneContentBridge bridge = EchoAdapterCoreStandaloneContentBridge.ashfallLive();
-        Map<String, Object> activation = new EchoModpackCommandCenterStandaloneAdapter().activate(bridge);
-        require(Boolean.TRUE.equals(activation.get("activated")),
-                "Command Center standalone adapter should activate through AdapterCore");
-        require(Boolean.TRUE.equals(activation.get("allRuntimeAliasesRegistered")),
-                "Command Center standalone adapter should register aliases for every AdapterCore runtime");
-        require(Boolean.TRUE.equals(activation.get("catalogSummaryRoundTrip")),
-                "Command Center standalone adapter should preserve catalog behavior");
-        require(Boolean.TRUE.equals(activation.get("readinessRoundTrip")),
-                "Command Center standalone adapter should preserve readiness behavior");
-        require(Boolean.TRUE.equals(activation.get("localToolingRoundTrip")),
-                "Command Center standalone adapter should preserve local tooling behavior");
-        require(Boolean.TRUE.equals(activation.get("launcherMetadataRoundTrip")),
-                "Command Center standalone adapter should preserve launcher metadata behavior");
-        require(Boolean.TRUE.equals(activation.get("reportBundleRoundTrip")),
-                "Command Center standalone adapter should preserve report bundle behavior");
-
+        EchoPackCoreStandaloneAdapter packCore = new EchoPackCoreStandaloneAdapter();
+        Map<String, Object> activation = packCore.activate();
         @SuppressWarnings("unchecked")
-        Map<String, Object> probe = (Map<String, Object>) activation.get("referenceProbe");
-        require(Integer.valueOf(3).equals(probe.get("featureTotal"))
-                        && Integer.valueOf(2).equals(probe.get("implementedCount")),
-                "Command Center catalog contract should preserve feature summary counts");
-        require(Integer.valueOf(82).equals(probe.get("readinessScore"))
-                        && "mods-folder".equals(probe.get("nextActionId")),
-                "Command Center readiness contract should preserve score and next action priority");
-        require("configured".equals(probe.get("executorStatus"))
-                        && "echo".equals(probe.get("launcherProjectSlug"))
-                        && "adaptercore-domain-matrix".equals(probe.get("reportBundleId")),
-                "Command Center tooling contracts should preserve executor, launcher, and report identifiers");
+        Map<String, Object> loadPlan = (Map<String, Object>) activation.get("packLoadPlan");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> profile = (Map<String, Object>) loadPlan.get("profile");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> steps = (List<Map<String, Object>>) loadPlan.get("loadPlan");
 
-        requireEntry(bridge, EchoModpackCommandCenterStandaloneAdapter.CATALOG_CONTRACT_ID,
-                EchoAdapterCoreContentKind.DATA_COMPONENT, EchoAdapterCoreDomain.DATA, "commandcenter.data.catalog");
-        requireEntry(bridge, EchoModpackCommandCenterStandaloneAdapter.READINESS_CONTRACT_ID,
-                EchoAdapterCoreContentKind.DIAGNOSTIC, EchoAdapterCoreDomain.DIAGNOSTICS, "commandcenter.diagnostics.readiness");
-        requireEntry(bridge, EchoModpackCommandCenterStandaloneAdapter.LOCAL_TOOLING_CONTRACT_ID,
-                EchoAdapterCoreContentKind.COMMAND, EchoAdapterCoreDomain.COMMANDS, "commandcenter.commands.local_tooling");
-        requireEntry(bridge, EchoModpackCommandCenterStandaloneAdapter.LAUNCHER_METADATA_CONTRACT_ID,
-                EchoAdapterCoreContentKind.DATA_COMPONENT, EchoAdapterCoreDomain.PACKS, "commandcenter.packs.launcher_metadata");
-        requireEntry(bridge, EchoModpackCommandCenterStandaloneAdapter.REPORT_BUNDLE_CONTRACT_ID,
-                EchoAdapterCoreContentKind.DATA_COMPONENT, EchoAdapterCoreDomain.ASSETS, "commandcenter.assets.report_bundle");
-        System.out.println("commandcenter adaptercore parity smoke PASS contracts="
-                + EchoModpackCommandCenterStandaloneAdapter.CONTRACT_IDS.size());
+        require(Boolean.TRUE.equals(activation.get("activated")),
+                "PackCore modpack command-center adapter should activate");
+        require(Boolean.TRUE.equals(activation.get("packLoadPlanExecuted")),
+                "PackCore should execute the Ashfall load-plan contract");
+        require(packCore.referencePlanPassed(loadPlan),
+                "PackCore load-plan reference behavior should pass");
+        require(String.valueOf(profile.get("requiredModuleIds")).contains("echoreportcore")
+                        && String.valueOf(profile.get("requiredModuleIds")).contains("echoterminal"),
+                "Ashfall pack profile should route command-center diagnostics and terminal surfaces");
+        require(steps.stream().anyMatch(step -> "activate_player_surfaces".equals(step.get("id"))
+                        && String.valueOf(step.get("target")).contains("echoterminal")),
+                "PackCore load plan should activate command-center terminal surfaces");
+        require(steps.stream().anyMatch(step -> "emit_repair_preview".equals(step.get("id"))
+                        && Boolean.TRUE.equals(step.get("requiresConfirmation"))),
+                "PackCore command-center repair preview should remain confirmation-gated");
+
+        EchoAdapterCoreStandaloneContentBridge bridge = EchoAdapterCoreStandaloneContentBridge.ashfallLive();
+        Map<String, Object> reportCore = new EchoReportCoreStandaloneAdapter().activate(bridge);
+        require(Boolean.TRUE.equals(reportCore.get("activated")),
+                "ReportCore command-center diagnostics should activate through AdapterCore");
+        require(Boolean.TRUE.equals(reportCore.get("allRuntimeAliasesRegistered")),
+                "ReportCore command-center diagnostics should register every AdapterCore runtime alias");
+        require(Boolean.TRUE.equals(reportCore.get("supportBundleRoundTrip")),
+                "ReportCore command-center diagnostics should preserve support bundle behavior");
+        require(Boolean.TRUE.equals(reportCore.get("releaseReadinessRoundTrip")),
+                "ReportCore command-center diagnostics should preserve release readiness behavior");
+        requireEntry(bridge, EchoReportCoreStandaloneAdapter.SUPPORT_BUNDLE_CONTRACT_ID,
+                EchoAdapterCoreContentKind.DIAGNOSTIC, EchoAdapterCoreDomain.DIAGNOSTICS);
+        requireEntry(bridge, EchoReportCoreStandaloneAdapter.RELEASE_READINESS_CONTRACT_ID,
+                EchoAdapterCoreContentKind.DATA_COMPONENT, EchoAdapterCoreDomain.DATA);
+
+        System.out.println("modpack command center adaptercore parity smoke PASS pack="
+                + EchoPackCoreStandaloneAdapter.REFERENCE_PACK_ID
+                + " steps="
+                + steps.size()
+                + " reportContracts="
+                + EchoReportCoreStandaloneAdapter.CONTRACT_IDS.size());
     }
 
     private static void requireEntry(
             EchoAdapterCoreStandaloneContentBridge bridge,
             String contentId,
             EchoAdapterCoreContentKind contentKind,
-            EchoAdapterCoreDomain domain,
-            String adapterKey
+            EchoAdapterCoreDomain domain
     ) {
         EchoAdapterCoreRegistryEntry entry = bridge.registry().requireContentId(contentId);
         require(entry.contentKind() == contentKind,
                 contentId + " should use content kind " + contentKind);
         require(entry.domain() == domain,
                 contentId + " should use AdapterCore domain " + domain.id());
-        require(entry.binding().adapterKey().equals(adapterKey),
-                contentId + " should expose stable adapter key " + adapterKey);
         for (EchoAdapterCoreRuntimeKind runtimeKind : EchoAdapterCoreRuntimeKind.values()) {
             require(bridge.registry().findRuntimeId(runtimeKind, entry.idFor(runtimeKind)).isPresent(),
                     contentId + " has unregistered runtime alias " + runtimeKind.adapterId());

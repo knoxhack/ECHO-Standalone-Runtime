@@ -102,6 +102,11 @@ final class EchoClientModScanService {
             addIfDirectory(roots, echoRoot.resolve("src/main/resources"));
             addIfDirectory(roots, echoRoot.resolve("addons"));
             addIfDirectory(roots, echoRoot.resolve("core"));
+            addIfDirectory(roots, echoRoot.resolve("ECHO-Modules/addons"));
+            addIfDirectory(roots, echoRoot.resolve("ECHO-Modules/core"));
+        }
+        for (Path addonsRoot : EchoClientWorkspaceRoots.echoModuleAddonRoots()) {
+            addIfDirectory(roots, addonsRoot);
         }
         return List.copyOf(roots);
     }
@@ -154,6 +159,11 @@ final class EchoClientModScanService {
         for (Path echoRoot : EchoClientWorkspaceRoots.echoWorkspaceRoots()) {
             if (normalized.startsWith(echoRoot)) {
                 return echoRoot.relativize(normalized).toString().replace('\\', '/');
+            }
+        }
+        for (Path addonsRoot : EchoClientWorkspaceRoots.echoModuleAddonRoots()) {
+            if (normalized.startsWith(addonsRoot)) {
+                return addonsRoot.getFileName() + "/" + addonsRoot.relativize(normalized).toString().replace('\\', '/');
             }
         }
         for (Path runtimeRoot : EchoClientWorkspaceRoots.standaloneRuntimeRoots()) {

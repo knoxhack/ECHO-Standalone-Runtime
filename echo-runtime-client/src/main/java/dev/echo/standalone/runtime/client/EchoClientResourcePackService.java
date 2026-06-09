@@ -105,6 +105,10 @@ final class EchoClientResourcePackService {
             addIfDirectory(result, echoRoot.resolve("src/main/resources"));
             addModuleResourceRoots(result, echoRoot.resolve("core"));
             addModuleResourceRoots(result, echoRoot.resolve("addons"));
+            addModuleResourceRoots(result, echoRoot.resolve("ECHO-Modules/addons"));
+        }
+        for (Path addonsRoot : EchoClientWorkspaceRoots.echoModuleAddonRoots(launchAnchors)) {
+            addModuleResourceRoots(result, addonsRoot);
         }
         for (Path standaloneRoot : EchoClientWorkspaceRoots.standaloneRuntimeRoots(launchAnchors)) {
             addChildren(result, standaloneRoot.resolve("resourcepacks"));
