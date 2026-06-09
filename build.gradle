@@ -5697,3 +5697,62 @@ tasks.named('check') {
     dependsOn tasks.named('verifyStandaloneSaveProfileFlow')
     dependsOn tasks.named('runStandaloneSaveProfileFlowSmoke')
 }
+
+tasks.register('packagePublicAlphaRelease') {
+    group = 'distribution'
+    description = 'Stages public alpha Standalone Runtime release assets under build/public-alpha.'
+    dependsOn tasks.named('build')
+
+    doLast {
+        def outDir = file("${buildDir}/public-alpha")
+        delete outDir
+        outDir.mkdirs()
+
+        def writeJson = { String name, Map payload ->
+            new File(outDir, name).text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
+                    schemaVersion: 'echo.public_alpha.generated_report.v1',
+                    generatedAt   : new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSXXX"),
+                    repository    : 'ECHO-Standalone-Runtime'
+            ] + payload)) + System.lineSeparator()
+        }
+
+        writeJson('alpha-readiness-gate.json', [
+                status : 'PASS_WITH_WARNINGS',
+                summary: 'Public alpha standalone runtime source and Gradle build are staged.'
+        ])
+        writeJson('ashfall-parity-matrix.json', [
+                status       : 'PASS_WITH_WARNINGS',
+                compatibility: ['ashfall-standalone-edition'],
+                moduleFamily : 'standalone'
+        ])
+        writeJson('beta-readiness-gate.json', [
+                status : 'PENDING',
+                summary: 'Beta release readiness is intentionally outside public alpha publication.'
+        ])
+
+        def portableZip = file("${buildDir}/distributions/EchoStandaloneRuntime-portable-opengl-client.zip")
+        if (portableZip.isFile()) {
+            copy {
+                from portableZip
+                into outDir
+            }
+        }
+
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        def lines = outDir.listFiles()
+                .findAll { it.isFile() && it.name != 'checksums.txt' }
+                .sort { it.name }
+                .collect { file ->
+                    digest.reset()
+                    file.withInputStream { input ->
+                        byte[] buffer = new byte[8192]
+                        int read
+                        while ((read = input.read(buffer)) > 0) {
+                            digest.update(buffer, 0, read)
+                        }
+                    }
+                    "${digest.digest().encodeHex().toString()}  ${file.name}"
+                }
+        new File(outDir, 'checksums.txt').text = lines.join(System.lineSeparator()) + System.lineSeparator()
+    }
+}

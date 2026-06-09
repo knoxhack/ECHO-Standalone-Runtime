@@ -1,0 +1,7 @@
+.gradle/
+build/
+**/build/
+reports/
+saves/
+echo-standalone-runtime/
+
