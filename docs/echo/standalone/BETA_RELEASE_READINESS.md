@@ -10,8 +10,8 @@ The current standalone build is acceptable for beta tester handoff. The beta gat
 
 Evidence:
 
-- `..\gradlew.bat -p . check --console=plain`: PASS, 190 tasks, 142 executed, 48 up-to-date.
-- `..\gradlew.bat -p . runStandaloneFullWorkspaceBuildSmoke --console=plain`: PASS, parent `buildEchoWorkspace -PechoAddonSet=all`, 473 parent tasks, 20 executed, 453 up-to-date.
+- `.\gradlew.bat check --console=plain`: PASS, 190 tasks, 142 executed, 48 up-to-date.
+- `.\gradlew.bat runStandaloneFullWorkspaceBuildSmoke --console=plain`: PASS, parent `buildEchoWorkspace -PechoAddonSet=all`, 473 parent tasks, 20 executed, 453 up-to-date.
 - `reports/echo/standalone/beta-readiness-gate.json`: `READY_WITH_WARNINGS`, 0 blockers.
 - `reports/echo/standalone/packaged-exe-wallclock-smoke.json`: `PASS`, refreshed packaged OpenGL client image, `EchoClientMain` launch target, and 15/15 alive packaged-client probe samples.
 - `reports/echo/standalone/packaged-exe-wallclock-strict-rehearsal.json`: `PASS`, current OpenGL packaged EXE, 20/20 process samples, visible `ECHO Ashfall - Standalone Client` window, and no native mod-loader handoff.

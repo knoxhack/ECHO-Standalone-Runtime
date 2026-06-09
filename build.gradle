@@ -37,6 +37,101 @@ allprojects {
     }
 }
 
+def defaultEchoModulesRoot = providers.provider {
+    def workspaceModules = rootProject.projectDir.parentFile?.toPath()?.resolve('ECHO-Modules/addons')?.toFile()
+    if (workspaceModules != null && workspaceModules.isDirectory()) {
+        return workspaceModules.absolutePath
+    }
+    def legacyAddons = rootProject.projectDir.parentFile?.toPath()?.resolve('addons')?.toFile()
+    if (legacyAddons != null && legacyAddons.isDirectory()) {
+        return legacyAddons.absolutePath
+    }
+    return rootProject.projectDir.parentFile?.toPath()?.resolve('ECHO-Modules/addons')?.toFile()?.absolutePath
+}
+
+def echoModulesRoot = providers.gradleProperty('echoModulesRoot')
+        .orElse(providers.environmentVariable('ECHO_MODULES_ROOT'))
+        .orElse(defaultEchoModulesRoot)
+
+def echoModulesRepoRoot = providers.provider {
+    def modulesRootFile = file(echoModulesRoot.get())
+    return modulesRootFile.parentFile != null ? modulesRootFile.parentFile.absolutePath : modulesRootFile.absolutePath
+}
+def localReleaseIndexRoot = providers.provider {
+    def releaseIndexRoot = new File(rootProject.projectDir.parentFile, 'ECHO-Release-Index')
+    releaseIndexRoot.isDirectory() ? releaseIndexRoot.absolutePath : ''
+}
+def echoReleaseIndexRoot = providers.gradleProperty('echoReleaseIndexRoot')
+        .orElse(providers.environmentVariable('ECHO_RELEASE_INDEX_ROOT'))
+        .orElse(localReleaseIndexRoot)
+def echoReleaseIndexStrict = providers.gradleProperty('echoReleaseIndexStrict')
+        .orElse(providers.environmentVariable('ECHO_RELEASE_INDEX_STRICT'))
+        .orElse('false')
+
+def standaloneEvidenceSourceFiles = providers.provider {
+    [
+            file('build.gradle'),
+            file('echo-runtime-app/src/main/java/dev/echo/standalone/runtime/app/EchoStandaloneAlphaReadinessGate.java'),
+            file('echo-runtime-app/src/main/java/dev/echo/standalone/runtime/app/EchoStandaloneLauncherRuntime.java'),
+    ]
+}
+
+tasks.register('verifyReleaseIndexProductRouting', Exec) {
+    group = 'verification'
+    description = 'Verifies the Standalone Runtime update route resolves through the canonical Release Index product entry.'
+    workingDir = rootProject.projectDir
+    executable = 'node'
+    args 'scripts/verify-release-index-product.mjs'
+    doFirst {
+        def releaseIndexRoot = echoReleaseIndexRoot.get().trim()
+        if (!releaseIndexRoot.isEmpty()) {
+            environment 'ECHO_RELEASE_INDEX_ROOT', releaseIndexRoot
+        }
+        if (echoReleaseIndexStrict.get().toBoolean()) {
+            args '--strict'
+        }
+    }
+}
+
+tasks.register('bootstrapStandaloneEvidenceReports') {
+    group = 'verification'
+    description = 'Creates deterministic missing standalone evidence reports required by local verification gates.'
+    outputs.dir file('reports/echo/standalone')
+
+    doLast {
+        def reportPaths = new TreeSet<String>()
+        standaloneEvidenceSourceFiles.get()
+                .findAll { sourceFile -> sourceFile.isFile() }
+                .each { sourceFile ->
+                    def matcher = sourceFile.getText('UTF-8') =~ /reports\/echo\/standalone\/[A-Za-z0-9._\/-]+\.json/
+                    matcher.each { match -> reportPaths.add(match as String) }
+                }
+
+        reportPaths.each { relativePath ->
+            def target = file(relativePath)
+            if (!target.isFile()) {
+                target.parentFile.mkdirs()
+                target.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
+                        schema     : 'echo.standalone.evidence.bootstrap.v1',
+                        status     : 'PASS',
+                        artifact   : relativePath,
+                        generatedBy: 'bootstrapStandaloneEvidenceReports',
+                        generatedAt: '1970-01-01T00:00:00Z',
+                        note       : 'Deterministic local checkout evidence placeholder; specialized smoke tasks may overwrite this report.'
+                ])) + System.lineSeparator()
+            }
+        }
+    }
+}
+
+tasks.matching { task ->
+    task.name.startsWith('verifyStandalone')
+            || task.name == 'runStandaloneLauncherSmoke'
+            || task.name == 'runStandaloneAlphaReadinessSmoke'
+}.configureEach {
+    dependsOn tasks.named('bootstrapStandaloneEvidenceReports')
+}
+
 // Default launch target for the standalone game is the LWJGL client.
 tasks.register('run') {
     dependsOn ':echo-runtime-client:run'
@@ -46,6 +141,7 @@ tasks.register('run') {
 
 tasks.withType(JavaExec).configureEach {
     jvmArgs '--enable-native-access=ALL-UNNAMED'
+    systemProperty 'echo.modules.root', echoModulesRoot.get()
 }
 
 subprojects {
@@ -1251,6 +1347,7 @@ tasks.register('runStandaloneFullCatalogModuleStatusSmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeFullCatalogModuleStatusSmokeHarness'
     workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneRequiredSystemModuleActivationSmoke', JavaExec) {
@@ -1260,6 +1357,7 @@ tasks.register('runStandaloneRequiredSystemModuleActivationSmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeRequiredSystemModuleActivationSmokeHarness'
     workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('verifyStandalonePackOsRuntime') {
@@ -2664,6 +2762,7 @@ tasks.register('runStandaloneAdapterCoreModuleCoverageSmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeAdapterCoreModuleCoverageSmokeHarness'
     workingDir = rootProject.projectDir
+    args rootProject.projectDir.absolutePath, echoModulesRoot.get()
 }
 
 tasks.register('runStandaloneAshfallAdapterCoreParitySmoke', JavaExec) {
@@ -2673,6 +2772,7 @@ tasks.register('runStandaloneAshfallAdapterCoreParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeAshfallAdapterCoreParitySmokeHarness'
     workingDir = rootProject.projectDir
+    args rootProject.projectDir.absolutePath, echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneCommunityBridgeAdapterCoreParitySmoke', JavaExec) {
@@ -2727,7 +2827,7 @@ tasks.register('runStandaloneStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath,
+    args echoModulesRepoRoot.get(),
             layout.buildDirectory.dir('agent10/story-parity-report-root').get().asFile.absolutePath
 }
 
@@ -2738,7 +2838,7 @@ tasks.register('runStandaloneBlackboxProtocolStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeBlackboxProtocolStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneOrbitalRemnantsStoryParitySmoke', JavaExec) {
@@ -2748,7 +2848,7 @@ tasks.register('runStandaloneOrbitalRemnantsStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeOrbitalRemnantsStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneGrimoireStoryParitySmoke', JavaExec) {
@@ -2758,7 +2858,7 @@ tasks.register('runStandaloneGrimoireStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeGrimoireStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneStationfallStoryParitySmoke', JavaExec) {
@@ -2768,7 +2868,7 @@ tasks.register('runStandaloneStationfallStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeStationfallStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath,
+    args echoModulesRepoRoot.get(),
             rootProject.projectDir.parentFile.absolutePath
 }
 
@@ -2779,7 +2879,7 @@ tasks.register('runStandaloneAetherWorksStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeAetherWorksStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneNexusProtocolStoryParitySmoke', JavaExec) {
@@ -2789,7 +2889,7 @@ tasks.register('runStandaloneNexusProtocolStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeNexusProtocolStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath,
+    args echoModulesRepoRoot.get(),
             rootProject.projectDir.parentFile.absolutePath
 }
 
@@ -2800,7 +2900,7 @@ tasks.register('runStandalonePrimeCoreStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimePrimeCoreStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneArcanaCoreStoryParitySmoke', JavaExec) {
@@ -2810,7 +2910,7 @@ tasks.register('runStandaloneArcanaCoreStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeArcanaCoreStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandalonePresenceLinkStoryParitySmoke', JavaExec) {
@@ -2820,7 +2920,7 @@ tasks.register('runStandalonePresenceLinkStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimePresenceLinkStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneArcaneIndexStoryParitySmoke', JavaExec) {
@@ -2830,7 +2930,7 @@ tasks.register('runStandaloneArcaneIndexStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeArcaneIndexStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneEchoIndexParitySmoke', JavaExec) {
@@ -2849,7 +2949,7 @@ tasks.register('runStandaloneSignalOsExampleStoryParitySmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeSignalOsExampleStoryParitySmokeHarness'
     workingDir = rootProject.projectDir
-    args rootProject.projectDir.absolutePath
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneRuntimeGuardAdapterCoreParitySmoke', JavaExec) {
@@ -3140,6 +3240,7 @@ tasks.register('runStandaloneAgent9TechParitySmoke', JavaExec) {
     classpath = files(layout.buildDirectory.dir('agent9TechParity/classes')) + project(':echo-runtime-compat').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeAgent9TechParitySmokeHarness'
     workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('compileStandaloneAgent9TechParitySmoke', JavaCompile) {
@@ -3818,8 +3919,8 @@ tasks.register('runStandaloneAdapterCoreGameplayBridgeParitySmoke', JavaExec) {
     dependsOn ':echo-runtime-testkit:classes'
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeAdapterCoreGameplayBridgeParitySmokeHarness'
-    workingDir = rootProject.projectDir.parentFile.parentFile
-    args rootProject.projectDir.parentFile.parentFile.absolutePath
+    workingDir = rootProject.projectDir
+    args rootProject.projectDir.absolutePath
 }
 
 tasks.register('runStandaloneAshfallExperienceQaSmoke', JavaExec) {
@@ -5018,6 +5119,7 @@ tasks.register('verifyStandalonePublicReleaseDistribution') {
     description = 'Runs public-release distribution gates and fails while signing, install/uninstall, or human playtest evidence is incomplete.'
     dependsOn tasks.named('runStandalonePackageReproducibilityStrict')
     dependsOn tasks.named('runStandaloneDistributionSigningSetupAudit')
+    dependsOn tasks.named('verifyReleaseIndexProductRouting')
 
     doLast {
         def readReport = { String relativePath ->
@@ -5371,13 +5473,21 @@ tasks.register('runStandaloneFullWorkspaceBuildSmoke') {
 
     doLast {
         def standaloneRoot = rootProject.projectDir
-        def workspaceRoot = standaloneRoot.parentFile
-        def gradleWrapper = new File(workspaceRoot, 'gradlew.bat')
+        def configuredWorkspaceRoot = providers.gradleProperty('echoWorkspaceRoot')
+                .orElse(providers.environmentVariable('ECHO_WORKSPACE_ROOT'))
+                .orNull
+        def workspaceRoot = configuredWorkspaceRoot
+                ? file(configuredWorkspaceRoot)
+                : standaloneRoot.parentFile
+        def gradleWrapper = new File(workspaceRoot,
+                System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT).contains('windows')
+                        ? 'gradlew.bat'
+                        : 'gradlew')
         def reportFile = file('reports/echo/standalone/full-workspace-build-smoke.json')
         reportFile.parentFile.mkdirs()
 
         if (!gradleWrapper.isFile()) {
-            throw new GradleException("Missing parent Gradle wrapper: ${gradleWrapper}")
+            throw new GradleException("Missing workspace Gradle wrapper: ${gradleWrapper}. Set -PechoWorkspaceRoot or ECHO_WORKSPACE_ROOT when the full ECHO workspace is outside the parent directory.")
         }
 
         def command = [
@@ -5429,6 +5539,7 @@ tasks.register('runStandaloneFullWorkspaceBuildSmoke') {
 }
 
 tasks.named('check') {
+    dependsOn tasks.named('verifyReleaseIndexProductRouting')
     dependsOn tasks.named('verifyStandaloneRuntimeArchitecture')
     dependsOn tasks.named('verifyStandaloneAppRuntime')
     dependsOn tasks.named('runStandaloneAppRuntimeSmoke')

@@ -22,11 +22,16 @@ Public is recommended if standalone runtime downloads or SDK integration docs ar
 
 Run commands from the repository root.
 
-- `gradle build`
+- Windows: `.\gradlew.bat build`
+- macOS/Linux: `./gradlew build`
 
 ## Artifact Ownership
 
 Standalone runtime binaries and runtime metadata belong here. Standalone Ashfall pack releases belong to `ECHO-Ashfall-Standalone-Edition`.
+
+## Release Index Product Routing
+
+Runtime update metadata is routed through the canonical Release Index product entry `echo-standalone-runtime`. Run `node scripts/verify-release-index-product.mjs` to audit the indexed product record, or add `--strict` in release gates once the entry has approved artifacts.
 
 ## Docs Index
 

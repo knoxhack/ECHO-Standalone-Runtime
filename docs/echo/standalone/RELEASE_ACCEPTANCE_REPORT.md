@@ -10,7 +10,7 @@ Agent 5 accepts the current standalone runtime for beta tester handoff. There ar
 
 ## Evidence
 
-- Full standalone check: PASS, `..\gradlew.bat -p . check --console=plain`.
+- Full standalone check: PASS, `.\gradlew.bat check --console=plain`.
 - Full workspace build smoke: PASS, `buildEchoWorkspace -PechoAddonSet=all`.
 - Beta readiness gate: `READY_WITH_WARNINGS`, 91 checks, 0 blockers, 3 accepted warnings.
 - AdapterCore parity: PASS, 373 parity rows, save contract backed and versioned.

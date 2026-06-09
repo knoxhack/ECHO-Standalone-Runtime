@@ -11,7 +11,7 @@ Phase 15.2 moves the standalone runtime past headless-only smoke execution by ad
 - `EchoRenderWindowLifecycleController` coordinates lifecycle operations through the backend.
 - `EchoWindowedRuntimeApplication` and `EchoWindowedRuntime` boot the app runtime in `windowed-dev` mode and drive the window lifecycle through the app crash boundary.
 - `EchoRuntimeBootContext.windowed(...)` and `EchoRuntimeBootContext.windowedCrashSmoke(...)` provide normal and fault-injected boot paths.
-- `EchoRuntimeMain --windowed [workspaceRoot]` remains the Phase 15.2 deterministic window-lifecycle smoke path. The current player-facing OpenGL client launches with `..\gradlew.bat -p . :echo-runtime-client:run --console=plain --no-problems-report`.
+- `EchoRuntimeMain --windowed [workspaceRoot]` remains the Phase 15.2 deterministic window-lifecycle smoke path. The current player-facing OpenGL client launches with `.\gradlew.bat :echo-runtime-client:run --console=plain --no-problems-report`.
 
 ## Window Flow
 
