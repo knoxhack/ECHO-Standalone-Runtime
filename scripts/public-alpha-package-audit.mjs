@@ -64,8 +64,18 @@ requireIncludes(
 )
 requireIncludes(
   'README.md',
+  '--check-urls',
+  'live Release Index artifact URL verification documentation'
+)
+requireIncludes(
+  'README.md',
   'Release Public Alpha',
   'public alpha release workflow documentation'
+)
+requireIncludes(
+  'scripts/verify-release-index-product.mjs',
+  "process.argv.includes('--check-urls')",
+  'live URL check flag'
 )
 
 if (errors.length) {

@@ -33,7 +33,7 @@ Standalone runtime binaries and runtime metadata belong here. Standalone Ashfall
 
 ## Release Index Product Routing
 
-Runtime update metadata is routed through the canonical Release Index product entry `echo-standalone-runtime`. Run `node scripts/verify-release-index-product.mjs` to audit the indexed product record, or add `--strict` in release gates once the entry has approved artifacts. The public alpha archive must be uploaded as `echo-standalone-runtime-0.1.0-alpha.zip` so the Release Index can approve the exact `archive` artifact.
+Runtime update metadata is routed through the canonical Release Index product entry `echo-standalone-runtime`. Run `node scripts/verify-release-index-product.mjs` to audit the indexed product record, add `--check-urls` to prove indexed GitHub artifact URLs are reachable, or add `--strict` in release gates once the entry has approved artifacts. The public alpha archive must be uploaded as `echo-standalone-runtime-0.1.0-alpha.zip` so the Release Index can approve the exact `archive` artifact.
 
 ## Docs Index
 
