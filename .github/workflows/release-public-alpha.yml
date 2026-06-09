@@ -30,11 +30,19 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: knoxhack/ECHO-Modules
+          path: ECHO-Modules
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 25
       - name: Stage public alpha release assets
+        env:
+          ECHO_MODULES_ROOT: ${{ github.workspace }}\ECHO-Modules
         run: .\gradlew.bat packagePublicAlphaRelease --console=plain
       - name: Attest public alpha checksums
         uses: actions/attest@v4
