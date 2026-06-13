@@ -71,7 +71,9 @@ The Phase 14.11 smoke harness proves:
 - item save hook writes summary and inventory files.
 - the resulting save manifest tracks item files.
 - the save corruption checker reports the item save as healthy.
-- `runStandaloneRegistryAssetCoverageAudit` now verifies mounted item models/textures for the live AdapterCore item registry; current coverage has 70 of 70 item models and 70 item rows with at least one texture present.
+- `runStandaloneRegistryAssetCoverageAudit` now verifies mounted item models/textures for the live AdapterCore item registry; current coverage audits 70 item rows and proves 70 item models, 70 item rows with at least one texture present, and 70 item language keys.
+
+It also writes concrete non-placeholder evidence to `runtime-item.json`, `item-definitions.json`, `inventory-containers.json`, `inventory-stacks.json`, `inventory-transfers.json`, `item-consumption.json`, `item-crafting.json`, `item-loot.json`, `item-tooltips.json`, and `item-save-hooks.json`. `verifyStandaloneItemRuntime` regenerates that evidence, rejects bootstrap schemas, and requires concrete `PASS` fields for service binding, debug and native item definitions, player/crash-cache containers, stack counts, merge/move/split/swap/quick-move transfers, water consumption, patched-filter crafting, deterministic loot, AdapterCore native loot bridging, tooltip feedback, and item save manifest/corruption coverage.
 
 ## Out Of Scope
 

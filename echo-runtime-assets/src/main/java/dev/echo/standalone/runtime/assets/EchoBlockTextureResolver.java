@@ -63,6 +63,9 @@ public final class EchoBlockTextureResolver {
         Map<String, Integer> faceTintIndices = faceTintIndices(scan.elementFaceTintIndices());
         List<EchoBlockModelElement> modelElementDefinitions =
                 modelElementDefinitions(scan.rawModelElements(), scan.textures());
+        if (modelElementDefinitions.isEmpty()) {
+            modelElementDefinitions = templateModelElementDefinitions(scan);
+        }
         Optional<EchoBlockModelBounds> modelBounds = scan.modelBounds()
                 .or(() -> defaultBoundsForTemplate(scan.templateKind()))
                 .or(() -> Optional.of(EchoBlockModelBounds.fullCube()));
@@ -838,6 +841,10 @@ public final class EchoBlockTextureResolver {
         if (scan == null || scan.templateKind().isEmpty()) {
             return List.of();
         }
+        String kind = scan.templateKind().orElse("");
+        if ("campfire".equals(kind)) {
+            return campfireTemplateElementDefinitions(scan.textures());
+        }
         Optional<EchoBlockModelBounds> bounds = defaultBoundsForTemplate(scan.templateKind())
                 .or(() -> fullCubeCompositeTemplate(scan.templateKind())
                         ? Optional.of(EchoBlockModelBounds.fullCube())
@@ -861,10 +868,63 @@ public final class EchoBlockTextureResolver {
         ));
     }
 
+    private static List<EchoBlockModelElement> campfireTemplateElementDefinitions(
+            Map<String, TextureReference> textures
+    ) {
+        String logTexture = resolveTemplateTexture(textures, "log", "lit_log", "all", "side", "particle")
+                .orElse("");
+        String fireTexture = resolveTemplateTexture(textures, "fire", "lit_log", "log", "all", "particle")
+                .orElse(logTexture);
+        ArrayList<EchoBlockModelElement> elements = new ArrayList<>();
+        elements.add(templateElement(new EchoBlockModelBounds(1.0D, 0.0D, 1.0D, 15.0D, 4.0D, 4.0D), logTexture));
+        elements.add(templateElement(new EchoBlockModelBounds(1.0D, 0.0D, 12.0D, 15.0D, 4.0D, 15.0D), logTexture));
+        elements.add(templateElement(new EchoBlockModelBounds(1.0D, 0.0D, 4.0D, 4.0D, 4.0D, 12.0D), logTexture));
+        elements.add(templateElement(new EchoBlockModelBounds(12.0D, 0.0D, 4.0D, 15.0D, 4.0D, 12.0D), logTexture));
+        elements.add(templateElement(new EchoBlockModelBounds(7.0D, 2.0D, 3.0D, 9.0D, 16.0D, 13.0D), fireTexture));
+        elements.add(templateElement(new EchoBlockModelBounds(3.0D, 2.0D, 7.0D, 13.0D, 16.0D, 9.0D), fireTexture));
+        return List.copyOf(elements);
+    }
+
+    private static Optional<String> resolveTemplateTexture(
+            Map<String, TextureReference> textures,
+            String... keys
+    ) {
+        if (textures == null || textures.isEmpty() || keys == null) {
+            return Optional.empty();
+        }
+        for (String key : keys) {
+            if (key == null || key.isBlank()) {
+                continue;
+            }
+            Optional<String> textureId = resolveTextureKey(textures, key, new LinkedHashSet<>());
+            if (textureId.isPresent()) {
+                return textureId;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static EchoBlockModelElement templateElement(EchoBlockModelBounds bounds, String textureId) {
+        String safeTextureId = textureId == null ? "" : textureId;
+        LinkedHashMap<String, String> textures = new LinkedHashMap<>();
+        for (String face : List.of("up", "down", "north", "south", "east", "west")) {
+            textures.put(face, safeTextureId);
+        }
+        return new EchoBlockModelElement(
+                bounds,
+                textures,
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Optional.empty()
+        );
+    }
+
     private static boolean fullCubeCompositeTemplate(Optional<String> templateKind) {
         return templateKind
                 .map(kind -> switch (kind) {
-                    case "cube_all", "cube", "cube_column", "orientable" -> true;
+                    case "cube_all", "cube", "cube_column", "orientable", "leaves" -> true;
                     default -> false;
                 })
                 .orElse(false);
@@ -1246,6 +1306,17 @@ public final class EchoBlockTextureResolver {
         }
         return switch (templateKind) {
             case "cross", "tinted_cross" -> List.of("cross", "all", "particle");
+            case "crop" -> List.of("crop", "cross", "texture", "all", "particle");
+            case "bush" -> List.of("texture", "cross", "all", "particle");
+            case "leaves" -> List.of("all", "texture", normalizedFace, "side", "particle");
+            case "cactus" -> vertical
+                    ? List.of(faceAlias(normalizedFace), normalizedFace, "all", "side", "particle")
+                    : List.of("side", normalizedFace, "all", "particle");
+            case "campfire" -> List.of("fire", "lit_log", "log", "all", normalizedFace, "particle");
+            case "block" -> List.of("all", "texture", "base", "detail", normalizedFace, "side", "particle");
+            case "thin_block" -> vertical
+                    ? List.of("top", normalizedFace, "all", "texture", "side", "particle")
+                    : List.of("side", normalizedFace, "all", "texture", "particle");
             case "fence_post", "fence_side", "fence_inventory" ->
                     List.of("texture", "all", "side", normalizedFace, "particle");
             case "pane_post", "pane_side", "pane_side_alt", "pane_noside", "pane_noside_alt" -> vertical
@@ -1253,6 +1324,12 @@ public final class EchoBlockTextureResolver {
                     : List.of("pane", "texture", "all", "side", "edge", normalizedFace, "particle");
             case "trapdoor_bottom", "trapdoor_top", "trapdoor_open" ->
                     List.of("texture", "all", "side", normalizedFace, "particle");
+            case "button", "button_pressed", "button_inventory" ->
+                    List.of("texture", "all", "side", normalizedFace, "particle");
+            case "pressure_plate_up", "pressure_plate_down",
+                    "weighted_pressure_plate_up", "weighted_pressure_plate_down" ->
+                    List.of("texture", "all", "side", normalizedFace, "particle");
+            case "carpet" -> List.of("wool", "texture", "all", "side", normalizedFace, "particle");
             case "wall_post", "wall_side", "wall_side_tall", "wall_inventory" ->
                     List.of("wall", "all", "side", normalizedFace, "particle");
             case "slab", "slab_top", "stairs", "inner_stairs", "outer_stairs" -> vertical
@@ -1319,12 +1396,25 @@ public final class EchoBlockTextureResolver {
         }
         return switch (templateKind) {
             case "cross", "tinted_cross" -> new String[]{"cross", "all", "particle"};
+            case "crop" -> new String[]{"crop", "cross", "texture", "all", "particle"};
+            case "bush" -> new String[]{"texture", "cross", "all", "particle"};
+            case "leaves" -> new String[]{"all", "texture", "side", "particle"};
+            case "cactus" -> new String[]{"all", "side", "top", "bottom", "particle"};
+            case "campfire" -> new String[]{"fire", "lit_log", "log", "all", "particle"};
+            case "block" -> new String[]{"all", "texture", "base", "detail", "side", "particle"};
+            case "thin_block" -> new String[]{"top", "side", "all", "texture", "particle"};
             case "fence_post", "fence_side", "fence_inventory" ->
                     new String[]{"texture", "all", "side", "particle"};
             case "pane_post", "pane_side", "pane_side_alt", "pane_noside", "pane_noside_alt" ->
                     new String[]{"pane", "texture", "all", "side", "edge", "particle"};
             case "trapdoor_bottom", "trapdoor_top", "trapdoor_open" ->
                     new String[]{"texture", "all", "side", "particle"};
+            case "button", "button_pressed", "button_inventory" ->
+                    new String[]{"texture", "all", "side", "particle"};
+            case "pressure_plate_up", "pressure_plate_down",
+                    "weighted_pressure_plate_up", "weighted_pressure_plate_down" ->
+                    new String[]{"texture", "all", "side", "particle"};
+            case "carpet" -> new String[]{"wool", "texture", "all", "side", "particle"};
             case "wall_post", "wall_side", "wall_side_tall", "wall_inventory" ->
                     new String[]{"wall", "all", "side", "particle"};
             case "slab", "slab_top", "stairs", "inner_stairs", "outer_stairs" ->
@@ -1351,6 +1441,21 @@ public final class EchoBlockTextureResolver {
             case "block/orientable" -> Optional.of("orientable");
             case "block/cross" -> Optional.of("cross");
             case "block/tinted_cross" -> Optional.of("tinted_cross");
+            case "block/crop" -> Optional.of("crop");
+            case "block/bush" -> Optional.of("bush");
+            case "block/leaves" -> Optional.of("leaves");
+            case "block/cactus" -> Optional.of("cactus");
+            case "block/template_campfire" -> Optional.of("campfire");
+            case "block/block" -> Optional.of("block");
+            case "block/thin_block" -> Optional.of("thin_block");
+            case "block/button" -> Optional.of("button");
+            case "block/button_pressed" -> Optional.of("button_pressed");
+            case "block/button_inventory" -> Optional.of("button_inventory");
+            case "block/pressure_plate_up" -> Optional.of("pressure_plate_up");
+            case "block/pressure_plate_down" -> Optional.of("pressure_plate_down");
+            case "block/weighted_pressure_plate_up" -> Optional.of("weighted_pressure_plate_up");
+            case "block/weighted_pressure_plate_down" -> Optional.of("weighted_pressure_plate_down");
+            case "block/carpet", "block/moss_carpet" -> Optional.of("carpet");
             case "block/slab" -> Optional.of("slab");
             case "block/slab_top" -> Optional.of("slab_top");
             case "block/stairs" -> Optional.of("stairs");
@@ -1386,6 +1491,18 @@ public final class EchoBlockTextureResolver {
         return switch (kind) {
             case "slab" -> Optional.of(new EchoBlockModelBounds(0.0D, 0.0D, 0.0D, 16.0D, 8.0D, 16.0D));
             case "slab_top" -> Optional.of(new EchoBlockModelBounds(0.0D, 8.0D, 0.0D, 16.0D, 16.0D, 16.0D));
+            case "button", "button_inventory" ->
+                    Optional.of(new EchoBlockModelBounds(5.0D, 6.0D, 14.0D, 11.0D, 10.0D, 16.0D));
+            case "button_pressed" ->
+                    Optional.of(new EchoBlockModelBounds(5.0D, 6.0D, 15.0D, 11.0D, 10.0D, 16.0D));
+            case "pressure_plate_up", "weighted_pressure_plate_up" ->
+                    Optional.of(new EchoBlockModelBounds(1.0D, 0.0D, 1.0D, 15.0D, 1.0D, 15.0D));
+            case "pressure_plate_down", "weighted_pressure_plate_down" ->
+                    Optional.of(new EchoBlockModelBounds(1.0D, 0.0D, 1.0D, 15.0D, 0.5D, 15.0D));
+            case "carpet" -> Optional.of(new EchoBlockModelBounds(0.0D, 0.0D, 0.0D, 16.0D, 1.0D, 16.0D));
+            case "cactus" -> Optional.of(new EchoBlockModelBounds(1.0D, 0.0D, 1.0D, 15.0D, 16.0D, 15.0D));
+            case "campfire" -> Optional.of(EchoBlockModelBounds.fullCube());
+            case "thin_block" -> Optional.of(new EchoBlockModelBounds(0.0D, 0.0D, 0.0D, 16.0D, 2.0D, 16.0D));
             case "trapdoor_bottom" -> Optional.of(new EchoBlockModelBounds(0.0D, 0.0D, 0.0D, 16.0D, 3.0D, 16.0D));
             case "trapdoor_top" -> Optional.of(new EchoBlockModelBounds(0.0D, 13.0D, 0.0D, 16.0D, 16.0D, 16.0D));
             default -> Optional.empty();
@@ -1902,7 +2019,21 @@ public final class EchoBlockTextureResolver {
         }
 
         public boolean resolved() {
-            return textureId.isPresent();
+            return textureId.isPresent() || hasTexturedModelElementDefinitions();
+        }
+
+        private boolean hasTexturedModelElementDefinitions() {
+            for (EchoBlockModelElement element : modelElementDefinitions) {
+                if (element == null || element.textureIdsByFace().isEmpty()) {
+                    continue;
+                }
+                for (String texture : element.textureIdsByFace().values()) {
+                    if (texture != null && !texture.isBlank()) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         public Optional<String> textureNamespace() {

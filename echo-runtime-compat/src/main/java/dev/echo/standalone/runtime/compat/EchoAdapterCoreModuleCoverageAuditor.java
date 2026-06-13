@@ -242,17 +242,27 @@ public final class EchoAdapterCoreModuleCoverageAuditor {
             addIfContains(domains, normalized, EchoAdapterCoreDomain.ITEMS, "item", "inventory", "content");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.INVENTORY, "inventory", "hotbar", "container");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.ENTITIES, "entity", "npc", "creature", "villager");
+            addIfContains(domains, normalized, EchoAdapterCoreDomain.CREATURES, "creature", "spawn_egg");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.RECIPES, "recipe", "crafting");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.LOOT, "loot");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.STRUCTURES, "structure", "ruin", "poi");
+            addIfContains(domains, normalized, EchoAdapterCoreDomain.BIOMES, "biome");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.UI_SCREENS,
                     "ui.", "ui_", "screen", "terminal", "hud", "holomap", "wiki", "guide", "notification");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.UI_OVERLAYS, "ui.overlays", "ui_overlays", "overlay", "hud");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.SOUNDS, "sound", "audio", "music");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.MISSIONS, "mission", "quest", "objective", "tutorial");
+            addIfContains(domains, normalized, EchoAdapterCoreDomain.PROGRESSION,
+                    "progression", "unlock", "milestone", "first_hour");
+            addIfContains(domains, normalized, EchoAdapterCoreDomain.PLAYTESTS,
+                    "playtest", "acceptance");
+            addIfContains(domains, normalized, EchoAdapterCoreDomain.TUTORIALS,
+                    "tutorial", "onboarding", "first_hour");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.SAVES, "save", "recovery", "profile", "player.data");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.WORLDGEN,
                     "world", "weather", "biome", "hazard", "region", "spawn", "teleport");
+            addIfContains(domains, normalized, EchoAdapterCoreDomain.WAYSTONES,
+                    "waystone", "waypoint", "teleport");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.NETWORKING, "network", "net", "payload");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.COMMANDS, "command");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.DIAGNOSTICS,
@@ -270,6 +280,8 @@ public final class EchoAdapterCoreModuleCoverageAuditor {
             addIfContains(domains, normalized, EchoAdapterCoreDomain.PACKS, "pack.", "pack_", "pack.read", "pack.profile");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.THEMES, "theme", "palette", "skin");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.WIKI, "wiki", "codex", "guide_book");
+            addIfContains(domains, normalized, EchoAdapterCoreDomain.INDEX,
+                    "index", "catalog", "reference", "lookup");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.ASSETS, "asset", "texture", "resource");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.DATA, "data", "schema", "validation", "metadata");
             addIfContains(domains, normalized, EchoAdapterCoreDomain.RENDERING,

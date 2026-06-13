@@ -29,7 +29,9 @@ record EchoClientRuntimeDiagnosticsSnapshot(
         int droppedItemPhysicsBlockLookups,
         int droppedItemPhysicsChunkIndexBuilds,
         int machineBlockEntities,
-        EchoClientRenderDiagnosticsSnapshot renderDiagnostics
+        EchoClientRenderDiagnosticsSnapshot renderDiagnostics,
+        EchoClientFramePacingSnapshot framePacing,
+        EchoClientAudioDiagnosticsSnapshot audioDiagnostics
 ) {
     static final EchoClientRuntimeDiagnosticsSnapshot EMPTY = new EchoClientRuntimeDiagnosticsSnapshot(
             false,
@@ -55,7 +57,9 @@ record EchoClientRuntimeDiagnosticsSnapshot(
             0,
             0,
             0,
-            EchoClientRenderDiagnosticsSnapshot.EMPTY
+            EchoClientRenderDiagnosticsSnapshot.EMPTY,
+            EchoClientFramePacingSnapshot.EMPTY,
+            EchoClientAudioDiagnosticsSnapshot.EMPTY
     );
 
     EchoClientRuntimeDiagnosticsSnapshot {
@@ -84,26 +88,113 @@ record EchoClientRuntimeDiagnosticsSnapshot(
         renderDiagnostics = renderDiagnostics == null
                 ? EchoClientRenderDiagnosticsSnapshot.EMPTY
                 : renderDiagnostics;
+        framePacing = framePacing == null
+                ? EchoClientFramePacingSnapshot.EMPTY
+                : framePacing;
+        audioDiagnostics = audioDiagnostics == null
+                ? EchoClientAudioDiagnosticsSnapshot.EMPTY
+                : audioDiagnostics;
         activeWorld = activeWorld && !slotId.isBlank();
     }
 
     static EchoClientRuntimeDiagnosticsSnapshot from(EchoClientWorldSession worldSession) {
-        return from(worldSession, EchoClientRenderDiagnosticsSnapshot.EMPTY);
+        return from(
+                worldSession,
+                EchoClientRenderDiagnosticsSnapshot.EMPTY,
+                EchoClientFramePacingSnapshot.EMPTY,
+                EchoClientAudioDiagnosticsSnapshot.EMPTY
+        );
     }
 
     static EchoClientRuntimeDiagnosticsSnapshot from(
             EchoClientWorldSession worldSession,
             EchoClientRenderer renderer
     ) {
-        return from(worldSession, EchoClientRenderDiagnosticsSnapshot.from(renderer));
+        return from(
+                worldSession,
+                EchoClientRenderDiagnosticsSnapshot.from(renderer),
+                EchoClientFramePacingSnapshot.EMPTY,
+                EchoClientAudioDiagnosticsSnapshot.EMPTY
+        );
+    }
+
+    static EchoClientRuntimeDiagnosticsSnapshot from(
+            EchoClientWorldSession worldSession,
+            EchoClientRenderer renderer,
+            EchoClientFramePacingSnapshot framePacing
+    ) {
+        return from(
+                worldSession,
+                EchoClientRenderDiagnosticsSnapshot.from(renderer),
+                framePacing,
+                EchoClientAudioDiagnosticsSnapshot.EMPTY
+        );
+    }
+
+    static EchoClientRuntimeDiagnosticsSnapshot from(
+            EchoClientWorldSession worldSession,
+            EchoClientRenderer renderer,
+            EchoClientFramePacingSnapshot framePacing,
+            EchoClientAudioDiagnosticsSnapshot audioDiagnostics
+    ) {
+        return from(worldSession, EchoClientRenderDiagnosticsSnapshot.from(renderer), framePacing, audioDiagnostics);
     }
 
     static EchoClientRuntimeDiagnosticsSnapshot from(
             EchoClientWorldSession worldSession,
             EchoClientRenderDiagnosticsSnapshot renderDiagnostics
     ) {
+        return from(
+                worldSession,
+                renderDiagnostics,
+                EchoClientFramePacingSnapshot.EMPTY,
+                EchoClientAudioDiagnosticsSnapshot.EMPTY
+        );
+    }
+
+    static EchoClientRuntimeDiagnosticsSnapshot from(
+            EchoClientWorldSession worldSession,
+            EchoClientRenderDiagnosticsSnapshot renderDiagnostics,
+            EchoClientFramePacingSnapshot framePacing
+    ) {
+        return from(worldSession, renderDiagnostics, framePacing, EchoClientAudioDiagnosticsSnapshot.EMPTY);
+    }
+
+    static EchoClientRuntimeDiagnosticsSnapshot from(
+            EchoClientWorldSession worldSession,
+            EchoClientRenderDiagnosticsSnapshot renderDiagnostics,
+            EchoClientFramePacingSnapshot framePacing,
+            EchoClientAudioDiagnosticsSnapshot audioDiagnostics
+    ) {
         if (worldSession == null || worldSession.gameSession() == null) {
-            return EMPTY;
+            return new EchoClientRuntimeDiagnosticsSnapshot(
+                    false,
+                    "",
+                    "",
+                    0,
+                    0,
+                    "",
+                    "",
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    renderDiagnostics,
+                    framePacing,
+                    audioDiagnostics
+            );
         }
         EchoClientGameSession session = worldSession.gameSession();
         EchoVoxelPlayerState player = session.player().state();
@@ -131,13 +222,19 @@ record EchoClientRuntimeDiagnosticsSnapshot(
                 session.droppedItemPhysicsBlockLookupCount(),
                 session.droppedItemPhysicsChunkIndexBuildCount(),
                 session.machineStateSnapshot().blockEntities().size(),
-                renderDiagnostics
+                renderDiagnostics,
+                framePacing,
+                audioDiagnostics
         );
     }
 
     List<String> lines() {
         if (!activeWorld) {
-            return List.of("World: No active world");
+            ArrayList<String> lines = new ArrayList<>();
+            lines.add("World: No active world");
+            lines.add(framePacing.diagnosticsLine());
+            lines.addAll(audioDiagnostics.lines());
+            return List.copyOf(lines);
         }
         ArrayList<String> lines = new ArrayList<>();
         lines.add("World Slot: " + slotId);
@@ -158,6 +255,8 @@ record EchoClientRuntimeDiagnosticsSnapshot(
                 + " Work " + droppedItemPhysicsDropWork
                 + " Lookups " + droppedItemPhysicsBlockLookups
                 + " Chunk Indexes " + droppedItemPhysicsChunkIndexBuilds);
+        lines.add(framePacing.diagnosticsLine());
+        lines.addAll(audioDiagnostics.lines());
         lines.add(renderDiagnostics.rendererLine());
         lines.add(renderDiagnostics.atlasLine());
         lines.add("Machines: Block Entities " + machineBlockEntities);

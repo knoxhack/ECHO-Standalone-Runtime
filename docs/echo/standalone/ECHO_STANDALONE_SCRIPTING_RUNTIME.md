@@ -81,6 +81,8 @@ The Phase 14.16 smoke harness proves:
 - hydration is not consumed by the recommendation rule.
 - diagnostics are deterministic and contain no errors.
 
+The harness also writes concrete non-placeholder evidence to the Phase 14.16 scripting reports under `reports/echo/standalone`. `verifyStandaloneScriptingRuntime` regenerates those reports, rejects bootstrap schemas, and requires PASS evidence for service binding, declarative-only sandbox limits, rule registration and trigger routing, matched conditions, applied actions, validation, execution side effects, diagnostics, and scripting boundary checks.
+
 ## Out Of Scope
 
 Phase 14.16 does not:

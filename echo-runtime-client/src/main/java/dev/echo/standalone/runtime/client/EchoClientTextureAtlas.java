@@ -52,6 +52,7 @@ final class EchoClientTextureAtlas {
     private final Map<String, String> modelTemplatesByBlockId = new HashMap<>();
     private final Map<String, Integer> modelXRotationsByBlockId = new HashMap<>();
     private final Map<String, Integer> modelYRotationsByBlockId = new HashMap<>();
+    private final Map<String, Boolean> modelUvLocksByBlockId = new HashMap<>();
     private final Map<String, EchoBlockTextureResolution> blockTextureResolutionsByLookupKey = new HashMap<>();
     private final Map<String, ByteBuffer> resourcePackTilesByLogicalId = new HashMap<>();
     private final Set<String> loggedModelTextureBlocks = new HashSet<>();
@@ -68,6 +69,7 @@ final class EchoClientTextureAtlas {
         blockTextureResolutionsByLookupKey.clear();
         resourcePackTilesByLogicalId.clear();
         loggedModelTextureBlocks.clear();
+        modelUvLocksByBlockId.clear();
         blockTextureResolutionCacheHitCount = 0;
         resourcePackTileDecodeCount = 0;
         resourcePackTileCacheHitCount = 0;
@@ -214,7 +216,17 @@ final class EchoClientTextureAtlas {
                 : direction;
         EchoVoxelMeshDirection modelDirection = modelFaceForElementMetadata(face, safeDirection, element);
         int rotation = element.uvRotationDegreesForFace(faceName(modelDirection));
-        return rotation != 0 ? rotation : uvRotationDegrees(face, safeDirection);
+        if (rotation == 0) {
+            return uvRotationDegrees(face, safeDirection);
+        }
+        if (!modelUvLocked(face)) {
+            rotation += blockRotationUvDegrees(
+                    safeDirection,
+                    face == null ? 0 : modelXRotationDegrees(face),
+                    face == null ? 0 : modelYRotationDegrees(face)
+            );
+        }
+        return normalizeModelRotation(rotation);
     }
 
     int tintIndex(EchoVoxelMeshFace face, EchoVoxelMeshDirection direction) {
@@ -284,7 +296,7 @@ final class EchoClientTextureAtlas {
             EchoBlockModelElement element
     ) {
         EchoVoxelMeshDirection safeDirection = modelDirection == null ? EchoVoxelMeshDirection.UP : modelDirection;
-        if (element == null || element.rotation().isPresent()) {
+        if (element == null) {
             return safeDirection;
         }
         int xRotation = face == null ? 0 : modelXRotationDegrees(face);
@@ -384,7 +396,10 @@ final class EchoClientTextureAtlas {
 
     boolean crossModel(EchoVoxelMeshFace face) {
         String templateKind = modelTemplateKind(face);
-        return "cross".equals(templateKind) || "tinted_cross".equals(templateKind);
+        return "cross".equals(templateKind)
+                || "tinted_cross".equals(templateKind)
+                || "crop".equals(templateKind)
+                || "bush".equals(templateKind);
     }
 
     boolean stairModel(EchoVoxelMeshFace face) {
@@ -423,6 +438,13 @@ final class EchoClientTextureAtlas {
         return "trapdoor_bottom".equals(templateKind)
                 || "trapdoor_top".equals(templateKind)
                 || "trapdoor_open".equals(templateKind);
+    }
+
+    boolean buttonModel(EchoVoxelMeshFace face) {
+        String templateKind = modelTemplateKind(face);
+        return "button".equals(templateKind)
+                || "button_pressed".equals(templateKind)
+                || "button_inventory".equals(templateKind);
     }
 
     boolean doorModel(EchoVoxelMeshFace face) {
@@ -572,6 +594,7 @@ final class EchoClientTextureAtlas {
             modelTemplatesByBlockId.put(blockLookupKey, plan.templateKind());
             modelXRotationsByBlockId.put(blockLookupKey, plan.xRotationDegrees());
             modelYRotationsByBlockId.put(blockLookupKey, plan.yRotationDegrees());
+            modelUvLocksByBlockId.put(blockLookupKey, plan.uvLock());
             for (EchoVoxelMeshDirection direction : EchoVoxelMeshDirection.values()) {
                 int uvRotationDegrees = plan.uvRotationDegrees(direction);
                 if (uvRotationDegrees != 0) {
@@ -594,6 +617,9 @@ final class EchoClientTextureAtlas {
             }
             for (EchoBlockModelElement element : plan.modelElementDefinitions()) {
                 for (String textureId : element.textureIdsByFace().values()) {
+                    if (textureId == null || textureId.isBlank()) {
+                        continue;
+                    }
                     String atlasKey = textureAtlasKey(textureId);
                     requests.putIfAbsent(atlasKey, new TileRequest(
                             atlasKey,
@@ -726,7 +752,7 @@ final class EchoClientTextureAtlas {
                         resolution.xRotationDegrees(),
                         resolution.yRotationDegrees()
                 );
-                int uvRotationDegrees = resolution.uvRotationDegreesForFace(faceName(modelDirection));
+                int uvRotationDegrees = plannedFaceUvRotation(resolution, direction, modelDirection);
                 if (uvRotationDegrees != 0) {
                     uvRotations.put(direction, uvRotationDegrees);
                 }
@@ -737,11 +763,13 @@ final class EchoClientTextureAtlas {
                     atlasKeys.put(direction, textureAtlasKey(textureId));
                 });
             }
+            boolean planResolved = !textureIds.isEmpty()
+                    || hasTexturedModelElementDefinitions(resolution.modelElementDefinitions());
             return new BlockRenderPlan(
                     safeRequest.blockId(),
                     safeRequest.stateProperties(),
                     safeRequest.baseAtlasKey(),
-                    !textureIds.isEmpty(),
+                    planResolved,
                     resolution.modelId().orElse(""),
                     resolution.templateKind().orElse(""),
                     textureIds,
@@ -755,11 +783,28 @@ final class EchoClientTextureAtlas {
                     resolution.modelBoundsOrFullCube(),
                     resolution.modelElements(),
                     resolution.modelElementDefinitions(),
-                    textureIds.isEmpty() ? "model has no face textures" : ""
+                    planResolved ? "" : "model has no face textures"
             );
         } catch (IOException | IllegalArgumentException exception) {
             return BlockRenderPlan.unresolved(safeRequest, exception.getMessage());
         }
+    }
+
+    private static boolean hasTexturedModelElementDefinitions(List<EchoBlockModelElement> modelElementDefinitions) {
+        if (modelElementDefinitions == null || modelElementDefinitions.isEmpty()) {
+            return false;
+        }
+        for (EchoBlockModelElement element : modelElementDefinitions) {
+            if (element == null || element.textureIdsByFace().isEmpty()) {
+                continue;
+            }
+            for (String textureId : element.textureIdsByFace().values()) {
+                if (textureId != null && !textureId.isBlank()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private ByteBuffer loadTextureId(String textureId) {
@@ -882,8 +927,13 @@ final class EchoClientTextureAtlas {
             return 0;
         }
         try {
-            return resolveBlockTexture(blockId, stateProperties)
-                    .uvRotationDegreesForFace(faceName(direction));
+            EchoBlockTextureResolution resolution = resolveBlockTexture(blockId, stateProperties);
+            EchoVoxelMeshDirection modelDirection = modelFaceForBlockRotation(
+                    direction,
+                    resolution.xRotationDegrees(),
+                    resolution.yRotationDegrees()
+            );
+            return plannedFaceUvRotation(resolution, direction, modelDirection);
         } catch (IOException | IllegalArgumentException exception) {
             return 0;
         }
@@ -1143,6 +1193,142 @@ final class EchoClientTextureAtlas {
         };
     }
 
+    private boolean modelUvLocked(EchoVoxelMeshFace face) {
+        if (face == null) {
+            return false;
+        }
+        String blockId = blockId(face);
+        if (blockId.isBlank()) {
+            return false;
+        }
+        String lookupKey = blockLookupKey(blockId, face.material().stateProperties());
+        Boolean locked = modelUvLocksByBlockId.get(lookupKey);
+        if (locked != null) {
+            return locked;
+        }
+        try {
+            locked = resolveBlockTexture(blockId, face.material().stateProperties()).uvLock();
+            modelUvLocksByBlockId.put(lookupKey, locked);
+            return locked;
+        } catch (IOException | IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    private static int plannedFaceUvRotation(
+            EchoBlockTextureResolution resolution,
+            EchoVoxelMeshDirection worldDirection,
+            EchoVoxelMeshDirection modelDirection
+    ) {
+        if (resolution == null || worldDirection == null || modelDirection == null) {
+            return 0;
+        }
+        int rotation = resolution.uvRotationDegreesForFace(faceName(modelDirection));
+        if (!resolution.uvLock()) {
+            rotation += blockRotationUvDegrees(
+                    worldDirection,
+                    resolution.xRotationDegrees(),
+                    resolution.yRotationDegrees()
+            );
+        }
+        return normalizeModelRotation(rotation);
+    }
+
+    private static int blockRotationUvDegrees(
+            EchoVoxelMeshDirection worldDirection,
+            int xRotationDegrees,
+            int yRotationDegrees
+    ) {
+        int xRotation = normalizeModelRotation(xRotationDegrees);
+        int yRotation = normalizeModelRotation(yRotationDegrees);
+        if (xRotation == 0 && yRotation == 0) {
+            return 0;
+        }
+        EchoVoxelMeshDirection safeWorldDirection =
+                worldDirection == null ? EchoVoxelMeshDirection.UP : worldDirection;
+        EchoVoxelMeshDirection modelDirection = modelFaceForBlockRotation(
+                safeWorldDirection,
+                xRotation,
+                yRotation
+        );
+        int[][] modelBasis = faceUvBasis(modelDirection);
+        int[][] worldBasis = faceUvBasis(safeWorldDirection);
+        int[] desiredU = rotateUvVector(modelBasis[0], xRotation, yRotation);
+        int[] desiredV = rotateUvVector(modelBasis[1], xRotation, yRotation);
+        return relativeUvRotationDegrees(worldBasis[0], worldBasis[1], desiredU, desiredV);
+    }
+
+    private static int[][] faceUvBasis(EchoVoxelMeshDirection direction) {
+        EchoVoxelMeshDirection safeDirection = direction == null ? EchoVoxelMeshDirection.UP : direction;
+        return switch (safeDirection) {
+            case UP -> new int[][]{new int[]{0, 0, 1}, new int[]{1, 0, 0}};
+            case DOWN -> new int[][]{new int[]{1, 0, 0}, new int[]{0, 0, 1}};
+            case NORTH -> new int[][]{new int[]{-1, 0, 0}, new int[]{0, 1, 0}};
+            case SOUTH -> new int[][]{new int[]{1, 0, 0}, new int[]{0, 1, 0}};
+            case EAST -> new int[][]{new int[]{0, 0, -1}, new int[]{0, 1, 0}};
+            case WEST -> new int[][]{new int[]{0, 0, 1}, new int[]{0, 1, 0}};
+        };
+    }
+
+    private static int[] rotateUvVector(int[] vector, int xRotationDegrees, int yRotationDegrees) {
+        int[] afterX = rotateUvVectorX(vector, xRotationDegrees);
+        return rotateUvVectorY(afterX, yRotationDegrees);
+    }
+
+    private static int[] rotateUvVectorX(int[] vector, int degrees) {
+        int[] safeVector = vector == null || vector.length < 3 ? new int[]{0, 0, 0} : vector;
+        int x = safeVector[0];
+        int y = safeVector[1];
+        int z = safeVector[2];
+        return switch (normalizeModelRotation(degrees)) {
+            case 90 -> new int[]{x, -z, y};
+            case 180 -> new int[]{x, -y, -z};
+            case 270 -> new int[]{x, z, -y};
+            default -> new int[]{x, y, z};
+        };
+    }
+
+    private static int[] rotateUvVectorY(int[] vector, int degrees) {
+        int[] safeVector = vector == null || vector.length < 3 ? new int[]{0, 0, 0} : vector;
+        int x = safeVector[0];
+        int y = safeVector[1];
+        int z = safeVector[2];
+        return switch (normalizeModelRotation(degrees)) {
+            case 90 -> new int[]{-z, y, x};
+            case 180 -> new int[]{-x, y, -z};
+            case 270 -> new int[]{z, y, -x};
+            default -> new int[]{x, y, z};
+        };
+    }
+
+    private static int relativeUvRotationDegrees(int[] worldU, int[] worldV, int[] desiredU, int[] desiredV) {
+        if (sameVector(desiredU, worldU) && sameVector(desiredV, worldV)) {
+            return 0;
+        }
+        if (sameVector(desiredU, worldV) && sameVector(desiredV, negateVector(worldU))) {
+            return 90;
+        }
+        if (sameVector(desiredU, negateVector(worldU)) && sameVector(desiredV, negateVector(worldV))) {
+            return 180;
+        }
+        if (sameVector(desiredU, negateVector(worldV)) && sameVector(desiredV, worldU)) {
+            return 270;
+        }
+        return 0;
+    }
+
+    private static int[] negateVector(int[] vector) {
+        int[] safeVector = vector == null || vector.length < 3 ? new int[]{0, 0, 0} : vector;
+        return new int[]{-safeVector[0], -safeVector[1], -safeVector[2]};
+    }
+
+    private static boolean sameVector(int[] left, int[] right) {
+        if (left == null || right == null || left.length < 3 || right.length < 3) {
+            return false;
+        }
+        return left[0] == right[0] && left[1] == right[1] && left[2] == right[2];
+    }
+
     private static String blockId(EchoVoxelMeshFace face) {
         String materialId = face.material().materialId();
         String prefix = "voxel:block/";
@@ -1235,7 +1421,7 @@ final class EchoClientTextureAtlas {
                     ? List.of()
                     : List.copyOf(modelElementDefinitions);
             missingReason = missingReason == null ? "" : missingReason.trim();
-            if (textureIdsByDirection.isEmpty()) {
+            if (textureIdsByDirection.isEmpty() && !hasTexturedModelElementDefinitions(modelElementDefinitions)) {
                 resolved = false;
             }
         }

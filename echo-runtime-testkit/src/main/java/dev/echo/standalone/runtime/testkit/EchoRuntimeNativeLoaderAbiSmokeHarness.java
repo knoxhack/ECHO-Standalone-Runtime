@@ -1,10 +1,12 @@
 package dev.echo.standalone.runtime.testkit;
 
+import dev.echo.nativeplatform.contracts.EchoNativeServiceRegistry;
 import dev.echo.standalone.runtime.app.EchoRuntimeLogBridge;
 import dev.echo.standalone.runtime.contracts.EchoRuntimeDiagnosticSink;
 import dev.echo.standalone.runtime.core.EchoDefaultRuntimeServiceRegistry;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleLifecycle;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleContentActivationRegistry;
+import dev.echo.standalone.runtime.modules.EchoRuntimeModuleDataRegistry;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleLifecycleBus;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleLifecycleEvent;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleManager;
@@ -40,6 +42,8 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         Path deniedRegistryAccessModule = fixtureRoot.resolve("denied-registry-access-addon");
         Path unknownPermissionModule = fixtureRoot.resolve("unknown-permission-addon");
         Path classPathEscapeModule = fixtureRoot.resolve("classpath-escape-addon");
+        Path siblingClassPathEscapeModule = fixtureRoot.resolve("sibling-classpath-escape-addon");
+        Path absoluteClassPathEscapeModule = fixtureRoot.resolve("absolute-classpath-escape-addon");
         Path incompatibleModule = fixtureRoot.resolve("incompatible-addon");
         Path serviceProviderModule = fixtureRoot.resolve("service-provider-addon");
         Path serviceConsumerModule = fixtureRoot.resolve("service-consumer-addon");
@@ -51,6 +55,10 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         Path cycleAModule = fixtureRoot.resolve("cycle-a-addon");
         Path cycleBModule = fixtureRoot.resolve("cycle-b-addon");
         Path adapterCoreModule = fixtureRoot.resolve("adaptercore-addon");
+        Path dependencyProviderModule = fixtureRoot.resolve("dependency-provider-addon");
+        Path dependencyConsumerModule = fixtureRoot.resolve("dependency-consumer-addon");
+        Path surfaceModule = fixtureRoot.resolve("surface-native-addon");
+        Path legacyNativeModule = fixtureRoot.resolve("legacy-native-addon");
 
         writeDescriptor(fixtureRoot.resolve("echo-core/META-INF/echo.runtime.json"), """
                 {
@@ -86,7 +94,7 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                   "optional": [],
                   "provides": ["echoabi:field_generator"],
                   "consumes": ["echo:services"],
-                  "permissions": ["content.register", "services.export"],
+                  "permissions": ["content.register", "services.export", "client.config", "assets.read", "data.persistence"],
                   "classPath": ["classes"],
                   "entrypoint": "fixture.live.FieldGeneratorEntrypoint",
                   "access": {"services": true}
@@ -266,6 +274,54 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                   "access": {"services": true}
                 }
                 """);
+        Files.createDirectories(liveModule.resolve("assets/echoabi"));
+        Files.writeString(
+                liveModule.resolve("assets/echoabi/runtime_marker.txt"),
+                "runtime marker",
+                StandardCharsets.UTF_8
+        );
+        writeDescriptor(siblingClassPathEscapeModule.resolve("META-INF/echo.mod.json"), """
+                {
+                  "schema": "echo.runtime.module.v1",
+                  "id": "echoabi-sibling-classpath-escape",
+                  "name": "ECHO ABI Sibling Classpath Escape Fixture",
+                  "version": "1.0.0",
+                  "kind": "addon",
+                  "side": "both",
+                  "trust": "sandboxed",
+                  "official": false,
+                  "standalone": true,
+                  "requires": ["echo-core"],
+                  "requiresVersions": {"echo-core": "[1.0.0,2.0.0)"},
+                  "optional": [],
+                  "provides": ["echoabi:sibling_classpath_escape"],
+                  "consumes": ["echo:services"],
+                  "classPath": ["../live-addon/classes"],
+                  "entrypoint": "fixture.escape.ClassPathEscapeEntrypoint",
+                  "access": {"services": true}
+                }
+                """);
+        writeDescriptor(absoluteClassPathEscapeModule.resolve("META-INF/echo.mod.json"), """
+                {
+                  "schema": "echo.runtime.module.v1",
+                  "id": "echoabi-absolute-classpath-escape",
+                  "name": "ECHO ABI Absolute Classpath Escape Fixture",
+                  "version": "1.0.0",
+                  "kind": "addon",
+                  "side": "both",
+                  "trust": "sandboxed",
+                  "official": false,
+                  "standalone": true,
+                  "requires": ["echo-core"],
+                  "requiresVersions": {"echo-core": "[1.0.0,2.0.0)"},
+                  "optional": [],
+                  "provides": ["echoabi:absolute_classpath_escape"],
+                  "consumes": ["echo:services"],
+                  "classPath": ["%s"],
+                  "entrypoint": "fixture.escape.ClassPathEscapeEntrypoint",
+                  "access": {"services": true}
+                }
+                """.formatted(escapeJson(liveModule.resolve("classes").toAbsolutePath().normalize().toString())));
         writeDescriptor(incompatibleModule.resolve("META-INF/echo.mod.json"), """
                 {
                   "schema": "echo.runtime.module.v1",
@@ -515,6 +571,97 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                   "access": {"services": true}
                 }
                 """);
+        writeDescriptor(dependencyProviderModule.resolve("META-INF/echo.mod.json"), """
+                {
+                  "schema": "echo.runtime.module.v1",
+                  "id": "echoabi-dependency-provider",
+                  "name": "ECHO ABI Dependency Class Provider Fixture",
+                  "version": "1.0.0",
+                  "kind": "addon",
+                  "side": "both",
+                  "trust": "sandboxed",
+                  "official": false,
+                  "standalone": true,
+                  "requires": ["echo-core"],
+                  "requiresVersions": {"echo-core": "[1.0.0,2.0.0)"},
+                  "optional": [],
+                  "provides": ["echoabi:dependency_class"],
+                  "consumes": ["echo:services"],
+                  "classPath": ["classes"],
+                  "entrypoint": "fixture.dependency.ProviderEntrypoint",
+                  "access": {"services": true}
+                }
+                """);
+        writeDescriptor(dependencyConsumerModule.resolve("META-INF/echo.mod.json"), """
+                {
+                  "schema": "echo.runtime.module.v1",
+                  "id": "echoabi-dependency-consumer",
+                  "name": "ECHO ABI Dependency Class Consumer Fixture",
+                  "version": "1.0.0",
+                  "kind": "addon",
+                  "side": "both",
+                  "trust": "sandboxed",
+                  "official": false,
+                  "standalone": true,
+                  "requires": ["echo-core", "echoabi-dependency-provider"],
+                  "requiresVersions": {
+                    "echo-core": "[1.0.0,2.0.0)",
+                    "echoabi-dependency-provider": "[1.0.0,2.0.0)"
+                  },
+                  "optional": [],
+                  "provides": ["echoabi:dependency_consumer"],
+                  "consumes": ["echo:services", "echoabi:dependency_class"],
+                  "classPath": ["classes"],
+                  "entrypoint": "fixture.dependency.ConsumerEntrypoint",
+                  "access": {"services": true}
+                }
+                """);
+        writeDescriptor(surfaceModule.resolve("META-INF/echo.mod.json"), """
+                {
+                  "schema": "echo.runtime.module.v1",
+                  "id": "echoabi-surface-native",
+                  "name": "ECHO ABI Surface Native Fixture",
+                  "version": "1.0.0",
+                  "kind": "addon",
+                  "side": "both",
+                  "trust": "sandboxed",
+                  "official": false,
+                  "standalone": true,
+                  "requires": ["echo-core"],
+                  "requiresVersions": {"echo-core": "[1.0.0,2.0.0)"},
+                  "optional": [],
+                  "provides": ["echoabi:surface_native"],
+                  "consumes": ["echo:services"],
+                  "access": {
+                    "nativeEntrypoint": "fixture.surface.SurfaceNativeEntrypoint",
+                    "nativeClasspath": ["classes"],
+                    "services": true
+                  }
+                }
+                """);
+        writeDescriptor(legacyNativeModule.resolve("META-INF/echo.mod.json"), """
+                {
+                  "schema": "echo.runtime.module.v1",
+                  "id": "echoabi-legacy-native",
+                  "name": "ECHO ABI Legacy Native Bootstrap Fixture",
+                  "version": "1.0.0",
+                  "kind": "addon",
+                  "side": "both",
+                  "trust": "sandboxed",
+                  "official": false,
+                  "standalone": true,
+                  "requires": ["echo-core"],
+                  "requiresVersions": {"echo-core": "[1.0.0,2.0.0)"},
+                  "optional": [],
+                  "provides": ["echoabi:legacy_native"],
+                  "consumes": ["echo:services"],
+                  "access": {
+                    "nativeEntrypoint": "fixture.legacy.LegacyNativeEntrypoint",
+                    "nativeClasspath": ["classes"],
+                    "services": true
+                  }
+                }
+                """);
 
         compileSource(liveModule.resolve("classes"), "fixture/live/FieldGeneratorEntrypoint.java", """
                 package fixture.live;
@@ -543,12 +690,16 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                                 new ActivatedContent(context.descriptor().id(), "echoabi:field_generator")
                         );
                         ledger.recordServiceExport(export.serviceId());
+                        context.publishConfig("field.generator.mode", "standalone");
+                        context.registerAsset("echoabi:asset/runtime_marker", "assets/echoabi/runtime_marker.txt");
+                        context.writeSaveData("field.generator.seed", "42");
                     }
 
                     @Override
                     public void onDataReload(EchoRuntimeModuleContext context) {
                         context.requireService(ModuleActivationLedger.class)
                                 .record(context.descriptor().id(), "reload");
+                        context.writeSaveData("field.generator.reload", "true");
                     }
 
                     @Override
@@ -1007,6 +1158,123 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                     }
                 }
                 """);
+        compileSource(dependencyProviderModule.resolve("classes"), "fixture/dependency/SharedDependency.java", """
+                package fixture.dependency;
+
+                public final class SharedDependency {
+                    private SharedDependency() {
+                    }
+
+                    public static String message() {
+                        return "from-provider-classloader";
+                    }
+                }
+                """);
+        compileSource(dependencyProviderModule.resolve("classes"), "fixture/dependency/ProviderEntrypoint.java", """
+                package fixture.dependency;
+
+                import dev.echo.standalone.runtime.modules.EchoRuntimeModuleContext;
+                import dev.echo.standalone.runtime.modules.EchoRuntimeModuleEntrypoint;
+                import dev.echo.standalone.runtime.testkit.EchoRuntimeNativeLoaderAbiSmokeHarness.ModuleActivationLedger;
+
+                public final class ProviderEntrypoint implements EchoRuntimeModuleEntrypoint {
+                    @Override
+                    public void onLoad(EchoRuntimeModuleContext context) {
+                        context.requireService(ModuleActivationLedger.class)
+                                .record(context.descriptor().id(), "load:" + SharedDependency.message());
+                    }
+
+                    @Override
+                    public void onDataReload(EchoRuntimeModuleContext context) {
+                        context.requireService(ModuleActivationLedger.class)
+                                .record(context.descriptor().id(), "reload");
+                    }
+
+                    @Override
+                    public void onUnload(EchoRuntimeModuleContext context) {
+                        context.requireService(ModuleActivationLedger.class)
+                                .record(context.descriptor().id(), "unload");
+                    }
+                }
+                """);
+        compileSource(
+                dependencyConsumerModule.resolve("classes"),
+                "fixture/dependency/ConsumerEntrypoint.java",
+                """
+                        package fixture.dependency;
+
+                        import dev.echo.standalone.runtime.modules.EchoRuntimeModuleContext;
+                        import dev.echo.standalone.runtime.modules.EchoRuntimeModuleEntrypoint;
+                        import dev.echo.standalone.runtime.testkit.EchoRuntimeNativeLoaderAbiSmokeHarness.ModuleActivationLedger;
+
+                        public final class ConsumerEntrypoint implements EchoRuntimeModuleEntrypoint {
+                            @Override
+                            public void onLoad(EchoRuntimeModuleContext context) {
+                                context.requireService(ModuleActivationLedger.class)
+                                        .record(context.descriptor().id(), "load:" + SharedDependency.message());
+                            }
+
+                            @Override
+                            public void onDataReload(EchoRuntimeModuleContext context) {
+                                context.requireService(ModuleActivationLedger.class)
+                                        .record(context.descriptor().id(), "reload");
+                            }
+
+                            @Override
+                            public void onUnload(EchoRuntimeModuleContext context) {
+                                context.requireService(ModuleActivationLedger.class)
+                                        .record(context.descriptor().id(), "unload");
+                            }
+                        }
+                        """,
+                List.of(dependencyProviderModule.resolve("classes"))
+        );
+        compileSource(surfaceModule.resolve("classes"), "fixture/surface/SurfaceNativeEntrypoint.java", """
+                package fixture.surface;
+
+                import dev.echo.nativeplatform.contracts.EchoNativeSurfaceModuleEntrypoint;
+
+                import java.util.LinkedHashMap;
+                import java.util.List;
+                import java.util.Map;
+
+                public final class SurfaceNativeEntrypoint implements EchoNativeSurfaceModuleEntrypoint {
+                    @Override
+                    public Map<String, Object> describeNativeSurfaces(Map<String, String> context) {
+                        Map<String, Object> activation = new LinkedHashMap<>();
+                        activation.put("activated", true);
+                        activation.put("activationStage", "surface_native_contract_active");
+                        activation.put("adapterCoreUsed", true);
+                        activation.put("nativeAdapterCodeExecuted", true);
+                        activation.put("serviceCodeExecuted", true);
+                        activation.put("moduleId", context.getOrDefault("moduleId", "echoabi-surface-native"));
+                        activation.put("registeredFeatureContracts", List.of("echoabi:surface/native_contract"));
+                        activation.put("logicalRegistrationCount", 1);
+                        activation.put("adapterDomains", List.of("diagnostics", "data"));
+                        activation.put("runtimeTargets", List.of("echo_runtime_standalone"));
+                        return Map.copyOf(activation);
+                    }
+                }
+                """);
+        compileSource(legacyNativeModule.resolve("classes"), "fixture/legacy/LegacyNativeEntrypoint.java", """
+                package fixture.legacy;
+
+                public final class LegacyNativeEntrypoint {
+                    private boolean bootstrapped;
+
+                    public String moduleId() {
+                        return "echoabi-legacy-native";
+                    }
+
+                    public void bootstrap() {
+                        bootstrapped = true;
+                    }
+
+                    public boolean bootstrapped() {
+                        return bootstrapped;
+                    }
+                }
+                """);
 
         EchoDefaultRuntimeServiceRegistry services = new EchoDefaultRuntimeServiceRegistry();
         EchoRuntimeLogBridge diagnostics = new EchoRuntimeLogBridge();
@@ -1020,6 +1288,7 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         EchoRuntimeModuleManager manager = EchoRuntimeModuleManager.executableAbiV1();
         EchoRuntimeModuleRuntimeResult result = manager.run(List.of(fixtureRoot), services);
         EchoRuntimeModuleRegistry registry = result.registry();
+        EchoNativeServiceRegistry nativeServiceRegistry = services.require(EchoNativeServiceRegistry.class);
 
         require(EchoRuntimeModuleDescriptorSchema.SCHEMA_ID.equals("echo.runtime.module.v1"),
                 "descriptor schema id should remain locked to echo.runtime.module.v1");
@@ -1050,7 +1319,13 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         require(registry.find("echoabi-field-generator")
                         .orElseThrow()
                         .permissions()
-                        .equals(List.of("content.register", "services.export")),
+                        .equals(List.of(
+                                "assets.read",
+                                "client.config",
+                                "content.register",
+                                "data.persistence",
+                                "services.export"
+                        )),
                 "descriptor parser should bind ABI permissions");
         require(registry.lifecycle("echoabi-field-generator") == EchoRuntimeModuleLifecycle.READY,
                 "live non-core addon should reach READY");
@@ -1070,6 +1345,10 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 "unknown-permission addon should fail before execution");
         require(registry.lifecycle("echoabi-classpath-escape") == EchoRuntimeModuleLifecycle.FAILED,
                 "classpath escape addon should fail before classloader activation");
+        require(registry.lifecycle("echoabi-sibling-classpath-escape") == EchoRuntimeModuleLifecycle.FAILED,
+                "sibling classpath escape addon should fail before classloader activation");
+        require(registry.lifecycle("echoabi-absolute-classpath-escape") == EchoRuntimeModuleLifecycle.FAILED,
+                "absolute classpath escape addon should fail before classloader activation");
         require(registry.lifecycle("echoabi-incompatible-core") == EchoRuntimeModuleLifecycle.FAILED,
                 "incompatible dependency addon should fail during dependency resolution");
         require(registry.lifecycle("echoabi-service-provider") == EchoRuntimeModuleLifecycle.READY,
@@ -1086,6 +1365,14 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 "unload crash addon should reach READY before unload");
         require(registry.lifecycle("echoabi-adaptercore-addon") == EchoRuntimeModuleLifecycle.READY,
                 "AdapterCore entrypoint addon should reach READY");
+        require(registry.lifecycle("echoabi-dependency-provider") == EchoRuntimeModuleLifecycle.READY,
+                "dependency class provider should reach READY");
+        require(registry.lifecycle("echoabi-dependency-consumer") == EchoRuntimeModuleLifecycle.READY,
+                "dependency class consumer should reach READY by resolving provider classes through declared dependencies");
+        require(registry.lifecycle("echoabi-surface-native") == EchoRuntimeModuleLifecycle.READY,
+                "surface native entrypoint should reach READY");
+        require(registry.lifecycle("echoabi-legacy-native") == EchoRuntimeModuleLifecycle.READY,
+                "legacy native bootstrap entrypoint should reach READY");
         require(registry.lifecycle("echoabi-denied-service-export") == EchoRuntimeModuleLifecycle.FAILED,
                 "permission-denied service exporter should fail without crashing the loader");
         require(registry.lifecycle("echoabi-cycle-a") == EchoRuntimeModuleLifecycle.FAILED,
@@ -1126,6 +1413,10 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 "unknown-permission fixture should not execute its entrypoint");
         require(ledger.events("echoabi-classpath-escape").isEmpty(),
                 "classpath escape fixture should not execute its entrypoint");
+        require(ledger.events("echoabi-sibling-classpath-escape").isEmpty(),
+                "sibling classpath escape fixture should not execute its entrypoint");
+        require(ledger.events("echoabi-absolute-classpath-escape").isEmpty(),
+                "absolute classpath escape fixture should not execute its entrypoint");
         require(ledger.events("echoabi-incompatible-core").isEmpty(),
                 "incompatible dependency fixture should not execute its entrypoint");
         require(ledger.events("echoabi-service-provider").equals(List.of("load")),
@@ -1142,6 +1433,25 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 "unload crash addon should execute load once before unload");
         require(ledger.events("echoabi-adaptercore-addon").equals(List.of("adaptercore-activate")),
                 "AdapterCore entrypoint should execute activate once");
+        require(ledger.events("echoabi-dependency-provider").equals(List.of("load:from-provider-classloader")),
+                "dependency provider should load its own shared class");
+        require(ledger.events("echoabi-dependency-consumer").equals(List.of("load:from-provider-classloader")),
+                "dependency consumer should resolve SharedDependency from its declared provider module");
+        require(ledger.eventIndex("echoabi-dependency-provider", "load:from-provider-classloader")
+                        < ledger.eventIndex("echoabi-dependency-consumer", "load:from-provider-classloader"),
+                "dependency provider should load before the consumer that imports its class");
+        require(nativeServiceRegistry.hasService(
+                        "echoabi-surface-native",
+                        "service.echoabi.surface.native.native_activation"),
+                "surface native entrypoint should register an activation service");
+        require(nativeServiceRegistry.hasService(
+                        "echoabi-legacy-native",
+                        "service.echoabi-legacy-native.legacy_native_bootstrap"),
+                "legacy native bootstrap should register a native service");
+        require(String.join("; ", registry.notes("echoabi-surface-native")).contains("nativeSurfaceEntrypoint"),
+                "surface native notes should prove the surface entrypoint bridge executed");
+        require(String.join("; ", registry.notes("echoabi-legacy-native")).contains("legacyNativeBootstrapExecuted"),
+                "legacy native notes should prove bootstrap execution");
         require(ledger.events("echoabi-denied-service-export").equals(List.of("load-attempt")),
                 "permission-denied service exporter should execute only its denied load attempt");
         require(ledger.events("echoabi-cycle-a").isEmpty(),
@@ -1154,6 +1464,8 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 services.require(EchoRuntimeModuleContentActivationRegistry.class);
         EchoRuntimeModuleServiceExportRegistry serviceExportRegistry =
                 services.require(EchoRuntimeModuleServiceExportRegistry.class);
+        EchoRuntimeModuleDataRegistry dataRegistry =
+                services.require(EchoRuntimeModuleDataRegistry.class);
         require(contentRegistry.activations("echoabi-field-generator").size() == 1,
                 "live addon should record one permission-checked content activation");
         require(contentRegistry.activations("echoabi-adaptercore-addon").size() == 1,
@@ -1203,6 +1515,15 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         ).orElseThrow();
         require(activatedContent.contentId().equals("echoabi:field_generator"),
                 "live addon should export activated content through the permission-checked service API");
+        require("standalone".equals(dataRegistry.configs("echoabi-field-generator").get("field.generator.mode")),
+                "live addon should publish permission-checked config data");
+        require(dataRegistry.assets("echoabi-field-generator").stream()
+                        .anyMatch(asset -> asset.assetId().equals("echoabi:asset/runtime_marker")
+                                && asset.relativePath().equals("assets/echoabi/runtime_marker.txt")
+                                && asset.resolvedPath().replace('\\', '/').endsWith("/assets/echoabi/runtime_marker.txt")),
+                "live addon should register a module-root-confined asset path");
+        require(dataRegistry.saveValue("echoabi-field-generator", "field.generator.seed").orElse("").equals("42"),
+                "live addon should write permission-checked module save data");
         require(!diagnostics.diagnostics().isEmpty(),
                 "crashing addon should emit a diagnostic");
         require(diagnostics.diagnostics().stream()
@@ -1238,6 +1559,8 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 "lifecycle bus should publish data reload events");
         require(ledger.events("echoabi-field-generator").equals(List.of("load", "reload")),
                 "live addon should record load then reload");
+        require(dataRegistry.saveValue("echoabi-field-generator", "field.generator.reload").orElse("").equals("true"),
+                "live addon should update module save data during data reload");
         require(ledger.events("echoabi-service-provider").equals(List.of("load", "reload")),
                 "service provider should record load then reload");
         require(ledger.events("echoabi-service-consumer").equals(List.of("load", "reload")),
@@ -1252,6 +1575,14 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 "unload crash addon should record load then reload");
         require(ledger.events("echoabi-adaptercore-addon").equals(List.of("adaptercore-activate", "adaptercore-reload")),
                 "AdapterCore entrypoint should record activate then reload");
+        require(ledger.events("echoabi-dependency-provider").equals(List.of("load:from-provider-classloader", "reload")),
+                "dependency provider should record load then reload");
+        require(ledger.events("echoabi-dependency-consumer").equals(List.of("load:from-provider-classloader", "reload")),
+                "dependency consumer should record load then reload");
+        require(registry.lifecycle("echoabi-surface-native") == EchoRuntimeModuleLifecycle.DATA_RELOADED,
+                "surface native entrypoint should survive data reload");
+        require(registry.lifecycle("echoabi-legacy-native") == EchoRuntimeModuleLifecycle.DATA_RELOADED,
+                "legacy native entrypoint should survive data reload");
         require(registry.lifecycle("echoabi-reload-crash") == EchoRuntimeModuleLifecycle.FAILED,
                 "reload crash addon should fail during data reload");
         require(ledger.events("echoabi-reload-crash").equals(List.of("load", "reload-attempt")),
@@ -1264,6 +1595,9 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
 
         int preUnloadServiceExportCount = serviceExportRegistry.snapshot().size();
         int preUnloadContentActivationCount = contentActivationCount(contentRegistry);
+        int preUnloadLiveConfigCount = dataRegistry.configs("echoabi-field-generator").size();
+        int preUnloadLiveAssetCount = dataRegistry.assets("echoabi-field-generator").size();
+        int preUnloadLiveSaveCount = dataRegistry.saves("echoabi-field-generator").size();
         int preUnloadLiveActivationCount = contentRegistry.activations("echoabi-field-generator").size();
         int preUnloadAdapterCoreActivationCount = contentRegistry.activations("echoabi-adaptercore-addon").size();
         int preUnloadUnloadCrashActivationCount = contentRegistry.activations("echoabi-unload-crash").size();
@@ -1276,12 +1610,28 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         String unloadCrashExportedServiceId = serviceExportRegistry.findExport("echoabi:unload_crash_service")
                 .map(export -> export.serviceId())
                 .orElse("");
+        boolean preUnloadSurfaceNativeService = nativeServiceRegistry.hasService(
+                "echoabi-surface-native",
+                "service.echoabi.surface.native.native_activation");
+        boolean preUnloadLegacyNativeService = nativeServiceRegistry.hasService(
+                "echoabi-legacy-native",
+                "service.echoabi-legacy-native.legacy_native_bootstrap");
         require(preUnloadServiceExportCount == 5,
                 "successful modules should have five active service exports before unload");
         require(preUnloadContentActivationCount == 3,
                 "successful modules should have three active content activations before unload");
+        require(preUnloadLiveConfigCount == 1,
+                "live addon should have one active config entry before unload");
+        require(preUnloadLiveAssetCount == 1,
+                "live addon should have one active asset entry before unload");
+        require(preUnloadLiveSaveCount == 2,
+                "live addon should have two save data entries before unload");
         require(preUnloadUnloadCrashActivationCount == 1,
                 "unload crash addon should have one active content activation before unload");
+        require(preUnloadSurfaceNativeService,
+                "surface native entrypoint should have a native activation service before unload");
+        require(preUnloadLegacyNativeService,
+                "legacy native entrypoint should have a native bootstrap service before unload");
 
         manager.unload(result, services);
         require(registry.lifecycle("echoabi-field-generator") == EchoRuntimeModuleLifecycle.UNLOADED,
@@ -1300,6 +1650,14 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 "unload crash addon should fail safely during unload");
         require(registry.lifecycle("echoabi-adaptercore-addon") == EchoRuntimeModuleLifecycle.UNLOADED,
                 "AdapterCore entrypoint should unload cleanly");
+        require(registry.lifecycle("echoabi-dependency-provider") == EchoRuntimeModuleLifecycle.UNLOADED,
+                "dependency class provider should unload cleanly");
+        require(registry.lifecycle("echoabi-dependency-consumer") == EchoRuntimeModuleLifecycle.UNLOADED,
+                "dependency class consumer should unload cleanly");
+        require(registry.lifecycle("echoabi-surface-native") == EchoRuntimeModuleLifecycle.UNLOADED,
+                "surface native entrypoint should unload cleanly");
+        require(registry.lifecycle("echoabi-legacy-native") == EchoRuntimeModuleLifecycle.UNLOADED,
+                "legacy native entrypoint should unload cleanly");
         require(lifecycleBus.events("echoabi-adaptercore-addon").stream()
                         .map(EchoRuntimeModuleLifecycleEvent::lifecycle)
                         .toList()
@@ -1335,10 +1693,42 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                         "adaptercore-deactivate"
                 )),
                 "AdapterCore entrypoint should record activate, reload, and deactivate");
+        require(ledger.events("echoabi-dependency-provider").equals(List.of(
+                        "load:from-provider-classloader",
+                        "reload",
+                        "unload"
+                )),
+                "dependency provider should record load, reload, and unload");
+        require(ledger.events("echoabi-dependency-consumer").equals(List.of(
+                        "load:from-provider-classloader",
+                        "reload",
+                        "unload"
+                )),
+                "dependency consumer should record load, reload, and unload");
+        require(ledger.eventIndex("echoabi-dependency-consumer", "unload")
+                        < ledger.eventIndex("echoabi-dependency-provider", "unload"),
+                "reverse dependency unload should unload class consumer before provider");
         require(serviceExportRegistry.snapshot().isEmpty(),
                 "all module service exports should be revoked after unload");
         require(contentActivationCount(contentRegistry) == 0,
                 "all module content activations should be deactivated after unload");
+        int postUnloadLiveConfigCount = dataRegistry.configs("echoabi-field-generator").size();
+        int postUnloadLiveAssetCount = dataRegistry.assets("echoabi-field-generator").size();
+        int postUnloadLiveSaveCount = dataRegistry.saves("echoabi-field-generator").size();
+        require(postUnloadLiveConfigCount == 0,
+                "module config entries should be revoked after unload");
+        require(postUnloadLiveAssetCount == 0,
+                "module asset entries should be revoked after unload");
+        require(postUnloadLiveSaveCount == 2,
+                "module save data should persist after unload");
+        require(!nativeServiceRegistry.hasService(
+                        "echoabi-surface-native",
+                        "service.echoabi.surface.native.native_activation"),
+                "surface native activation service should be revoked after unload");
+        require(!nativeServiceRegistry.hasService(
+                        "echoabi-legacy-native",
+                        "service.echoabi-legacy-native.legacy_native_bootstrap"),
+                "legacy native bootstrap service should be revoked after unload");
         require(diagnostics.diagnostics().stream()
                         .anyMatch(diagnostic -> diagnostic.code().equals("echo.runtime.module.execution_failed")
                                 && "echoabi-unload-crash".equals(diagnostic.attributes().get("moduleId"))
@@ -1349,6 +1739,12 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         require(!sandboxPolicy.descriptorOnly(), "ABI v1 smoke should not run in descriptor-only mode");
         require(sandboxPolicy.classloaderCreationAllowed(), "ABI v1 smoke should allow classloader creation");
         require(sandboxPolicy.moduleCodeExecutionAllowed(), "ABI v1 smoke should allow module code execution");
+        boolean postUnloadSurfaceNativeService = nativeServiceRegistry.hasService(
+                "echoabi-surface-native",
+                "service.echoabi.surface.native.native_activation");
+        boolean postUnloadLegacyNativeService = nativeServiceRegistry.hasService(
+                "echoabi-legacy-native",
+                "service.echoabi-legacy-native.legacy_native_bootstrap");
 
         writeReport(
                 registry,
@@ -1360,15 +1756,25 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 serviceExportRegistry,
                 preUnloadServiceExportCount,
                 preUnloadContentActivationCount,
+                preUnloadLiveConfigCount,
+                preUnloadLiveAssetCount,
+                preUnloadLiveSaveCount,
+                postUnloadLiveConfigCount,
+                postUnloadLiveAssetCount,
+                postUnloadLiveSaveCount,
                 preUnloadLiveActivationCount,
                 preUnloadAdapterCoreActivationCount,
                 preUnloadUnloadCrashActivationCount,
                 exportedServiceId,
                 adapterCoreExportedServiceId,
                 unloadCrashExportedServiceId,
+                preUnloadSurfaceNativeService,
+                preUnloadLegacyNativeService,
+                postUnloadSurfaceNativeService,
+                postUnloadLegacyNativeService,
                 lifecycleBus
         );
-        System.out.println("native-loader-abi-v1 smoke PASS loaded=9 failed=13 reload=8 unload=7");
+        System.out.println("native-loader-abi-v1 smoke PASS loaded=13 failed=15 reload=12 unload=11");
     }
 
     private static void writeReport(
@@ -1381,12 +1787,22 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
             EchoRuntimeModuleServiceExportRegistry serviceExportRegistry,
             int preUnloadServiceExportCount,
             int preUnloadContentActivationCount,
+            int preUnloadLiveConfigCount,
+            int preUnloadLiveAssetCount,
+            int preUnloadLiveSaveCount,
+            int postUnloadLiveConfigCount,
+            int postUnloadLiveAssetCount,
+            int postUnloadLiveSaveCount,
             int preUnloadLiveActivationCount,
             int preUnloadAdapterCoreActivationCount,
             int preUnloadUnloadCrashActivationCount,
             String exportedServiceId,
             String adapterCoreExportedServiceId,
             String unloadCrashExportedServiceId,
+            boolean preUnloadSurfaceNativeService,
+            boolean preUnloadLegacyNativeService,
+            boolean postUnloadSurfaceNativeService,
+            boolean postUnloadLegacyNativeService,
             EchoRuntimeModuleLifecycleBus lifecycleBus
     ) throws IOException {
         Path reportPath = Path.of("reports/echo/standalone/native-loader-abi-v1-smoke.json");
@@ -1400,6 +1816,8 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         String deniedRegistryAccessId = "echoabi-denied-registry-access";
         String unknownPermissionId = "echoabi-unknown-permission";
         String classPathEscapeId = "echoabi-classpath-escape";
+        String siblingClassPathEscapeId = "echoabi-sibling-classpath-escape";
+        String absoluteClassPathEscapeId = "echoabi-absolute-classpath-escape";
         String incompatibleId = "echoabi-incompatible-core";
         String serviceProviderId = "echoabi-service-provider";
         String serviceConsumerId = "echoabi-service-consumer";
@@ -1408,6 +1826,10 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         String optionalWarningId = "echoabi-optional-version-warning";
         String unloadCrashId = "echoabi-unload-crash";
         String adapterCoreId = "echoabi-adaptercore-addon";
+        String dependencyProviderId = "echoabi-dependency-provider";
+        String dependencyConsumerId = "echoabi-dependency-consumer";
+        String surfaceNativeId = "echoabi-surface-native";
+        String legacyNativeId = "echoabi-legacy-native";
         String deniedExportId = "echoabi-denied-service-export";
         String cycleAId = "echoabi-cycle-a";
         String cycleBId = "echoabi-cycle-b";
@@ -1425,10 +1847,10 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 .count();
         String json = """
                 {
-                  "schema": "echo.standalone.native_loader_abi_v1_smoke.v1",
+                  "schema": "echo.standalone.native_loader_abi_v1_smoke.v2",
                   "generatedAt": "1970-01-01T00:00:00Z",
                   "status": "PASS",
-                  "summary": "Executable Native Loader ABI v1 smoke loaded raw and AdapterCore entrypoint addons in isolated classloaders, confined module classpaths to module roots, enforced dependency version ranges, dependency cycles, required-dependency load-failure propagation, and descriptor permission catalog validation, published lifecycle bus events, activated content through permission-checked runtime APIs, exported and imported module-scoped services through permission-checked APIs, revoked module state after partial load failure and unload, blocked raw registry bypass attempts, denied unknown/unpermitted activation/export safely, failed load and reload crashes safely, detached reload-failed modules before unload, reloaded data, and unloaded in reverse dependency order.",
+                  "summary": "Executable Native Loader ABI v1 smoke loaded raw, AdapterCore, Native Platform surface, and legacy native bootstrap entrypoint addons in isolated classloaders, delegated class resolution only through declared module dependencies, confined module classpaths to module roots, enforced dependency version ranges, dependency cycles, required-dependency load-failure propagation, and descriptor permission catalog validation, published lifecycle bus events, activated content through permission-checked runtime APIs, exported and imported module-scoped services through permission-checked APIs, published config, registered module-root-confined assets, wrote module save data, revoked runtime config/assets after unload, preserved save data after unload, revoked module state after partial load failure and unload, blocked raw registry bypass attempts, denied unknown/unpermitted activation/export safely, failed load and reload crashes safely, detached reload-failed modules before unload, reloaded data, and unloaded in reverse dependency order.",
                   "descriptorSchemaId": "%s",
                   "descriptorSchemaSources": %s,
                   "descriptorSchemaFields": %s,
@@ -1438,6 +1860,10 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                   "loadedModule": "%s",
                   "reloadCrashModule": "%s",
                   "adapterCoreEntrypointModule": "%s",
+                  "dependencyClassProviderModule": "%s",
+                  "dependencyClassConsumerModule": "%s",
+                  "surfaceNativeEntrypointModule": "%s",
+                  "legacyNativeEntrypointModule": "%s",
                   "serviceProviderModule": "%s",
                   "serviceConsumerModule": "%s",
                   "optionalProviderModule": "%s",
@@ -1451,12 +1877,15 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                   "permissionDeniedRegistryAccessModule": "%s",
                   "unknownPermissionModule": "%s",
                   "classpathEscapeModule": "%s",
+                  "classpathEscapeModules": %s,
                   "permissionDeniedServiceExportModule": "%s",
                   "incompatibleDependencyModule": "%s",
                   "cyclicDependencyModules": %s,
                   "liveLifecycle": %s,
                   "reloadCrashLifecycle": %s,
                   "adapterCoreEntrypointLifecycle": %s,
+                  "dependencyClassProviderLifecycle": %s,
+                  "dependencyClassConsumerLifecycle": %s,
                   "serviceProviderLifecycle": %s,
                   "serviceConsumerLifecycle": %s,
                   "optionalProviderLifecycle": %s,
@@ -1507,6 +1936,12 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                   "deniedRegistryAccessActivationCount": %d,
                   "permissionCheckedServiceExportCount": %d,
                   "permissionCheckedServiceImportCount": %d,
+                  "permissionCheckedConfigCount": %d,
+                  "permissionCheckedAssetCount": %d,
+                  "permissionCheckedSaveDataCount": %d,
+                  "runtimeConfigRevokedOnUnload": %s,
+                  "runtimeAssetsRevokedOnUnload": %s,
+                  "moduleSaveDataPersistedAfterUnload": %s,
                   "adapterCoreServiceExportCount": %d,
                   "exportedServiceId": "%s",
                   "adapterCoreExportedServiceId": "%s",
@@ -1514,6 +1949,12 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                   "importedServiceIds": %s,
                   "optionalImportedServiceIds": %s,
                   "dependencyOrderedServiceLoad": %s,
+                  "dependencyClassloaderDelegation": %s,
+                  "reverseDependencyClassloaderUnload": %s,
+                  "surfaceNativeServiceRegisteredBeforeUnload": %s,
+                  "legacyNativeServiceRegisteredBeforeUnload": %s,
+                  "surfaceNativeServiceRevokedAfterUnload": %s,
+                  "legacyNativeServiceRevokedAfterUnload": %s,
                   "optionalDependencyOrderedLoad": %s,
                   "missingOptionalDependencyAllowed": %s,
                   "optionalVersionWarningNonBlocking": %s,
@@ -1541,6 +1982,10 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 moduleId,
                 reloadCrashId,
                 adapterCoreId,
+                dependencyProviderId,
+                dependencyConsumerId,
+                surfaceNativeId,
+                legacyNativeId,
                 serviceProviderId,
                 serviceConsumerId,
                 optionalProviderId,
@@ -1554,12 +1999,15 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 deniedRegistryAccessId,
                 unknownPermissionId,
                 classPathEscapeId,
+                jsonArray(List.of(classPathEscapeId, siblingClassPathEscapeId, absoluteClassPathEscapeId)),
                 deniedExportId,
                 incompatibleId,
                 jsonArray(List.of(cycleAId, cycleBId)),
                 jsonArray(ledger.events(moduleId)),
                 jsonArray(ledger.events(reloadCrashId)),
                 jsonArray(ledger.events(adapterCoreId)),
+                jsonArray(ledger.events(dependencyProviderId)),
+                jsonArray(ledger.events(dependencyConsumerId)),
                 jsonArray(ledger.events(serviceProviderId)),
                 jsonArray(ledger.events(serviceConsumerId)),
                 jsonArray(ledger.events(optionalProviderId)),
@@ -1596,7 +2044,9 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 contentRegistry.activations(unloadCrashId).isEmpty(),
                 serviceExportRegistry.findExport("echoabi:unload_crash_service").isEmpty(),
                 ledger.events(reloadCrashId).contains("should-not-unload-after-reload-failure"),
-                !ledger.events(classPathEscapeId).isEmpty(),
+                !ledger.events(classPathEscapeId).isEmpty()
+                        || !ledger.events(siblingClassPathEscapeId).isEmpty()
+                        || !ledger.events(absoluteClassPathEscapeId).isEmpty(),
                 !ledger.events(unknownPermissionId).isEmpty(),
                 !ledger.events(cycleAId).isEmpty() || !ledger.events(cycleBId).isEmpty(),
                 versionMismatchIssues,
@@ -1613,6 +2063,12 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 contentRegistry.activations(deniedRegistryAccessId).size(),
                 preUnloadServiceExportCount,
                 ledger.importedServices(serviceConsumerId).size() + ledger.importedServices(optionalConsumerId).size(),
+                preUnloadLiveConfigCount,
+                preUnloadLiveAssetCount,
+                preUnloadLiveSaveCount,
+                postUnloadLiveConfigCount == 0,
+                postUnloadLiveAssetCount == 0,
+                postUnloadLiveSaveCount == preUnloadLiveSaveCount,
                 adapterCoreExportedServiceId.isBlank() ? 0 : 1,
                 exportedServiceId,
                 adapterCoreExportedServiceId,
@@ -1620,6 +2076,12 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
                 jsonArray(ledger.importedServices(serviceConsumerId)),
                 jsonArray(ledger.importedServices(optionalConsumerId)),
                 ledger.eventIndex(serviceProviderId, "load") < ledger.eventIndex(serviceConsumerId, "load"),
+                ledger.events(dependencyConsumerId).contains("load:from-provider-classloader"),
+                ledger.eventIndex(dependencyConsumerId, "unload") < ledger.eventIndex(dependencyProviderId, "unload"),
+                preUnloadSurfaceNativeService,
+                preUnloadLegacyNativeService,
+                !postUnloadSurfaceNativeService,
+                !postUnloadLegacyNativeService,
                 ledger.eventIndex(optionalProviderId, "load") < ledger.eventIndex(optionalConsumerId, "load"),
                 registry.lifecycle(optionalConsumerId) == EchoRuntimeModuleLifecycle.UNLOADED,
                 registry.lifecycle(optionalWarningId) == EchoRuntimeModuleLifecycle.UNLOADED
@@ -1684,6 +2146,15 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
     }
 
     private static void compileSource(Path classesRoot, String relativeSourcePath, String source) throws IOException {
+        compileSource(classesRoot, relativeSourcePath, source, List.of());
+    }
+
+    private static void compileSource(
+            Path classesRoot,
+            String relativeSourcePath,
+            String source,
+            List<Path> extraClassPath
+    ) throws IOException {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
             throw new IllegalStateException("JDK compiler is required for native loader ABI smoke");
@@ -1691,12 +2162,18 @@ public final class EchoRuntimeNativeLoaderAbiSmokeHarness {
         Path sourcePath = classesRoot.resolve(relativeSourcePath);
         Files.createDirectories(sourcePath.getParent());
         Files.writeString(sourcePath, source);
+        String classPath = System.getProperty("java.class.path")
+                + java.io.File.pathSeparator
+                + classesRoot;
+        for (Path path : extraClassPath) {
+            classPath += java.io.File.pathSeparator + path.toString();
+        }
         int exitCode = compiler.run(
                 null,
                 null,
                 null,
                 "-classpath",
-                System.getProperty("java.class.path"),
+                classPath,
                 "-d",
                 classesRoot.toString(),
                 sourcePath.toString()

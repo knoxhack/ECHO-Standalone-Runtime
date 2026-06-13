@@ -6,6 +6,10 @@ import dev.echo.standalone.runtime.item.EchoItemId;
 import dev.echo.standalone.runtime.item.EchoItemStack;
 import dev.echo.standalone.runtime.world.EchoVoxelBlock;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -13,11 +17,37 @@ public final class EchoClientHeldItemOverlaySmokeHarness {
     private EchoClientHeldItemOverlaySmokeHarness() {
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         requireEmptyHandPlan();
         requireSelectedItemPlan();
         requireSelectedBlockPlan();
+        writeSmokeReport();
         System.out.println("client held item overlay smoke PASS hand=item_renderer selected=stable");
+    }
+
+    private static void writeSmokeReport() throws IOException {
+        Path report = Path.of("reports", "echo", "standalone", "client-held-item-overlay-smoke.json").toAbsolutePath();
+        Files.createDirectories(report.getParent());
+        String json = """
+                {
+                  "schema": "echo.standalone.client_smoke.client-held-item-overlay-smoke.v1",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "runtime": "standalone",
+                  "moduleIds": ["echoashfallprotocol", "echohudcore", "echoscreencore"],
+                  "featureBuckets": ["hud", "inventory_overlay", "items", "blocks"],
+                  "trustedMutations": [
+                    "empty-hand overlay plan visible",
+                    "selected item overlay carries runtime id and damage predicates",
+                    "selected block overlay preserves block id inside viewport bounds"
+                  ],
+                  "visibleRoutes": ["echohudcore:held_item_overlay", "echoscreencore:inventory"],
+                  "saveEvidence": [],
+                  "networkEvidence": [],
+                  "blockers": []
+                }
+                """;
+        Files.writeString(report, json, StandardCharsets.UTF_8);
     }
 
     private static void requireEmptyHandPlan() {

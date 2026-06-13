@@ -29,6 +29,8 @@ The deterministic smoke path starts at the emergency terminal, activates it, con
 - blocked-cell collision reports `blocked_cell` and keeps camera/player state stable.
 - Terminal focus delegation blocks gameplay movement until Escape blurs focus.
 
+It also writes concrete non-placeholder evidence to `runtime-player-controller.json`, `player-movement.json`, `player-collision.json`, `player-camera.json`, `player-targeting.json`, `player-inventory-shortcuts.json`, `player-hazard-feedback.json`, and `player-debug-traversal.json`. `verifyStandalonePlayerControllerRuntime` regenerates that evidence, rejects bootstrap schemas, and requires concrete `PASS` fields for service binding, terminal and cache targeting, quick-slot water use, deterministic movement, collision preservation, camera follow stability, toxic ash feedback, Ashfall mission completion, and Terminal focus gating.
+
 ## Boundary
 
 This phase means runtime foundation ready, not full game ready. It does not add a renderer device backend, audio device output, campaign content, save-slot UI, installer flow, or native desktop input polling.

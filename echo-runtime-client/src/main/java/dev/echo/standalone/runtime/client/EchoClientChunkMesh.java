@@ -211,6 +211,12 @@ final class EchoClientChunkMesh {
                 }
                 continue;
             }
+            if (atlas != null && atlas.buttonModel(face)) {
+                if (emittedCustomBlocks.add(modelBlockKey(face))) {
+                    addButtonQuads(builder, face, atlas, visibleDirections);
+                }
+                continue;
+            }
             if (atlas != null && atlas.doorModel(face)) {
                 if (emittedCustomBlocks.add(modelBlockKey(face))) {
                     addDoorQuads(builder, face, atlas, visibleDirections);
@@ -239,17 +245,21 @@ final class EchoClientChunkMesh {
                     continue;
                 }
             }
-            EchoBlockModelBounds bounds = atlas == null ? EchoBlockModelBounds.fullCube() : atlas.modelBounds(face);
+            EchoBlockModelBounds bounds = face.fullCubeBounds()
+                    ? (atlas == null ? EchoBlockModelBounds.fullCube() : atlas.modelBounds(face))
+                    : faceBounds(face);
             EchoClientTextureAtlas.AtlasEntry uv = atlas == null
                     ? new EchoClientTextureAtlas.AtlasEntry(0.0f, 0.0f, 1.0f, 1.0f)
                     : atlas.get(face);
+            int uvRotationDegrees = atlas == null ? 0 : atlas.uvRotationDegrees(face, face.direction());
             builder.addQuad(
                     offsetCorners(face, cornerOffsets(face.direction(), bounds)),
                     face.direction().normalX(),
                     face.direction().normalY(),
                     face.direction().normalZ(),
                     uv,
-                    faceArgb(face, face.direction(), atlas)
+                    faceArgb(face, face.direction(), atlas),
+                    uvRotationDegrees
             );
         }
         return builder.build();
@@ -495,6 +505,20 @@ final class EchoClientChunkMesh {
         addBoxQuads(builder, face, box, atlas, visibleDirections);
     }
 
+    private static void addButtonQuads(
+            MeshBuilder builder,
+            EchoVoxelMeshFace face,
+            EchoClientTextureAtlas atlas,
+            Set<EchoVoxelMeshDirection> visibleDirections
+    ) {
+        Map<String, String> state = face.material().stateProperties();
+        String attachment = state.getOrDefault("face", "wall").trim().toLowerCase(java.util.Locale.ROOT);
+        HorizontalFacing facing = HorizontalFacing.from(state.get("facing"));
+        boolean pressed = trueState(state.get("powered")) || "button_pressed".equals(atlas.modelTemplateKind(face));
+        float thickness = pressed ? 0.0625f : 0.125f;
+        addBoxQuads(builder, face, buttonBox(attachment, facing, thickness), atlas, visibleDirections);
+    }
+
     private static void addDoorQuads(
             MeshBuilder builder,
             EchoVoxelMeshFace face,
@@ -565,7 +589,7 @@ final class EchoClientChunkMesh {
             return;
         }
         for (EchoVoxelMeshDirection direction : EchoVoxelMeshDirection.values()) {
-            if (!modelFaceVisible(element.bounds(), direction, visibleDirections, element)) {
+            if (!modelFaceVisible(face, element.bounds(), direction, visibleDirections, element, atlas)) {
                 continue;
             }
             EchoClientTextureAtlas.AtlasEntry uv = atlas == null
@@ -710,8 +734,7 @@ final class EchoClientChunkMesh {
                     corners[index + 1] * 16.0D,
                     corners[index + 2] * 16.0D
             };
-            point = rotateModelPoint(point, rotation.axis(), rotation.angleDegrees(),
-                    rotation.originX(), rotation.originY(), rotation.originZ());
+            point = rotateElementModelPoint(point, rotation);
             point = rotateModelPoint(point, "x", xRotationDegrees, 8.0D, 8.0D, 8.0D);
             point = rotateModelPoint(point, "y", yRotationDegrees, 8.0D, 8.0D, 8.0D);
             result[index] = face.x() + (float) (point[0] / 16.0D);
@@ -743,6 +766,43 @@ final class EchoClientChunkMesh {
                 (float) (normal[0] / length),
                 (float) (normal[1] / length),
                 (float) (normal[2] / length)
+        };
+    }
+
+    private static double[] rotateElementModelPoint(double[] point, EchoBlockModelElementRotation rotation) {
+        if (point == null || rotation == null || !rotation.active()) {
+            return point;
+        }
+        double[] relative = new double[]{
+                point[0] - rotation.originX(),
+                point[1] - rotation.originY(),
+                point[2] - rotation.originZ()
+        };
+        double[] rotated = rotateVector(relative, rotation.axis(), rotation.angleDegrees());
+        if (rotation.rescale()) {
+            rotated = rescaleElementRotationVector(rotated, rotation.axis(), rotation.angleDegrees());
+        }
+        return new double[]{
+                rotation.originX() + rotated[0],
+                rotation.originY() + rotated[1],
+                rotation.originZ() + rotated[2]
+        };
+    }
+
+    private static double[] rescaleElementRotationVector(double[] vector, String axis, double angleDegrees) {
+        if (vector == null || Math.abs(angleDegrees) < 1.0E-6D) {
+            return vector;
+        }
+        double cosine = Math.cos(Math.toRadians(Math.abs(angleDegrees)));
+        if (Math.abs(cosine) < 1.0E-6D) {
+            return vector;
+        }
+        double scale = 1.0D / cosine;
+        return switch (axis == null ? "" : axis) {
+            case "x" -> new double[]{vector[0], vector[1] * scale, vector[2] * scale};
+            case "y" -> new double[]{vector[0] * scale, vector[1], vector[2] * scale};
+            case "z" -> new double[]{vector[0] * scale, vector[1] * scale, vector[2]};
+            default -> vector;
         };
     }
 
@@ -821,6 +881,31 @@ final class EchoClientChunkMesh {
             case EAST -> new UnitBox(0.8125f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
             case SOUTH -> new UnitBox(0.0f, 0.0f, 0.8125f, 1.0f, 1.0f, 1.0f);
             case WEST -> new UnitBox(0.0f, 0.0f, 0.0f, 0.1875f, 1.0f, 1.0f);
+        };
+    }
+
+    private static UnitBox buttonBox(String attachment, HorizontalFacing facing, float thickness) {
+        float shortMin = 0.375f;
+        float shortMax = 0.625f;
+        float longMin = 0.3125f;
+        float longMax = 0.6875f;
+        if ("floor".equals(attachment)) {
+            boolean eastWest = facing == HorizontalFacing.EAST || facing == HorizontalFacing.WEST;
+            return eastWest
+                    ? new UnitBox(shortMin, 0.0f, longMin, shortMax, thickness, longMax)
+                    : new UnitBox(longMin, 0.0f, shortMin, longMax, thickness, shortMax);
+        }
+        if ("ceiling".equals(attachment)) {
+            boolean eastWest = facing == HorizontalFacing.EAST || facing == HorizontalFacing.WEST;
+            return eastWest
+                    ? new UnitBox(shortMin, 1.0f - thickness, longMin, shortMax, 1.0f, longMax)
+                    : new UnitBox(longMin, 1.0f - thickness, shortMin, longMax, 1.0f, shortMax);
+        }
+        return switch (facing) {
+            case NORTH -> new UnitBox(longMin, shortMin, 0.0f, longMax, shortMax, thickness);
+            case EAST -> new UnitBox(1.0f - thickness, shortMin, longMin, 1.0f, shortMax, longMax);
+            case SOUTH -> new UnitBox(longMin, shortMin, 1.0f - thickness, longMax, shortMax, 1.0f);
+            case WEST -> new UnitBox(0.0f, shortMin, longMin, thickness, shortMax, longMax);
         };
     }
 
@@ -1011,6 +1096,17 @@ final class EchoClientChunkMesh {
             result[index + 2] = face.z() + corners[index + 2];
         }
         return result;
+    }
+
+    private static EchoBlockModelBounds faceBounds(EchoVoxelMeshFace face) {
+        return new EchoBlockModelBounds(
+                face.minX() * 16.0D,
+                face.minY() * 16.0D,
+                face.minZ() * 16.0D,
+                face.maxX() * 16.0D,
+                face.maxY() * 16.0D,
+                face.maxZ() * 16.0D
+        );
     }
 
     private static String modelBlockKey(EchoVoxelMeshFace face) {

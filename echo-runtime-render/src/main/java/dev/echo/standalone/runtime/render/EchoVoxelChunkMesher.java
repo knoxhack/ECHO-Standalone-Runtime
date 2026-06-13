@@ -5,6 +5,7 @@ import dev.echo.standalone.runtime.world.EchoVoxelBiome;
 import dev.echo.standalone.runtime.world.EchoVoxelChunk;
 import dev.echo.standalone.runtime.world.EchoVoxelChunkId;
 import dev.echo.standalone.runtime.world.EchoVoxelBlockState;
+import dev.echo.standalone.runtime.world.EchoVoxelFluidRuntime;
 import dev.echo.standalone.runtime.world.EchoVoxelWorld;
 
 import java.util.ArrayList;
@@ -153,9 +154,36 @@ public final class EchoVoxelChunkMesher {
                     z + direction.normalZ()
             );
             if (neighbor.air() || !neighbor.opaque()) {
-                faces.add(new EchoVoxelMeshFace(x, y, z, direction, material));
+                faces.add(meshFace(x, y, z, direction, material, state));
             }
         }
+    }
+
+    private static EchoVoxelMeshFace meshFace(
+            int x,
+            int y,
+            int z,
+            EchoVoxelMeshDirection direction,
+            EchoVoxelMeshMaterial material,
+            EchoVoxelBlockState state
+    ) {
+        if (!EchoVoxelFluidRuntime.isCanonicalFluidBlock(state)) {
+            return new EchoVoxelMeshFace(x, y, z, direction, material);
+        }
+        double surfaceHeight = EchoVoxelFluidRuntime.fluidSurfaceHeight(state);
+        return new EchoVoxelMeshFace(
+                x,
+                y,
+                z,
+                direction,
+                material,
+                0.0D,
+                0.0D,
+                0.0D,
+                1.0D,
+                surfaceHeight,
+                1.0D
+        );
     }
 
     private static EchoVoxelBlock blockAt(

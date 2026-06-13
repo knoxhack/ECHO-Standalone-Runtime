@@ -14,9 +14,11 @@ import dev.echo.standalone.runtime.modules.EchoRuntimeModuleStatus;
 import dev.echo.standalone.runtime.modules.EchoRuntimeSystemModuleStatusReport;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 public final class EchoRuntimeModuleSmokeHarness {
     private EchoRuntimeModuleSmokeHarness() {
@@ -213,7 +215,232 @@ public final class EchoRuntimeModuleSmokeHarness {
                 "required tooling system module should report runtime-tooling-only");
         require(systemStatus.require("signalosexample").status() == EchoRuntimeModuleStatus.RUNTIME_DEV_ONLY,
                 "required example system module should report runtime-dev-only");
+        writeReports(
+                Path.of(".").toAbsolutePath().normalize(),
+                result,
+                services,
+                diagnostics,
+                sandboxPolicy,
+                systemStatus
+        );
         System.out.println("phase14.3 module runtime smoke PASS descriptors=6 failed=1 statuses=3");
+    }
+
+    private static void writeReports(
+            Path standaloneRoot,
+            EchoRuntimeModuleRuntimeResult result,
+            EchoDefaultRuntimeServiceRegistry services,
+            EchoRuntimeLogBridge diagnostics,
+            EchoRuntimeModuleSandboxPolicy sandboxPolicy,
+            EchoRuntimeSystemModuleStatusReport systemStatus
+    ) throws IOException {
+        Path root = standaloneRoot.resolve("reports/echo/standalone");
+        Files.createDirectories(root);
+        EchoRuntimeModuleRegistry registry = result.registry();
+        EchoRuntimeModuleGraph moduleGraph = result.moduleGraph();
+        EchoRuntimeFeatureGraph featureGraph = result.featureGraph();
+        List<String> moduleIds = registry.descriptors().stream()
+                .map(descriptor -> descriptor.id())
+                .sorted()
+                .toList();
+        Map<String, EchoRuntimeModuleLifecycle> lifecycles = registry.lifecycleSnapshot();
+        Map<String, EchoRuntimeModuleStatus> statuses = registry.runtimeStatusSnapshot();
+
+        write(root.resolve("runtime-modules.json"), """
+                {
+                  "schema": "echo.standalone.runtime_modules.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "mode": "descriptor-only",
+                  "descriptorCount": %d,
+                  "readyCount": %d,
+                  "failedCount": %d,
+                  "disabledCount": %d,
+                  "ignoredNeoForgeOnlyDescriptor": true,
+                  "descriptorOnly": %s,
+                  "classloaderCreationAllowed": %s,
+                  "moduleCodeExecutionAllowed": %s,
+                  "moduleIds": %s,
+                  "diagnosticCount": %d,
+                  "diagnosticCodes": %s
+                }
+                """.formatted(
+                moduleIds.size(),
+                countLifecycle(lifecycles, EchoRuntimeModuleLifecycle.READY),
+                countLifecycle(lifecycles, EchoRuntimeModuleLifecycle.FAILED),
+                countLifecycle(lifecycles, EchoRuntimeModuleLifecycle.DISABLED),
+                sandboxPolicy.descriptorOnly(),
+                sandboxPolicy.classloaderCreationAllowed(),
+                sandboxPolicy.moduleCodeExecutionAllowed(),
+                jsonArray(moduleIds),
+                diagnostics.diagnostics().size(),
+                jsonArray(diagnostics.countsByCode().keySet().stream().sorted().toList())
+        ));
+
+        write(root.resolve("runtime-module-graph.json"), """
+                {
+                  "schema": "echo.standalone.runtime_module_graph.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "moduleIds": %s,
+                  "dependencyOrderedModuleIds": %s,
+                  "dependencyEdges": %s,
+                  "failedModuleIds": %s,
+                  "issueCount": %d,
+                  "hasBlockingIssues": %s,
+                  "issues": %s
+                }
+                """.formatted(
+                jsonArray(moduleGraph.moduleIds()),
+                jsonArray(moduleGraph.dependencyOrderedModuleIds()),
+                jsonEdges(moduleGraph.dependencyEdges()),
+                jsonArray(moduleGraph.failedModuleIds()),
+                moduleGraph.issues().size(),
+                moduleGraph.hasBlockingIssues(),
+                jsonIssues(moduleGraph.issues())
+        ));
+
+        write(root.resolve("runtime-feature-graph.json"), """
+                {
+                  "schema": "echo.standalone.runtime_feature_graph.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "providersByFeature": %s,
+                  "consumersByFeature": %s,
+                  "missingRequiredFeatures": %s
+                }
+                """.formatted(
+                jsonStringListMap(featureGraph.providersByFeature()),
+                jsonStringListMap(featureGraph.consumersByFeature()),
+                jsonArray(featureGraph.missingRequiredFeatures())
+        ));
+
+        write(root.resolve("runtime-services.json"), """
+                {
+                  "schema": "echo.standalone.runtime_services.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "serviceTypes": %s,
+                  "moduleRegistryBound": %s,
+                  "moduleGraphBound": %s,
+                  "featureGraphBound": %s,
+                  "sandboxPolicyBound": %s,
+                  "descriptorOnly": %s,
+                  "moduleCodeExecutionAllowed": %s,
+                  "systemStatus": %s
+                }
+                """.formatted(
+                jsonArray(services.snapshot().keySet().stream()
+                        .map(Class::getName)
+                        .sorted()
+                        .toList()),
+                services.find(EchoRuntimeModuleRegistry.class).isPresent(),
+                services.find(EchoRuntimeModuleGraph.class).isPresent(),
+                services.find(EchoRuntimeFeatureGraph.class).isPresent(),
+                services.find(EchoRuntimeModuleSandboxPolicy.class).isPresent(),
+                sandboxPolicy.descriptorOnly(),
+                sandboxPolicy.moduleCodeExecutionAllowed(),
+                jsonSystemStatus(systemStatus)
+        ));
+
+        write(root.resolve("runtime-module-status.json"), """
+                {
+                  "schema": "echo.standalone.runtime_module_status.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "lifecycles": %s,
+                  "runtimeStatuses": %s,
+                  "notes": %s,
+                  "activeCount": %d,
+                  "toolingOnlyCount": %d,
+                  "devOnlyCount": %d,
+                  "disabledWithReasonCount": %d
+                }
+                """.formatted(
+                jsonLifecycleMap(lifecycles),
+                jsonStatusMap(statuses),
+                jsonNotes(moduleIds, registry),
+                countStatus(statuses, EchoRuntimeModuleStatus.RUNTIME_ACTIVE),
+                countStatus(statuses, EchoRuntimeModuleStatus.RUNTIME_TOOLING_ONLY),
+                countStatus(statuses, EchoRuntimeModuleStatus.RUNTIME_DEV_ONLY),
+                countStatus(statuses, EchoRuntimeModuleStatus.RUNTIME_DISABLED_WITH_REASON)
+        ));
+    }
+
+    private static int countLifecycle(Map<String, EchoRuntimeModuleLifecycle> lifecycles, EchoRuntimeModuleLifecycle expected) {
+        return (int) lifecycles.values().stream().filter(expected::equals).count();
+    }
+
+    private static int countStatus(Map<String, EchoRuntimeModuleStatus> statuses, EchoRuntimeModuleStatus expected) {
+        return (int) statuses.values().stream().filter(expected::equals).count();
+    }
+
+    private static String jsonEdges(List<EchoRuntimeModuleGraph.Edge> edges) {
+        return edges.stream()
+                .map(edge -> "{\"fromModuleId\": \"" + escape(edge.fromModuleId())
+                        + "\", \"toModuleId\": \"" + escape(edge.toModuleId())
+                        + "\", \"kind\": \"" + escape(edge.kind()) + "\"}")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static String jsonIssues(List<dev.echo.standalone.runtime.modules.EchoRuntimeModuleIssue> issues) {
+        return issues.stream()
+                .map(issue -> "{\"code\": \"" + escape(issue.code())
+                        + "\", \"severity\": \"" + issue.severity().name()
+                        + "\", \"moduleId\": \"" + escape(issue.moduleId())
+                        + "\", \"summary\": \"" + escape(issue.summary()) + "\"}")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static String jsonSystemStatus(EchoRuntimeSystemModuleStatusReport report) {
+        return report.entries().stream()
+                .map(entry -> "{\"moduleId\": \"" + escape(entry.moduleId())
+                        + "\", \"status\": \"" + entry.status().id()
+                        + "\", \"reason\": \"" + escape(entry.reason()) + "\"}")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static String jsonNotes(List<String> moduleIds, EchoRuntimeModuleRegistry registry) {
+        return moduleIds.stream()
+                .map(moduleId -> "\"" + escape(moduleId) + "\": "
+                        + jsonArray(registry.notes(moduleId).stream().sorted().toList()))
+                .collect(java.util.stream.Collectors.joining(", ", "{", "}"));
+    }
+
+    private static String jsonStringListMap(Map<String, List<String>> values) {
+        return values.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> "\"" + escape(entry.getKey()) + "\": " + jsonArray(entry.getValue()))
+                .collect(java.util.stream.Collectors.joining(", ", "{", "}"));
+    }
+
+    private static String jsonLifecycleMap(Map<String, EchoRuntimeModuleLifecycle> values) {
+        return values.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> "\"" + escape(entry.getKey()) + "\": \"" + entry.getValue().name() + "\"")
+                .collect(java.util.stream.Collectors.joining(", ", "{", "}"));
+    }
+
+    private static String jsonStatusMap(Map<String, EchoRuntimeModuleStatus> values) {
+        return values.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> "\"" + escape(entry.getKey()) + "\": \"" + entry.getValue().id() + "\"")
+                .collect(java.util.stream.Collectors.joining(", ", "{", "}"));
+    }
+
+    private static String jsonArray(List<String> values) {
+        return values.stream()
+                .map(value -> "\"" + escape(value) + "\"")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static void write(Path path, String content) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, content, StandardCharsets.UTF_8);
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static void writeDescriptor(Path path, String content) throws IOException {

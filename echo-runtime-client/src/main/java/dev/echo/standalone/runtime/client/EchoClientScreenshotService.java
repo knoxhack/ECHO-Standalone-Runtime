@@ -32,14 +32,29 @@ final class EchoClientScreenshotService {
         Path target = nextAvailablePath(screenshotRoot, LocalDateTime.now());
         Files.createDirectories(target.getParent());
 
-        ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
-        GL11.glReadBuffer(GL11.GL_BACK);
-        GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
-        BufferedImage image = imageFromRgbaFramebuffer(width, height, pixels);
+        BufferedImage image = captureFramebufferImage(width, height, GL11.GL_BACK);
         if (!ImageIO.write(image, "png", target.toFile())) {
             throw new IOException("No PNG writer available for screenshot");
         }
         return target;
+    }
+
+    static EchoClientSaveSlotThumbnailCapture captureSaveSlotThumbnail(int width, int height) throws IOException {
+        BufferedImage image = captureFramebufferImage(width, height, GL11.GL_FRONT);
+        return EchoClientSaveSlotThumbnailCapture.fromImage(
+                EchoClientSaveSlotThumbnailGenerator.FRAMEBUFFER_THUMBNAIL_SOURCE,
+                image
+        );
+    }
+
+    static BufferedImage captureFramebufferImage(int width, int height, int readBuffer) {
+        if (width <= 0 || height <= 0) {
+            throw new IllegalArgumentException("screenshot dimensions must be positive");
+        }
+        ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
+        GL11.glReadBuffer(readBuffer);
+        GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        return imageFromRgbaFramebuffer(width, height, pixels);
     }
 
     static BufferedImage imageFromRgbaFramebuffer(int width, int height, ByteBuffer pixels) {

@@ -18,4 +18,16 @@ public final class EchoVoxelWorldProfiles {
                 streamRadius
         );
     }
+
+    public static EchoVoxelWorldRuntimeProfile openlandsFirstHour(
+            Function<String, EchoVoxelBlock> blockLookup,
+            int streamRadius
+    ) {
+        EchoVoxelOpenlandsWorldGeneration.Blocks blocks =
+                EchoVoxelOpenlandsWorldGeneration.Blocks.fromRegistry(Objects.requireNonNull(blockLookup, "blockLookup"));
+        return new EchoVoxelWorldRuntimeProfile(
+                EchoVoxelOpenlandsWorldGeneration.firstHourProfile(blocks),
+                streamRadius
+        );
+    }
 }

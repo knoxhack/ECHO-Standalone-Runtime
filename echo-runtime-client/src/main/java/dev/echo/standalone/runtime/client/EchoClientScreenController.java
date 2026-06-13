@@ -35,6 +35,8 @@ final class EchoClientScreenController {
     private EchoClientScreenCatalog screenCatalog = EchoClientScreenCatalog.empty();
     private EchoClientRuntimeDiagnosticsSnapshot runtimeDiagnostics =
             EchoClientRuntimeDiagnosticsSnapshot.EMPTY;
+    private EchoClientSupportBundleResult supportBundleResult = EchoClientSupportBundleResult.EMPTY;
+    private List<EchoClientScreenOption> publishedOptions = List.of();
     private String registeredScreenId = "";
     private String selectedWorldSlotId = "";
     private String selectedManagedWorldSlotId = "";
@@ -43,10 +45,19 @@ final class EchoClientScreenController {
     private String saveSlotError = "";
     private String resourcePackError = "";
     private String workbenchRecipeError = "";
+    private String fatalErrorSummary = "The standalone runtime stopped safely.";
+    private String fatalErrorDetail = "No fatal error detail has been recorded.";
     private EchoClientGameState state = EchoClientGameState.BOOT;
     private EchoClientScreenKind screenKind = EchoClientScreenKind.MAIN_MENU;
     private int selectedIndex;
     private int scrollOffset;
+    private long snapshotRevision;
+    private long cachedSnapshotRevision = -1L;
+    private boolean cachedSnapshotHasSession;
+    private EchoClientScreenSnapshot cachedSnapshot;
+    private long snapshotBuildCount;
+    private long snapshotCacheHitCount;
+    private long optionListBuildCount;
     private String worldName;
     private String worldSeed = "42";
     private EditableTextField editingTextField = EditableTextField.NONE;
@@ -65,6 +76,7 @@ final class EchoClientScreenController {
     private boolean highContrastUi;
     private boolean reducedMotion;
     private EchoClientKeyBindings keyBindings = EchoClientKeyBindings.defaults();
+    private EchoClientKeyAction pendingKeyRebindAction;
     private boolean clientSettingsDirty;
     private EchoClientScreenCommand pendingModalCommand = EchoClientScreenCommand.NONE;
     private String modalTitle = "";
@@ -139,6 +151,10 @@ final class EchoClientScreenController {
         return editingTextField != EditableTextField.NONE;
     }
 
+    boolean keyRebindActive() {
+        return pendingKeyRebindAction != null;
+    }
+
     String worldName() {
         return normalizedWorldName(worldName);
     }
@@ -199,6 +215,7 @@ final class EchoClientScreenController {
         reducedMotion = next.reducedMotion();
         keyBindings = next.keyBindings();
         clientSettingsDirty = false;
+        markSnapshotDirty();
     }
 
     boolean consumeClientSettingsDirty() {
@@ -210,6 +227,7 @@ final class EchoClientScreenController {
     boolean toggleFullscreenPreference() {
         fullscreen = !fullscreen;
         clientSettingsDirty = true;
+        markSnapshotDirty();
         return fullscreen;
     }
 
@@ -225,6 +243,7 @@ final class EchoClientScreenController {
             toastRemainingSeconds = Math.max(0.0D, toastRemainingSeconds - dt);
             if (toastRemainingSeconds == 0.0D) {
                 toastMessage = "";
+                markSnapshotDirty();
             }
         }
     }
@@ -235,6 +254,7 @@ final class EchoClientScreenController {
         }
         toastMessage = message.trim();
         toastRemainingSeconds = TOAST_SECONDS;
+        markSnapshotDirty();
     }
 
     boolean consumeUiFeedbackPulse() {
@@ -255,6 +275,7 @@ final class EchoClientScreenController {
     }
 
     void showMainMenu(boolean canContinue) {
+        pendingKeyRebindAction = null;
         state = EchoClientGameState.MAIN_MENU;
         screenKind = EchoClientScreenKind.MAIN_MENU;
         screenBackStack.clear();
@@ -303,6 +324,7 @@ final class EchoClientScreenController {
     }
 
     void showInGame() {
+        pendingKeyRebindAction = null;
         state = EchoClientGameState.IN_GAME;
         screenBackStack.clear();
         returnToGameplayOnBack = false;
@@ -310,9 +332,11 @@ final class EchoClientScreenController {
         selectedIndex = -1;
         footer = "";
         uiBridge.showStatic("echoscreencore:hud", "ECHO HUD", List.of("Gameplay active"), "hud.crosshair");
+        markSnapshotDirty();
     }
 
     void showInventory() {
+        pendingKeyRebindAction = null;
         state = EchoClientGameState.SCREEN_OPEN;
         screenKind = EchoClientScreenKind.INVENTORY;
         screenBackStack.clear();
@@ -346,6 +370,7 @@ final class EchoClientScreenController {
                 "Route: screencore.inventory",
                 "Focus: inventory.slots"
         ), "inventory.slots");
+        markSnapshotDirty();
     }
 
     private void openContainer(boolean hasSession) {
@@ -372,9 +397,11 @@ final class EchoClientScreenController {
                 "Route: screencore.container",
                 "Focus: container.slots"
         ), "container.slots");
+        markSnapshotDirty();
     }
 
     void showPauseMenu() {
+        pendingKeyRebindAction = null;
         state = EchoClientGameState.PAUSED;
         screenKind = EchoClientScreenKind.PAUSE_MENU;
         screenBackStack.clear();
@@ -400,6 +427,7 @@ final class EchoClientScreenController {
                 "Route: screencore.quit_to_title",
                 "Focus: quit_to_title.status"
         ), "quit_to_title.status");
+        markSnapshotDirty();
     }
 
     void showDeathScreen() {
@@ -424,6 +452,20 @@ final class EchoClientScreenController {
                 "Route: screencore.saving",
                 "Focus: saving.status"
         ), "saving.status");
+        markSnapshotDirty();
+    }
+
+    void showFatalError(Throwable failure) {
+        fatalErrorSummary = fatalErrorSummary(failure);
+        fatalErrorDetail = fatalErrorDetail(failure);
+        state = EchoClientGameState.FATAL_ERROR;
+        screenKind = EchoClientScreenKind.FATAL_ERROR;
+        screenBackStack.clear();
+        returnToGameplayOnBack = false;
+        scrollOffset = 0;
+        selectedIndex = firstEnabledIndex(options(true), 0);
+        footer = "Export a support bundle, return to title, or quit";
+        publishMenu(true);
     }
 
     EchoClientScreenCommand handleInput(
@@ -456,6 +498,9 @@ final class EchoClientScreenController {
         if (state == EchoClientGameState.DEAD) {
             return EchoClientScreenCommand.NONE;
         }
+        if (state == EchoClientGameState.FATAL_ERROR) {
+            return EchoClientScreenCommand.NONE;
+        }
         if (state == EchoClientGameState.MAIN_MENU) {
             markUiFeedback();
             return EchoClientScreenCommand.QUIT_CLIENT;
@@ -467,6 +512,7 @@ final class EchoClientScreenController {
         boolean hadLoadableSaveSlot = this.saveSlots.stream().anyMatch(EchoClientSaveSlotSummary::loadableInMemory);
         this.saveSlots = saveSlots == null ? List.of() : List.copyOf(saveSlots);
         this.saveSlotError = saveSlotError == null ? "" : saveSlotError;
+        markSnapshotDirty();
         if (screenKind == EchoClientScreenKind.WORLD_SELECT) {
             boolean hasLoadableSaveSlot = this.saveSlots.stream().anyMatch(EchoClientSaveSlotSummary::loadableInMemory);
             selectedIndex = !hadLoadableSaveSlot && hasLoadableSaveSlot
@@ -479,6 +525,7 @@ final class EchoClientScreenController {
 
     void updateModScan(EchoClientModScanSummary modScan) {
         this.modScan = modScan == null ? EchoClientModScanSummary.empty() : modScan;
+        markSnapshotDirty();
         if (screenKind == EchoClientScreenKind.MODS || screenKind == EchoClientScreenKind.DIAGNOSTICS) {
             selectedIndex = firstEnabledIndex(options(false), selectedIndex);
             publishMenu(false);
@@ -487,6 +534,7 @@ final class EchoClientScreenController {
 
     void updateRuntimeContentSummary(EchoClientRuntimeContentSummary runtimeContent) {
         this.runtimeContent = runtimeContent == null ? EchoClientRuntimeContentSummary.empty() : runtimeContent;
+        markSnapshotDirty();
         if (screenKind == EchoClientScreenKind.MODS || screenKind == EchoClientScreenKind.DIAGNOSTICS) {
             selectedIndex = firstEnabledIndex(options(false), selectedIndex);
             publishMenu(false);
@@ -495,6 +543,7 @@ final class EchoClientScreenController {
 
     void updateTechSurfaceModel(EchoClientTechSurfaceModel techSurface) {
         this.techSurface = techSurface == null ? EchoClientTechSurfaceModel.empty() : techSurface;
+        markSnapshotDirty();
         if (screenKind == EchoClientScreenKind.MACHINE || screenKind == EchoClientScreenKind.TERMINAL) {
             selectedIndex = firstEnabledIndex(options(true), selectedIndex);
             publishMenu(true);
@@ -508,6 +557,7 @@ final class EchoClientScreenController {
         boolean hadResourcePacks = !this.resourcePacks.isEmpty();
         this.resourcePacks = resourcePacks == null ? List.of() : List.copyOf(resourcePacks);
         this.resourcePackError = resourcePackError == null ? "" : resourcePackError;
+        markSnapshotDirty();
         if (screenKind == EchoClientScreenKind.RESOURCE_PACKS) {
             selectedIndex = !hadResourcePacks && !this.resourcePacks.isEmpty()
                     ? firstResourcePackIndex()
@@ -521,6 +571,7 @@ final class EchoClientScreenController {
 
     void updateScreenCatalog(EchoClientScreenCatalog screenCatalog) {
         this.screenCatalog = screenCatalog == null ? EchoClientScreenCatalog.empty() : screenCatalog;
+        markSnapshotDirty();
         if (screenKind == EchoClientScreenKind.MODS || screenKind == EchoClientScreenKind.DIAGNOSTICS) {
             selectedIndex = firstEnabledIndex(options(false), selectedIndex);
             publishMenu(false);
@@ -535,6 +586,22 @@ final class EchoClientScreenController {
         this.runtimeDiagnostics = runtimeDiagnostics == null
                 ? EchoClientRuntimeDiagnosticsSnapshot.EMPTY
                 : runtimeDiagnostics;
+        markSnapshotDirty();
+        if (screenKind == EchoClientScreenKind.DIAGNOSTICS) {
+            selectedIndex = firstEnabledIndex(options(false), selectedIndex);
+            publishMenu(false);
+        }
+    }
+
+    EchoClientRuntimeDiagnosticsSnapshot runtimeDiagnosticsSnapshot() {
+        return runtimeDiagnostics;
+    }
+
+    void updateSupportBundleResult(EchoClientSupportBundleResult supportBundleResult) {
+        this.supportBundleResult = supportBundleResult == null
+                ? EchoClientSupportBundleResult.EMPTY
+                : supportBundleResult;
+        markSnapshotDirty();
         if (screenKind == EchoClientScreenKind.DIAGNOSTICS) {
             selectedIndex = firstEnabledIndex(options(false), selectedIndex);
             publishMenu(false);
@@ -544,6 +611,7 @@ final class EchoClientScreenController {
     void updateWorkbenchRecipes(List<EchoClientWorkbenchRecipeSummary> recipes, String recipeError) {
         this.workbenchRecipes = recipes == null ? List.of() : List.copyOf(recipes);
         this.workbenchRecipeError = recipeError == null ? "" : recipeError;
+        markSnapshotDirty();
         if (screenKind == EchoClientScreenKind.WORKBENCH) {
             selectedIndex = firstEnabledIndex(options(true), selectedIndex);
             publishMenu(true);
@@ -691,14 +759,15 @@ final class EchoClientScreenController {
     }
 
     void moveSelection(int direction, boolean hasSession, int height) {
+        List<EchoClientScreenOption> options = options(hasSession);
         int before = selectedIndex;
-        moveSelection(options(hasSession), direction);
+        moveSelection(options, direction);
         rememberSelectedSaveSlot();
-        ensureSelectedVisible(options(hasSession).size(), height);
+        ensureSelectedVisible(options.size(), height);
         if (before != selectedIndex) {
             markUiFeedback();
         }
-        publishMenu(hasSession);
+        publishMenu(hasSession, options);
     }
 
     void scrollSelection(int direction, boolean hasSession, int height) {
@@ -713,7 +782,7 @@ final class EchoClientScreenController {
         }
         rememberSelectedSaveSlot();
         markUiFeedback();
-        publishMenu(hasSession);
+        publishMenu(hasSession, options);
     }
 
     EchoClientScreenCommand activateSelection(boolean hasSession) {
@@ -725,6 +794,10 @@ final class EchoClientScreenController {
         if (!selected.enabled()) {
             return EchoClientScreenCommand.NONE;
         }
+        return activateSelectedOption(selected, hasSession);
+    }
+
+    private EchoClientScreenCommand activateSelectedOption(EchoClientScreenOption selected, boolean hasSession) {
         markUiFeedback();
         if (activateControl(selected)) {
             publishMenu(hasSession);
@@ -736,10 +809,15 @@ final class EchoClientScreenController {
             return EchoClientScreenCommand.NONE;
         }
         if (selected.command() == EchoClientScreenCommand.RESET_KEY_BINDINGS) {
+            pendingKeyRebindAction = null;
             keyBindings = EchoClientKeyBindings.defaults();
             clientSettingsDirty = true;
             showToast("Key bindings reset");
             publishMenu(hasSession);
+            return EchoClientScreenCommand.NONE;
+        }
+        if (selected.command() == EchoClientScreenCommand.START_KEY_REBIND) {
+            beginKeyRebind(selected.targetId(), hasSession);
             return EchoClientScreenCommand.NONE;
         }
         if (requiresConfirmation(selected.command())) {
@@ -826,6 +904,46 @@ final class EchoClientScreenController {
         publishMenu(hasSession);
     }
 
+    private void beginKeyRebind(String actionId, boolean hasSession) {
+        EchoClientKeyAction action = EchoClientKeyAction.byId(actionId);
+        if (action == null) {
+            showToast("Key binding unavailable");
+            return;
+        }
+        editingTextField = EditableTextField.NONE;
+        pendingKeyRebindAction = action;
+        publishMenu(hasSession);
+    }
+
+    void cancelKeyRebind(boolean hasSession) {
+        if (pendingKeyRebindAction == null) {
+            return;
+        }
+        String label = pendingKeyRebindAction.displayName();
+        pendingKeyRebindAction = null;
+        showToast(label + " binding canceled");
+        publishMenu(hasSession);
+    }
+
+    boolean finishKeyRebind(int glfwKey, boolean hasSession) {
+        if (pendingKeyRebindAction == null) {
+            return false;
+        }
+        EchoClientKeyAction action = pendingKeyRebindAction;
+        EchoClientKeyBindings next = keyBindings.withKey(action, glfwKey);
+        if (next == keyBindings) {
+            showToast("Unsupported key");
+            publishMenu(hasSession);
+            return false;
+        }
+        keyBindings = next;
+        pendingKeyRebindAction = null;
+        clientSettingsDirty = true;
+        showToast(action.displayName() + " set to " + keyBindings.label(action));
+        publishMenu(hasSession);
+        return true;
+    }
+
     EchoClientScreenCommand handleModalPointer(
             double pointerX,
             double pointerY,
@@ -857,6 +975,7 @@ final class EchoClientScreenController {
         if (direction != 0) {
             modalConfirmSelected = direction > 0;
             markUiFeedback();
+            markSnapshotDirty();
         }
         return EchoClientScreenCommand.NONE;
     }
@@ -875,7 +994,8 @@ final class EchoClientScreenController {
             int height,
             boolean hasSession
     ) {
-        List<EchoClientScreenOption> options = options(hasSession);
+        List<EchoClientScreenOption> options = currentPublishedOptions(hasSession);
+        int beforeScrollOffset = scrollOffset;
         int hoverIndex = hitOption(pointerX, pointerY, width, height, options.size());
         if (hoverIndex < 0 || hoverIndex >= options.size()) {
             return EchoClientScreenCommand.NONE;
@@ -883,25 +1003,71 @@ final class EchoClientScreenController {
         int before = selectedIndex;
         selectedIndex = hoverIndex;
         rememberSelectedSaveSlot();
+        boolean menuChanged = before != selectedIndex || beforeScrollOffset != scrollOffset;
         if (before != selectedIndex) {
             markUiFeedback();
         }
         EchoClientScreenOption hovered = options.get(hoverIndex);
+        boolean optionContentChanged = false;
         if (hovered.enabled()
                 && hovered.kind() == EchoClientScreenOptionKind.SLIDER
                 && (clicked || primaryDown)
                 && setSelectedSliderFromPointer(hovered.label(), pointerX, width)) {
             showToast(hovered.label() + " " + currentValueText(hovered.label()));
             markUiFeedback();
+            menuChanged = true;
+            optionContentChanged = true;
         }
-        publishMenu(hasSession);
+        if (menuChanged) {
+            if (optionContentChanged) {
+                publishMenu(hasSession);
+            } else {
+                publishMenu(hasSession, options);
+            }
+        }
         if (clicked && hovered.enabled() && hovered.kind() != EchoClientScreenOptionKind.SLIDER) {
-            return activateSelection(hasSession);
+            return activateSelectedOption(hovered, hasSession);
         }
         return EchoClientScreenCommand.NONE;
     }
 
     EchoClientScreenSnapshot snapshot(boolean hasSession) {
+        if (cachedSnapshot != null
+                && cachedSnapshotHasSession == hasSession
+                && cachedSnapshotRevision == snapshotRevision) {
+            snapshotCacheHitCount++;
+            return cachedSnapshot;
+        }
+        EchoClientScreenSnapshot snapshot = buildSnapshot(hasSession);
+        snapshotBuildCount++;
+        if (canCacheSnapshot(snapshot)) {
+            cachedSnapshot = snapshot;
+            cachedSnapshotHasSession = hasSession;
+            cachedSnapshotRevision = snapshotRevision;
+        } else {
+            cachedSnapshot = null;
+            cachedSnapshotRevision = -1L;
+        }
+        return snapshot;
+    }
+
+    long snapshotRevision() {
+        return snapshotRevision;
+    }
+
+    long snapshotBuildCount() {
+        return snapshotBuildCount;
+    }
+
+    long snapshotCacheHitCount() {
+        return snapshotCacheHitCount;
+    }
+
+    long optionListBuildCount() {
+        return optionListBuildCount;
+    }
+
+    private EchoClientScreenSnapshot buildSnapshot(boolean hasSession) {
         if (isLoading()) {
             EchoUiFrame frame = uiBridge.frame();
             return new EchoClientScreenSnapshot(
@@ -926,6 +1092,7 @@ final class EchoClientScreenController {
             case PAUSED -> "GAME PAUSED";
             case DEAD -> "YOU DIED";
             case SAVING -> "SAVING";
+            case FATAL_ERROR -> "RUNTIME ERROR";
             case SCREEN_OPEN -> screenTitle();
             default -> "ECHO";
         };
@@ -934,26 +1101,35 @@ final class EchoClientScreenController {
             case PAUSED -> "Runtime shell";
             case DEAD -> "Respawn available";
             case SAVING -> "Please wait";
+            case FATAL_ERROR -> "Standalone client halted safely";
             case SCREEN_OPEN -> screenSubtitle();
             default -> "";
         };
         EchoUiFrame frame = uiBridge.frame();
+        List<EchoClientScreenOption> screenOptions = options(hasSession);
         return new EchoClientScreenSnapshot(
                 state,
                 screenKind,
                 frame.screen().title().isBlank() ? title : frame.screen().title(),
                 subtitle,
-                options(hasSession),
+                screenOptions,
                 selectedIndex,
                 scrollOffset,
                 false,
                 0.0D,
-                selectedTooltip(options(hasSession)),
+                selectedTooltip(screenOptions),
                 modalSnapshot(),
                 toastSnapshot(),
                 footer + " | ScreenCore " + frame.screen().id(),
                 saveSlotThumbnailSnapshot()
         );
+    }
+
+    private static boolean canCacheSnapshot(EchoClientScreenSnapshot snapshot) {
+        return snapshot != null
+                && !snapshot.loading()
+                && !snapshot.modal().visible()
+                && !snapshot.toast().visible();
     }
 
     private boolean isLoading() {
@@ -964,14 +1140,13 @@ final class EchoClientScreenController {
     }
 
     private List<EchoClientScreenOption> options(boolean hasSession) {
+        optionListBuildCount++;
         ArrayList<EchoClientScreenOption> result = new ArrayList<>();
         switch (screenKind) {
             case MAIN_MENU -> {
                 result.add(new EchoClientScreenOption("Continue", EchoClientScreenCommand.CONTINUE_GAME, hasSession));
                 result.add(new EchoClientScreenOption("New Game", EchoClientScreenCommand.OPEN_CREATE_WORLD, true));
                 result.add(new EchoClientScreenOption("Load Game", EchoClientScreenCommand.OPEN_WORLD_SELECT, true));
-                result.add(new EchoClientScreenOption("Mods", EchoClientScreenCommand.OPEN_MODS, true));
-                result.add(new EchoClientScreenOption("Resource Packs", EchoClientScreenCommand.OPEN_RESOURCE_PACKS, true));
                 result.add(new EchoClientScreenOption("Options", EchoClientScreenCommand.OPEN_OPTIONS, true));
                 result.add(new EchoClientScreenOption("Quit", EchoClientScreenCommand.QUIT_CLIENT, true));
             }
@@ -985,6 +1160,12 @@ final class EchoClientScreenController {
                 result.add(new EchoClientScreenOption("Save Game", EchoClientScreenCommand.SAVE_GAME, true));
                 result.add(new EchoClientScreenOption("Options", EchoClientScreenCommand.OPEN_OPTIONS, true));
                 result.add(new EchoClientScreenOption("Diagnostics", EchoClientScreenCommand.OPEN_DIAGNOSTICS, true));
+                result.add(new EchoClientScreenOption(
+                        "Export Support Bundle",
+                        EchoClientScreenCommand.EXPORT_SUPPORT_BUNDLE,
+                        true,
+                        "Write a local client diagnostics zip for support"
+                ));
                 result.add(new EchoClientScreenOption("Mods", EchoClientScreenCommand.OPEN_MODS, true));
                 result.add(new EchoClientScreenOption("Resource Packs", EchoClientScreenCommand.OPEN_RESOURCE_PACKS, true));
                 result.add(new EchoClientScreenOption("Quit To Title", EchoClientScreenCommand.QUIT_TO_TITLE, true));
@@ -993,6 +1174,35 @@ final class EchoClientScreenController {
                 result.add(new EchoClientScreenOption("Respawn", EchoClientScreenCommand.RESPAWN, hasSession));
                 result.add(new EchoClientScreenOption("Options", EchoClientScreenCommand.OPEN_OPTIONS, true));
                 result.add(new EchoClientScreenOption("Quit To Title", EchoClientScreenCommand.QUIT_TO_TITLE, true));
+            }
+            case FATAL_ERROR -> {
+                result.add(new EchoClientScreenOption(
+                        "Export Support Bundle",
+                        EchoClientScreenCommand.EXPORT_SUPPORT_BUNDLE,
+                        true,
+                        "Write a local client diagnostics zip with the fatal error screen snapshot"
+                ));
+                result.add(new EchoClientScreenOption(
+                        "Open Diagnostics",
+                        EchoClientScreenCommand.OPEN_DIAGNOSTICS,
+                        true,
+                        "Inspect runtime telemetry after the fatal error"
+                ));
+                result.add(new EchoClientScreenOption(
+                        "Error: " + limitText(fatalErrorSummary, 52),
+                        EchoClientScreenCommand.NONE,
+                        false,
+                        fatalErrorDetail
+                ));
+                result.add(new EchoClientScreenOption(
+                        "Quit To Title",
+                        EchoClientScreenCommand.QUIT_TO_TITLE,
+                        hasSession,
+                        hasSession
+                                ? "Unload the active world and return to the main menu"
+                                : "No active world session is loaded"
+                ));
+                result.add(new EchoClientScreenOption("Quit Client", EchoClientScreenCommand.QUIT_CLIENT, true));
             }
             case WORLD_SELECT -> {
                 if (saveSlots.isEmpty()) {
@@ -1080,8 +1290,15 @@ final class EchoClientScreenController {
                 result.add(new EchoClientScreenOption("Audio Settings", EchoClientScreenCommand.OPEN_AUDIO_SETTINGS, true));
                 result.add(new EchoClientScreenOption("Accessibility", EchoClientScreenCommand.OPEN_ACCESSIBILITY_SETTINGS, true));
                 result.add(new EchoClientScreenOption("Language", EchoClientScreenCommand.OPEN_LANGUAGE_SETTINGS, true));
+                result.add(new EchoClientScreenOption("Mods", EchoClientScreenCommand.OPEN_MODS, true));
                 result.add(new EchoClientScreenOption("Resource Packs", EchoClientScreenCommand.OPEN_RESOURCE_PACKS, true));
                 result.add(new EchoClientScreenOption("Diagnostics", EchoClientScreenCommand.OPEN_DIAGNOSTICS, true));
+                result.add(new EchoClientScreenOption(
+                        "Export Support Bundle",
+                        EchoClientScreenCommand.EXPORT_SUPPORT_BUNDLE,
+                        true,
+                        "Write a local client diagnostics zip for support"
+                ));
                 result.add(new EchoClientScreenOption("Back", EchoClientScreenCommand.BACK, true));
             }
             case CONTROLS -> {
@@ -1089,11 +1306,14 @@ final class EchoClientScreenController {
                 result.add(new EchoClientScreenOption("Key Bindings", EchoClientScreenCommand.NONE, false));
                 result.add(EchoClientScreenOption.toggle("Raw Mouse Input", rawMouseInput, "Use left/right or Enter to toggle raw mouse input"));
                 for (EchoClientKeyAction action : EchoClientKeyAction.controlsScreenActions()) {
-                    result.add(new EchoClientScreenOption(
-                            action.displayName() + ": " + keyBindings.label(action),
-                            EchoClientScreenCommand.NONE,
-                            false,
-                            "Runtime action " + action.id() + " is bound to " + keyBindings.label(action)
+                    boolean rebinding = action == pendingKeyRebindAction;
+                    result.add(EchoClientScreenOption.target(
+                            action.displayName() + ": " + (rebinding ? "Press a key" : keyBindings.label(action)),
+                            EchoClientScreenCommand.START_KEY_REBIND,
+                            action.id(),
+                            rebinding
+                                    ? "Press any supported key to bind " + action.displayName() + ", or Esc to cancel"
+                                    : "Enter selects " + action.displayName() + " for rebinding"
                     ));
                 }
                 result.add(new EchoClientScreenOption(
@@ -1408,6 +1628,20 @@ final class EchoClientScreenController {
                 result.add(new EchoClientScreenOption("Back", EchoClientScreenCommand.BACK, true));
             }
             case DIAGNOSTICS -> {
+                result.add(new EchoClientScreenOption(
+                        "Export Support Bundle",
+                        EchoClientScreenCommand.EXPORT_SUPPORT_BUNDLE,
+                        true,
+                        "Write a local client diagnostics zip for support"
+                ));
+                result.add(new EchoClientScreenOption(
+                        supportBundleResult.menuLabel(),
+                        EchoClientScreenCommand.NONE,
+                        false,
+                        supportBundleResult.exported()
+                                ? supportBundleResult.archivePath()
+                                : supportBundleResult.message()
+                ));
                 result.add(new EchoClientScreenOption("Runtime State: " + state, EchoClientScreenCommand.NONE, false));
                 result.add(new EchoClientScreenOption("Screen: " + screenKind, EchoClientScreenCommand.NONE, false));
                 result.add(new EchoClientScreenOption("Save Slots: " + saveSlots.size(), EchoClientScreenCommand.NONE, false));
@@ -1495,6 +1729,9 @@ final class EchoClientScreenController {
     }
 
     private void openScreen(EchoClientScreenKind nextScreenKind, boolean hasSession) {
+        if (nextScreenKind != EchoClientScreenKind.CONTROLS) {
+            pendingKeyRebindAction = null;
+        }
         if (state == EchoClientGameState.IN_GAME) {
             returnToGameplayOnBack = true;
         } else if (screenKind != nextScreenKind) {
@@ -1548,6 +1785,7 @@ final class EchoClientScreenController {
     }
 
     private void back(boolean hasSession) {
+        pendingKeyRebindAction = null;
         if (screenBackStack.isEmpty()) {
             registeredScreenId = "";
             if (hasSession && returnToGameplayOnBack) {
@@ -1840,6 +2078,7 @@ final class EchoClientScreenController {
             case OPEN_CREATE_WORLD -> "Choose world setup options";
             case OPEN_OPTIONS -> "Open client settings";
             case OPEN_CONTROLS -> "View input settings";
+            case START_KEY_REBIND -> "Select a control and press a new key";
             case OPEN_VIDEO_SETTINGS -> "View renderer settings";
             case OPEN_AUDIO_SETTINGS -> "View audio settings";
             case OPEN_ACCESSIBILITY_SETTINGS -> "View subtitle and accessibility settings";
@@ -1858,6 +2097,7 @@ final class EchoClientScreenController {
             case OPEN_TERMINAL -> "Open the ScreenCore terminal surface";
             case CRAFT_WORKBENCH_RECIPE -> "Craft the selected item-runtime recipe";
             case OPEN_DIAGNOSTICS -> "Inspect runtime and ScreenCore state";
+            case EXPORT_SUPPORT_BUNDLE -> "Export a local client diagnostics support bundle";
             case OPEN_REGISTERED_SCREEN -> "Open the registered AdapterCore ScreenCore route";
             case REFRESH_RESOURCE_PACKS -> "Rescan pack roots and rebuild texture caches";
             case OPEN_RESOURCE_PACK_DETAIL -> "Inspect namespaces, textures, models, lang, and sound events for this pack";
@@ -2207,6 +2447,7 @@ final class EchoClientScreenController {
                 modalCancelLabel = "Cancel";
             }
         }
+        markSnapshotDirty();
     }
 
     private EchoClientScreenCommand finishModal(boolean confirm) {
@@ -2222,10 +2463,17 @@ final class EchoClientScreenController {
         modalConfirmLabel = "Confirm";
         modalCancelLabel = "Cancel";
         modalConfirmSelected = true;
+        markSnapshotDirty();
     }
 
     private void markUiFeedback() {
         uiFeedbackPulses++;
+    }
+
+    private void markSnapshotDirty() {
+        snapshotRevision++;
+        cachedSnapshot = null;
+        cachedSnapshotRevision = -1L;
     }
 
     private int modalButtonHit(double pointerX, double pointerY, int width, int height) {
@@ -2285,9 +2533,23 @@ final class EchoClientScreenController {
                 "Route: screencore.loading",
                 "Focus: loading.progress"
         ), "loading.progress");
+        markSnapshotDirty();
     }
 
     private void publishMenu(boolean hasSession) {
+        publishMenuInternal(options(hasSession));
+    }
+
+    private void publishMenu(boolean hasSession, List<EchoClientScreenOption> options) {
+        if (options == null || screenOptionContentChangesWithSelection()) {
+            publishMenuInternal(options(hasSession));
+            return;
+        }
+        publishMenuInternal(options);
+    }
+
+    private void publishMenuInternal(List<EchoClientScreenOption> options) {
+        publishedOptions = options == null ? List.of() : List.copyOf(options);
         String screenId = screenId();
         String title = screenTitle();
         String route = route();
@@ -2297,7 +2559,19 @@ final class EchoClientScreenController {
         lines.add(screenDescription());
         lines.add("Route: " + route);
         lines.add("Focus: " + focus);
-        uiBridge.showMenu(screenId, title, options(hasSession), selectedIndex, lines);
+        uiBridge.showMenu(screenId, title, options, selectedIndex, lines);
+        markSnapshotDirty();
+    }
+
+    private List<EchoClientScreenOption> currentPublishedOptions(boolean hasSession) {
+        if (!publishedOptions.isEmpty()) {
+            return publishedOptions;
+        }
+        return options(hasSession);
+    }
+
+    private boolean screenOptionContentChangesWithSelection() {
+        return screenKind == EchoClientScreenKind.WORLD_SELECT;
     }
 
     private String selectedTargetId(boolean hasSession) {
@@ -2333,6 +2607,7 @@ final class EchoClientScreenController {
             case MAIN_MENU -> EchoClientGameState.MAIN_MENU;
             case PAUSE_MENU -> EchoClientGameState.PAUSED;
             case DEATH_SCREEN -> EchoClientGameState.DEAD;
+            case FATAL_ERROR -> EchoClientGameState.FATAL_ERROR;
             default -> EchoClientGameState.SCREEN_OPEN;
         };
     }
@@ -2342,6 +2617,7 @@ final class EchoClientScreenController {
             case MAIN_MENU -> "Enter selects, Esc quits";
             case PAUSE_MENU -> "Esc resumes";
             case DEATH_SCREEN -> "Enter respawns";
+            case FATAL_ERROR -> "Export a support bundle, return to title, or quit";
             default -> "Esc backs out";
         };
     }
@@ -2368,6 +2644,7 @@ final class EchoClientScreenController {
             case MACHINE -> "echoscreencore:machine";
             case TERMINAL -> "echoscreencore:terminal";
             case DIAGNOSTICS -> "echoscreencore:diagnostics";
+            case FATAL_ERROR -> "echoscreencore:fatal_error";
             case REGISTERED_SCREEN -> {
                 EchoClientScreenCatalogEntry screen = registeredScreen();
                 yield screen == null ? "echoscreencore:registered_screen" : screen.screenId();
@@ -2400,6 +2677,7 @@ final class EchoClientScreenController {
             case MACHINE -> "MACHINE";
             case TERMINAL -> "TERMINAL";
             case DIAGNOSTICS -> "DIAGNOSTICS";
+            case FATAL_ERROR -> "RUNTIME ERROR";
             case REGISTERED_SCREEN -> {
                 EchoClientScreenCatalogEntry screen = registeredScreen();
                 yield screen == null ? "REGISTERED SCREEN" : screen.title();
@@ -2429,6 +2707,7 @@ final class EchoClientScreenController {
             case MACHINE -> "Machine status";
             case TERMINAL -> "Field terminal";
             case DIAGNOSTICS -> "Runtime telemetry";
+            case FATAL_ERROR -> "Standalone client halted safely";
             case REGISTERED_SCREEN -> {
                 EchoClientScreenCatalogEntry screen = registeredScreen();
                 yield screen == null ? "AdapterCore screen" : screen.source() + " screen";
@@ -2507,6 +2786,7 @@ final class EchoClientScreenController {
                     + " native runtime terminal import(s)";
             case DIAGNOSTICS -> "Runtime state, save profile, resource packs, and ScreenCore route inspection: "
                     + screenCatalog.diagnosticsSummary();
+            case FATAL_ERROR -> fatalErrorSummary;
             case REGISTERED_SCREEN -> {
                 EchoClientScreenCatalogEntry screen = registeredScreen();
                 yield screen == null
@@ -2538,6 +2818,7 @@ final class EchoClientScreenController {
             case MACHINE -> "screencore.machine";
             case TERMINAL -> "screencore.terminal";
             case DIAGNOSTICS -> "screencore.diagnostics";
+            case FATAL_ERROR -> "screencore.fatal_error";
             case REGISTERED_SCREEN -> {
                 EchoClientScreenCatalogEntry screen = registeredScreen();
                 yield screen == null ? "screencore.registered_screen" : screen.route().route();
@@ -2567,11 +2848,49 @@ final class EchoClientScreenController {
             case MACHINE -> "machine.status";
             case TERMINAL -> "terminal.primary";
             case DIAGNOSTICS -> "diagnostics.back";
+            case FATAL_ERROR -> "fatal_error.export_support_bundle";
             case REGISTERED_SCREEN -> {
                 EchoClientScreenCatalogEntry screen = registeredScreen();
                 yield screen == null ? "registered_screen.back" : screen.route().focusPath();
             }
         };
+    }
+
+    private static String fatalErrorSummary(Throwable failure) {
+        if (failure == null) {
+            return "Unknown runtime failure";
+        }
+        String type = failure.getClass().getSimpleName();
+        String message = cleanFatalLine(failure.getMessage());
+        if (message.isBlank()) {
+            return type;
+        }
+        return type + ": " + message;
+    }
+
+    private static String fatalErrorDetail(Throwable failure) {
+        if (failure == null) {
+            return "No throwable was provided.";
+        }
+        StringBuilder detail = new StringBuilder(fatalErrorSummary(failure));
+        Throwable cause = failure.getCause();
+        if (cause != null) {
+            detail.append(" | Cause: ").append(fatalErrorSummary(cause));
+        }
+        StackTraceElement[] stack = failure.getStackTrace();
+        if (stack.length > 0) {
+            detail.append(" | At ").append(stack[0]);
+        }
+        return limitFatalDetail(detail.toString());
+    }
+
+    private static String cleanFatalLine(String value) {
+        return value == null ? "" : value.trim().replace('\r', ' ').replace('\n', ' ');
+    }
+
+    private static String limitFatalDetail(String value) {
+        String safe = value == null ? "" : value.trim();
+        return safe.length() <= 360 ? safe : safe.substring(0, 357) + "...";
     }
 
     private enum EditableTextField {

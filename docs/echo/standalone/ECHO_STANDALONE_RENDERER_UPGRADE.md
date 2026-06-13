@@ -22,3 +22,7 @@ Tiles and entity sprites are projected through the scene camera. UI commands are
 ## Boundary
 
 This is a real backend adapter because it produces pixels and lifecycle state, but it is intentionally not a native display backend yet. That keeps Phase 15.5 deterministic and safe inside headless CI while moving the runtime away from command recording as the default renderer.
+
+## Evidence Gate
+
+`EchoRuntimeRenderSmokeHarness` writes concrete non-placeholder evidence to the Phase 15.5 renderer-upgrade reports under `reports/echo/standalone`. `verifyStandaloneRendererUpgradeRuntime` regenerates those reports, rejects bootstrap schemas, and requires PASS evidence for the software backend default, preserved recording backend, ARGB framebuffer output, deterministic pipeline order, full-frame lighting, debug overlays, and device-free renderer boundaries.

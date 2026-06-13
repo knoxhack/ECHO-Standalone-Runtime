@@ -31,6 +31,7 @@ import dev.echo.standalone.runtime.world.EchoWorldRuntime;
 import dev.echo.standalone.runtime.world.EchoWorldRuntimeResult;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -241,6 +242,34 @@ public final class EchoRuntimeItemSmokeHarness {
         EchoSaveCorruptionReport saveCheck = saves.check("slot-items");
         require(saveCheck.healthy(), "item save should pass corruption check");
 
+        writeReports(
+                Path.of(".").toAbsolutePath().normalize(),
+                items,
+                registry,
+                store,
+                playerPack,
+                crashCache,
+                addedWater,
+                transferredBlade,
+                movedWater,
+                splitWater,
+                mergedWater,
+                swappedBlade,
+                crossContainerSwap,
+                quickMovedWater,
+                consumedWater,
+                crafted,
+                loot,
+                runtimeLoot,
+                tooltip,
+                disabledTooltip,
+                useFeedback,
+                saved,
+                manifest,
+                saveCheck,
+                runtimeLootItemId
+        );
+
         System.out.println("phase14.11 item runtime smoke PASS definitions="
                 + registry.count()
                 + " inventories="
@@ -257,6 +286,434 @@ public final class EchoRuntimeItemSmokeHarness {
                 + runtimeLoot.quantityGranted()
                 + " savedFiles="
                 + saved.writtenPaths().size());
+    }
+
+    private static void writeReports(
+            Path standaloneRoot,
+            EchoItemRuntimeResult items,
+            EchoItemRegistry registry,
+            EchoInventoryStore store,
+            EchoInventoryContainer playerPack,
+            EchoInventoryContainer crashCache,
+            EchoInventoryOperationResult addedWater,
+            EchoInventoryTransferResult transferredBlade,
+            EchoInventoryTransferResult movedWater,
+            EchoInventoryTransferResult splitWater,
+            EchoInventoryTransferResult mergedWater,
+            EchoInventoryTransferResult swappedBlade,
+            EchoInventoryTransferResult crossContainerSwap,
+            EchoInventoryTransferResult quickMovedWater,
+            EchoInventoryOperationResult consumedWater,
+            EchoItemCraftResult crafted,
+            EchoItemLootResult loot,
+            EchoItemLootResult runtimeLoot,
+            List<String> tooltip,
+            List<String> disabledTooltip,
+            List<String> useFeedback,
+            EchoItemSaveResult saved,
+            EchoSaveManifest manifest,
+            EchoSaveCorruptionReport saveCheck,
+            String runtimeLootItemId
+    ) throws IOException {
+        Path root = standaloneRoot.resolve("reports/echo/standalone");
+        Files.createDirectories(root);
+
+        EchoItemId metalId = new EchoItemId(EchoItemRuntime.SCRAP_METAL_ITEM_ID);
+        EchoItemId waterId = new EchoItemId(EchoItemRuntime.CLEAN_WATER_BOTTLE_ITEM_ID);
+        EchoItemId canisterId = new EchoItemId("ashfall:filter_canister");
+        EchoItemId patchedFilterId = new EchoItemId("ashfall:patched_filter");
+        EchoItemId bladeId = new EchoItemId("ashfall:scavenger_blade");
+        EchoItemId runtimeTokenId = new EchoItemId(runtimeLootItemId);
+
+        write(root.resolve("runtime-item.json"), """
+                {
+                  "schema": "echo.standalone.runtime_item.v2",
+                  "status": "PASS",
+                  "phase": "14.11",
+                  "summary": "Item runtime created service-bound registries and inventories, executed stack operations, crafting, deterministic loot, AdapterCore native loot bridging, tooltip rendering, and save hooks.",
+                  "serviceBound": true,
+                  "registryBound": true,
+                  "inventoryStoreBound": true,
+                  "registryCount": %d,
+                  "debugDefinitionCount": 5,
+                  "inventoryCount": %d,
+                  "occupiedSlots": %d,
+                  "craftingSystemBound": true,
+                  "lootRuntimeBound": true,
+                  "tooltipRendererBound": true,
+                  "adapterCoreNativeLootBridge": %s,
+                  "saveHealthy": %s
+                }
+                """.formatted(
+                registry.count(),
+                store.count(),
+                store.occupiedSlots(),
+                runtimeLoot.granted(),
+                saveCheck.healthy()
+        ));
+
+        write(root.resolve("item-definitions.json"), """
+                {
+                  "schema": "echo.standalone.item_definitions.v2",
+                  "status": "PASS",
+                  "definitionCount": %d,
+                  "definitionIds": %s,
+                  "craftingTaggedCount": %d,
+                  "hydrationTaggedCount": %d,
+                  "nativeRuntimeDefinition": "%s",
+                  "definitions": %s
+                }
+                """.formatted(
+                registry.count(),
+                jsonStringArray(registry.all().stream().map(definition -> definition.id().value()).toList()),
+                registry.tagged("crafting").size(),
+                registry.tagged("hydration").size(),
+                escape(runtimeLootItemId),
+                definitionsJson(registry.all())
+        ));
+
+        write(root.resolve("inventory-containers.json"), """
+                {
+                  "schema": "echo.standalone.inventory_containers.v2",
+                  "status": "PASS",
+                  "containerCount": %d,
+                  "playerInventoryId": "%s",
+                  "crashCacheId": "%s",
+                  "containers": %s,
+                  "playerPackCapacity": %d,
+                  "crashCacheCapacity": %d,
+                  "playerPackOccupiedSlots": %d,
+                  "crashCacheOccupiedSlots": %d
+                }
+                """.formatted(
+                store.count(),
+                escape(playerPack.id().value()),
+                escape(crashCache.id().value()),
+                containersJson(store.all()),
+                playerPack.capacity(),
+                crashCache.capacity(),
+                playerPack.occupiedSlots(),
+                crashCache.occupiedSlots()
+        ));
+
+        write(root.resolve("inventory-stacks.json"), """
+                {
+                  "schema": "echo.standalone.inventory_stacks.v2",
+                  "status": "PASS",
+                  "playerStacks": %s,
+                  "crashCacheStacks": %s,
+                  "playerMetalCount": %d,
+                  "playerWaterCount": %d,
+                  "playerCanisterCount": %d,
+                  "playerPatchedFilterCount": %d,
+                  "playerBladeCount": %d,
+                  "crashCacheMetalCount": %d,
+                  "crashCacheWaterCount": %d,
+                  "crashCacheRuntimeLootTokenCount": %d
+                }
+                """.formatted(
+                slotsJson(playerPack),
+                slotsJson(crashCache),
+                items.operations().count(playerPack, metalId),
+                items.operations().count(playerPack, waterId),
+                items.operations().count(playerPack, canisterId),
+                items.operations().count(playerPack, patchedFilterId),
+                items.operations().count(playerPack, bladeId),
+                items.operations().count(crashCache, metalId),
+                items.operations().count(crashCache, waterId),
+                items.operations().count(crashCache, runtimeTokenId)
+        ));
+
+        write(root.resolve("inventory-transfers.json"), """
+                {
+                  "schema": "echo.standalone.inventory_transfers.v2",
+                  "status": "PASS",
+                  "stackMerge": %s,
+                  "transferBlade": %s,
+                  "moveWater": %s,
+                  "splitWater": %s,
+                  "mergeWater": %s,
+                  "swapBlade": %s,
+                  "crossContainerSwap": %s,
+                  "quickMoveWater": %s,
+                  "allTransfersSucceeded": %s
+                }
+                """.formatted(
+                operationJson(addedWater),
+                transferJson(transferredBlade),
+                transferJson(movedWater),
+                transferJson(splitWater),
+                transferJson(mergedWater),
+                transferJson(swappedBlade),
+                transferJson(crossContainerSwap),
+                transferJson(quickMovedWater),
+                addedWater.success()
+                        && transferredBlade.success()
+                        && movedWater.success()
+                        && splitWater.success()
+                        && mergedWater.success()
+                        && swappedBlade.success()
+                        && crossContainerSwap.success()
+                        && quickMovedWater.success()
+        ));
+
+        write(root.resolve("item-consumption.json"), """
+                {
+                  "schema": "echo.standalone.item_consumption.v2",
+                  "status": "PASS",
+                  "operation": %s,
+                  "consumedItemId": "%s",
+                  "waterRemaining": %d,
+                  "consumptionReducedStack": %s
+                }
+                """.formatted(
+                operationJson(consumedWater),
+                escape(waterId.value()),
+                items.operations().count(playerPack, waterId),
+                consumedWater.success() && consumedWater.quantity() == 1
+        ));
+
+        write(root.resolve("item-crafting.json"), """
+                {
+                  "schema": "echo.standalone.item_crafting.v2",
+                  "status": "PASS",
+                  "recipeId": "%s",
+                  "crafted": %s,
+                  "reason": "%s",
+                  "outputItemId": "%s",
+                  "outputQuantity": %d,
+                  "metalRemaining": %d,
+                  "canisterRemaining": %d,
+                  "patchedFilterCount": %d,
+                  "ingredientsConsumed": %s
+                }
+                """.formatted(
+                escape(crafted.recipeId()),
+                crafted.crafted(),
+                escape(crafted.reason()),
+                escape(items.debugRecipe().outputItemId().value()),
+                crafted.outputQuantity(),
+                items.operations().count(playerPack, metalId),
+                items.operations().count(playerPack, canisterId),
+                items.operations().count(playerPack, patchedFilterId),
+                items.operations().count(playerPack, metalId) == 1
+                        && items.operations().count(playerPack, canisterId) == 0
+        ));
+
+        write(root.resolve("item-loot.json"), """
+                {
+                  "schema": "echo.standalone.item_loot.v2",
+                  "status": "PASS",
+                  "debugLoot": %s,
+                  "nativeRuntimeLoot": %s,
+                  "debugLootTableId": "%s",
+                  "nativeRuntimeLootItemId": "%s",
+                  "crashCacheWaterCount": %d,
+                  "crashCacheMetalCount": %d,
+                  "crashCacheRuntimeLootTokenCount": %d,
+                  "adapterCoreNativeLootBridge": %s,
+                  "taggedHydrationResolved": %s
+                }
+                """.formatted(
+                lootJson(loot),
+                lootJson(runtimeLoot),
+                escape(items.debugLootTable().tableId()),
+                escape(runtimeLootItemId),
+                items.operations().count(crashCache, waterId),
+                items.operations().count(crashCache, metalId),
+                items.operations().count(crashCache, runtimeTokenId),
+                runtimeLoot.granted(),
+                items.operations().count(crashCache, waterId) == 2
+        ));
+
+        write(root.resolve("item-tooltips.json"), """
+                {
+                  "schema": "echo.standalone.item_tooltips.v2",
+                  "status": "PASS",
+                  "patchedFilterTooltip": %s,
+                  "disabledTooltip": %s,
+                  "useFeedback": %s,
+                  "containsDisplayName": %s,
+                  "containsItemId": %s,
+                  "containsUsageLine": %s,
+                  "containsTags": %s,
+                  "containsReadyState": %s,
+                  "containsDisabledReason": %s,
+                  "containsUseFeedback": %s
+                }
+                """.formatted(
+                jsonStringArray(tooltip),
+                jsonStringArray(disabledTooltip),
+                jsonStringArray(useFeedback),
+                tooltip.contains("Patched Filter"),
+                tooltip.stream().anyMatch(line -> line.contains("Item: ashfall:patched_filter")),
+                tooltip.stream().anyMatch(line -> line.startsWith("Use: ")),
+                tooltip.stream().anyMatch(line -> line.contains("crafted")),
+                tooltip.stream().anyMatch(line -> line.equals("State: Ready")),
+                disabledTooltip.stream().anyMatch(line -> line.equals("State: Disabled - low hydration only")),
+                useFeedback.stream().anyMatch(line -> line.equals("Feedback: used 1 Clean Water Bottle"))
+        ));
+
+        write(root.resolve("item-save-hooks.json"), """
+                {
+                  "schema": "echo.standalone.item_save_hooks.v2",
+                  "status": "PASS",
+                  "slotId": "%s",
+                  "transactionId": "tx-item-001",
+                  "filesWritten": %d,
+                  "writtenPaths": %s,
+                  "manifestTrackedSummary": %s,
+                  "manifestTrackedPlayerInventory": %s,
+                  "manifestTrackedCrashCache": %s,
+                  "corruptionHealthy": %s,
+                  "checkedFiles": %d,
+                  "journalEntries": %d
+                }
+                """.formatted(
+                escape(manifest.slotId()),
+                saved.commit().filesWritten(),
+                jsonStringArray(saved.writtenPaths()),
+                manifest.file("items/summary.json").isPresent(),
+                manifest.file("items/inventories/inventory_player-001.json").isPresent(),
+                manifest.file("items/inventories/container_crash-cache.json").isPresent(),
+                saveCheck.healthy(),
+                saveCheck.checkedFiles(),
+                saveCheck.journalEntries()
+        ));
+    }
+
+    private static String definitionsJson(List<EchoItemDefinition> definitions) {
+        return definitions.stream()
+                .map(definition -> """
+                        {
+                          "id": "%s",
+                          "displayName": "%s",
+                          "category": "%s",
+                          "maxStackSize": %d,
+                          "weight": %.2f,
+                          "tags": %s,
+                          "tooltipLines": %s
+                        }""".formatted(
+                        escape(definition.id().value()),
+                        escape(definition.displayName()),
+                        definition.category(),
+                        definition.maxStackSize(),
+                        definition.weight(),
+                        jsonStringArray(definition.tags()),
+                        jsonStringArray(definition.tooltipLines())
+                ).strip())
+                .collect(java.util.stream.Collectors.joining(",\n", "[\n", "\n]"));
+    }
+
+    private static String containersJson(List<EchoInventoryContainer> containers) {
+        return containers.stream()
+                .map(container -> """
+                        {
+                          "id": "%s",
+                          "label": "%s",
+                          "ownerEntityId": %s,
+                          "capacity": %d,
+                          "occupiedSlots": %d
+                        }""".formatted(
+                        escape(container.id().value()),
+                        escape(container.label()),
+                        container.ownerEntityId()
+                                .map(id -> "\"" + escape(id.value()) + "\"")
+                                .orElse("null"),
+                        container.capacity(),
+                        container.occupiedSlots()
+                ).strip())
+                .collect(java.util.stream.Collectors.joining(",\n", "[\n", "\n]"));
+    }
+
+    private static String slotsJson(EchoInventoryContainer container) {
+        return container.slots().stream()
+                .map(slot -> slot.stack()
+                        .map(stack -> """
+                                {
+                                  "slot": %d,
+                                  "itemId": "%s",
+                                  "displayName": "%s",
+                                  "quantity": %d,
+                                  "maxStackSize": %d
+                                }""".formatted(
+                                slot.index(),
+                                escape(stack.itemId().value()),
+                                escape(stack.definition().displayName()),
+                                stack.quantity(),
+                                stack.definition().maxStackSize()
+                        ).strip())
+                        .orElse("""
+                                {
+                                  "slot": %d,
+                                  "empty": true
+                                }""".formatted(slot.index()).strip()))
+                .collect(java.util.stream.Collectors.joining(",\n", "[\n", "\n]"));
+    }
+
+    private static String operationJson(EchoInventoryOperationResult result) {
+        return """
+                {
+                  "action": "%s",
+                  "success": %s,
+                  "quantity": %d,
+                  "reason": "%s"
+                }""".formatted(
+                escape(result.action()),
+                result.success(),
+                result.quantity(),
+                escape(result.reason())
+        ).strip();
+    }
+
+    private static String transferJson(EchoInventoryTransferResult result) {
+        return """
+                {
+                  "sourceInventoryId": "%s",
+                  "sourceSlot": %d,
+                  "targetInventoryId": "%s",
+                  "success": %s,
+                  "quantity": %d,
+                  "reason": "%s"
+                }""".formatted(
+                escape(result.sourceInventoryId().value()),
+                result.sourceSlot(),
+                escape(result.targetInventoryId().value()),
+                result.success(),
+                result.quantity(),
+                escape(result.reason())
+        ).strip();
+    }
+
+    private static String lootJson(EchoItemLootResult result) {
+        return """
+                {
+                  "tableId": "%s",
+                  "granted": %s,
+                  "entriesGranted": %d,
+                  "quantityGranted": %d,
+                  "reason": "%s"
+                }""".formatted(
+                escape(result.tableId()),
+                result.granted(),
+                result.entriesGranted(),
+                result.quantityGranted(),
+                escape(result.reason())
+        ).strip();
+    }
+
+    private static String jsonStringArray(List<String> values) {
+        return values.stream()
+                .map(value -> "\"" + escape(value) + "\"")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static void write(Path path, String content) throws IOException {
+        Files.writeString(path, content, StandardCharsets.UTF_8);
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static void require(boolean condition, String message) {

@@ -1,0 +1,281 @@
+{
+  "id": "echoopenlandsprotocol:standalone/client_content/openlands_first_hour",
+  "worldTemplate": {
+    "slotIdPrefix": "openlands-standard",
+    "displayName": "Openlands Standard",
+    "saveProfile": {
+      "schema": "echo.standalone.client_save_profile.v1",
+      "profileId": "echo-client-openlands",
+      "displayName": "ECHO Openlands Standalone Client",
+      "packId": "echoopenlandsprotocol",
+      "formatVersion": 1,
+      "metadata": {
+        "runtime": "echo-standalone-client",
+        "saveSurface": "echoscreencore:world_select",
+        "defaultMode": "openlands_standard",
+        "hardcoreMeters": "disabled"
+      }
+    },
+    "presentation": {
+      "windowTitle": "ECHO Openlands - Standalone Client",
+      "settingsFileComment": "ECHO Openlands standalone client options",
+      "createWorldActionLabel": "Create Openlands World",
+      "worldTypeLabel": "World Type: Openlands Standard",
+      "packLabel": "AdapterCore Pack: Openlands Standard",
+      "newWorldModalMessage": "Start a new Openlands world session?",
+      "loadingInitialDetail": "Preparing Openlands first-hour region",
+      "newWorldGenerationLabel": "Generating Openlands first-hour region",
+      "newWorldDetailSuffix": "AdapterCore Pack Openlands Standard",
+      "newWorldLoadingFooter": "Preparing relaxed standalone runtime services",
+      "savedWorldLoadingFooter": "Restoring Openlands save data",
+      "moduleSourceLabels": {
+        "echoadaptercore": "adaptercore",
+        "echoopenlandsprotocol": "openlands"
+      },
+      "hostileDamageSourceId": "echoopenlandsprotocol:hostile"
+    },
+    "audioProfile": {
+      "deviceProfileId": "echoopenlandsprotocol:audio/device/standalone_default",
+      "volumeProfileId": "echoopenlandsprotocol:audio/volume/relaxed_exploration_mix"
+    }
+  },
+  "entityCatalog": {
+    "fallbackHostile": {
+      "id": "echoopenlandsprotocol:greyling",
+      "displayName": "Greyling",
+      "maxHealth": 14,
+      "aiProfile": "cautious_hostile"
+    },
+    "spawnRules": [
+      {
+        "biomeTags": ["starter", "gentle"],
+        "definition": {
+          "id": "echoopenlandsprotocol:hare",
+          "displayName": "Hare",
+          "maxHealth": 6,
+          "aiProfile": "passive_flee"
+        }
+      },
+      {
+        "biomeTags": ["wood", "mushrooms"],
+        "definition": {
+          "id": "echoopenlandsprotocol:deer",
+          "displayName": "Deer",
+          "maxHealth": 18,
+          "aiProfile": "passive_flee"
+        }
+      },
+      {
+        "biomeTags": ["stone", "caves"],
+        "definition": {
+          "id": "echoopenlandsprotocol:goat",
+          "displayName": "Goat",
+          "maxHealth": 16,
+          "aiProfile": "neutral_wander"
+        }
+      },
+      {
+        "biomeTags": ["wetland", "reeds"],
+        "definition": {
+          "id": "echoopenlandsprotocol:marsh_hen",
+          "displayName": "Marsh Hen",
+          "maxHealth": 8,
+          "aiProfile": "passive_wetland"
+        }
+      }
+    ],
+    "renderProfiles": [
+      {
+        "definitionId": "echoopenlandsprotocol:hare",
+        "argb": "0xFFB6AA8C",
+        "shape": "SLIME"
+      },
+      {
+        "definitionId": "echoopenlandsprotocol:deer",
+        "argb": "0xFF8C6A42",
+        "shape": "HUMANOID"
+      },
+      {
+        "definitionId": "echoopenlandsprotocol:goat",
+        "argb": "0xFFD0C8B0",
+        "shape": "HUMANOID"
+      },
+      {
+        "definitionId": "echoopenlandsprotocol:marsh_hen",
+        "argb": "0xFF6E7B55",
+        "shape": "SLIME"
+      }
+    ]
+  },
+  "hazardCatalog": {
+    "rules": []
+  },
+  "starterLoadout": {
+    "playerInventoryId": "inventory:openlands-player",
+    "playerInventoryLabel": "Openlands Pack",
+    "openContainerId": "container:openlands-starter-satchel",
+    "openContainerLabel": "Starter Satchel",
+    "items": [
+      {
+        "id": "echoopenlandsprotocol:branchwood_stick",
+        "displayName": "Branchwood Stick",
+        "category": "MATERIAL",
+        "maxStackSize": 64,
+        "tags": ["crafting", "stick", "branchwood"],
+        "tooltipLines": ["Loaded from Openlands Standard client content profile"]
+      },
+      {
+        "id": "echoopenlandsprotocol:fieldstone_piece",
+        "displayName": "Fieldstone Piece",
+        "category": "MATERIAL",
+        "maxStackSize": 64,
+        "tags": ["crafting", "stone_piece"],
+        "tooltipLines": ["Loaded from Openlands Standard client content profile"]
+      },
+      {
+        "id": "echoopenlandsprotocol:reed_fiber",
+        "displayName": "Reed Fiber",
+        "category": "MATERIAL",
+        "maxStackSize": 64,
+        "tags": ["crafting", "fiber", "binding"],
+        "tooltipLines": ["Loaded from Openlands Standard client content profile"]
+      },
+      {
+        "id": "echoopenlandsprotocol:fiber_binding",
+        "displayName": "Fiber Binding",
+        "category": "MATERIAL",
+        "maxStackSize": 64,
+        "tags": ["crafting", "binding"],
+        "tooltipLines": ["Crafted cordage for Openlands first-hour tools"]
+      },
+      {
+        "id": "echoopenlandsprotocol:berries",
+        "displayName": "Berries",
+        "category": "CONSUMABLE",
+        "maxStackSize": 64,
+        "tags": ["food", "starter_food", "forage"],
+        "tooltipLines": ["Gentle starter food; no spoilage in Standard"]
+      },
+      {
+        "id": "echoopenlandsprotocol:crude_axe",
+        "displayName": "Crude Axe",
+        "category": "TOOL",
+        "maxStackSize": 1,
+        "tags": ["tool", "axe", "crude"],
+        "tooltipLines": ["First tree tool for relaxed gathering"]
+      },
+      {
+        "id": "echoopenlandsprotocol:crude_pick",
+        "displayName": "Crude Pick",
+        "category": "TOOL",
+        "maxStackSize": 1,
+        "tags": ["tool", "pick", "crude"],
+        "tooltipLines": ["Starts the cave loop without metal gating"]
+      },
+      {
+        "id": "echoopenlandsprotocol:torch_bundle",
+        "displayName": "Torch Bundle",
+        "category": "TOOL",
+        "maxStackSize": 64,
+        "tags": ["utility", "light_source"],
+        "tooltipLines": ["Starter light bundle"]
+      },
+      {
+        "id": "echoopenlandsprotocol:bedroll",
+        "displayName": "Bedroll",
+        "category": "TOOL",
+        "maxStackSize": 1,
+        "tags": ["utility", "spawn_point", "shelter_score"],
+        "tooltipLines": ["Relaxed respawn anchor"]
+      },
+      {
+        "id": "echoopenlandsprotocol:repair_kit",
+        "displayName": "Repair Kit",
+        "category": "MATERIAL",
+        "maxStackSize": 16,
+        "tags": ["utility", "waystone_repair", "tool_repair"],
+        "tooltipLines": ["Used for waystones and tool repairs"]
+      },
+      {
+        "id": "echoopenlandsprotocol:region_rubbing",
+        "displayName": "Region Rubbing",
+        "category": "MATERIAL",
+        "maxStackSize": 16,
+        "tags": ["utility", "holomap", "map_table_output"],
+        "tooltipLines": ["Physical discovery record for HoloMap progress"]
+      }
+    ],
+    "openContainerStacks": [
+      {
+        "slotIndex": 0,
+        "itemId": "echoopenlandsprotocol:berries",
+        "quantity": 6
+      },
+      {
+        "slotIndex": 1,
+        "itemId": "echoopenlandsprotocol:reed_fiber",
+        "quantity": 4
+      },
+      {
+        "slotIndex": 2,
+        "itemId": "echoopenlandsprotocol:fieldstone_piece",
+        "quantity": 4
+      },
+      {
+        "slotIndex": 3,
+        "itemId": "echoopenlandsprotocol:torch_bundle",
+        "quantity": 2
+      }
+    ],
+    "workbenchRecipes": [
+      {
+        "recipeId": "echoopenlandsprotocol:starter_fiber_binding",
+        "ingredients": {
+          "echoopenlandsprotocol:reed_fiber": 2
+        },
+        "outputItemId": "echoopenlandsprotocol:fiber_binding",
+        "outputQuantity": 1
+      },
+      {
+        "recipeId": "echoopenlandsprotocol:starter_crude_pick",
+        "ingredients": {
+          "echoopenlandsprotocol:branchwood_stick": 1,
+          "echoopenlandsprotocol:fieldstone_piece": 2,
+          "echoopenlandsprotocol:fiber_binding": 1
+        },
+        "outputItemId": "echoopenlandsprotocol:crude_pick",
+        "outputQuantity": 1
+      },
+      {
+        "recipeId": "echoopenlandsprotocol:starter_torch_bundle",
+        "ingredients": {
+          "echoopenlandsprotocol:branchwood_stick": 1,
+          "echoopenlandsprotocol:reed_fiber": 1
+        },
+        "outputItemId": "echoopenlandsprotocol:torch_bundle",
+        "outputQuantity": 2
+      }
+    ]
+  },
+  "interactionCatalog": {
+    "rules": [
+      {
+        "matchTokens": ["chest", "shelf", "container", "satchel"],
+        "command": "OPEN_CONTAINER"
+      },
+      {
+        "matchTokens": ["workbench", "crafting", "bench"],
+        "command": "OPEN_WORKBENCH"
+      },
+      {
+        "matchTokens": ["kiln", "forge", "loom", "cookpot", "mason_table"],
+        "command": "OPEN_MACHINE"
+      },
+      {
+        "matchTokens": ["map_table", "waystone", "old_road_marker"],
+        "command": "OPEN_REGISTERED_SCREEN",
+        "targetId": "echoopenlandsprotocol:ui/holomap"
+      }
+    ]
+  }
+}

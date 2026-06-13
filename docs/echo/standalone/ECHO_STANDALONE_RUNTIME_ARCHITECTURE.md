@@ -21,6 +21,7 @@ The architecture lock declares these modules:
 echo-runtime-contracts
 echo-runtime-core
 echo-runtime-app
+echo-runtime-client
 echo-runtime-modules
 echo-runtime-packos
 echo-runtime-assets
@@ -32,6 +33,8 @@ echo-runtime-entity
 echo-runtime-item
 echo-runtime-gameplay
 echo-runtime-render
+echo-runtime-input
+echo-runtime-player
 echo-runtime-audio
 echo-runtime-network
 echo-runtime-scripting
@@ -40,7 +43,7 @@ echo-runtime-testkit
 echo-runtime-devtools
 ```
 
-Only `echo-runtime-contracts`, `echo-runtime-core`, and `echo-runtime-compat` contain concrete Phase 14.1 boundary code. The other modules are intentionally thin package boundaries until their subphase begins.
+`verifyStandaloneRuntimeArchitecture` writes the current architecture evidence from the live Gradle module lock into `reports/echo/standalone/runtime-architecture.json`. The current player-facing runtime lane is the OpenGL `echo-runtime-client` path, while `echo-runtime-app` remains the deterministic app/runtime evidence harness path.
 
 ## Core Contracts
 

@@ -9,6 +9,7 @@ The standalone runtime has to stay clean enough that Ashfall can run through mor
 | `echo-runtime-contracts` | Runtime interfaces, modes, lifecycle, diagnostics, service registry contracts | Minecraft classes, NeoForge APIs, launcher code, concrete renderer/audio/network backends |
 | `echo-runtime-core` | Runtime orchestration, lifecycle coordination, service composition, diagnostics fan-out | Module discovery details, PackOS policy, world simulation, platform adapters |
 | `echo-runtime-app` | Boot shell, main thread, shutdown, crash boundary wiring | Gameplay, rendering implementation, asset formats |
+| `echo-runtime-client` | Player-facing LWJGL/OpenGL client shell, native loop, input polling, runtime controller assembly | Direct gameplay ownership, PackOS policy, NeoForge loading |
 | `echo-runtime-modules` | Runtime module descriptors, dependency graph, lifecycle binding | NeoForge mod loading, unsafe classpath mutation |
 | `echo-runtime-packos` | Pack profile, session, lockfile, mount plan, compatibility checks | Repair execution without confirmation, save migration execution |
 | `echo-runtime-assets` | Asset/data pack mounts, namespaces, conflict and missing asset reports | Minecraft resource manager coupling |
@@ -20,6 +21,8 @@ The standalone runtime has to stay clean enough that Ashfall can run through mor
 | `echo-runtime-item` | Standalone item, stack, inventory, recipe surface | Minecraft `ItemStack` dependency |
 | `echo-runtime-gameplay` | Missions, objectives, hazards, weather, factions, survival state | Full Ashfall campaign |
 | `echo-runtime-render` | Abstract render backend and scene contracts | Direct LWJGL exposure to gameplay systems |
+| `echo-runtime-input` | Runtime input contexts, bindings, focus routing, and standalone input reports | Native window polling loop ownership |
+| `echo-runtime-player` | Player controller contracts, movement/camera/session profiles, targeting, and player-facing runtime reports | Raw GLFW polling, renderer backend ownership |
 | `echo-runtime-audio` | Abstract audio backend, buses, music, ambience | Minecraft sound engine dependency |
 | `echo-runtime-network` | Packets, protocol, local client/server sync contracts | Full multiplayer in Phase 14.1 |
 | `echo-runtime-scripting` | Declarative rule contracts and sandbox policy | Arbitrary unsafe scripting |
@@ -54,6 +57,12 @@ gameplay systems -> renderer backend implementation
 Minecraft and NeoForge compatibility must live behind adapter modules or migration tooling. The standalone contracts should describe ECHO concepts such as items, worlds, UI, saves, diagnostics, and registries without naming Minecraft concepts as required runtime types.
 
 Adapters may map Minecraft or NeoForge content into ECHO definitions later, but those adapters are not allowed to leak platform-specific types into contract signatures.
+
+## Player Runtime Authority
+
+The player-facing standalone launch path is `echo-runtime-client` through `dev.echo.standalone.runtime.client.EchoClientMain`. `echo-runtime-app`, headless app boot, software renderer smokes, and windowed lifecycle smokes are evidence infrastructure only; they must not become the packaged player launch target.
+
+`runStandalonePlayerRuntimeAuthorityAudit` writes `reports/echo/standalone/player-runtime-authority.json` from the packaged OpenGL image, first-run config, distribution reports, launcher smoke, and boundary report. Public release gates consume that report so `EchoRuntimeMain` or other legacy evidence paths cannot silently replace the LWJGL/OpenGL client as the player entrypoint.
 
 ## Save and Migration Safety
 

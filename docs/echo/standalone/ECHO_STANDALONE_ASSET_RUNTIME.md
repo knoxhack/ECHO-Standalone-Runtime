@@ -57,7 +57,7 @@ The Phase 14.5 smoke harness proves:
 - Minecraft-style blockstates, models, textures, lang files, and pack metadata can be scanned from archive packs.
 - hot reload reports a newly added asset.
 - `runStandaloneRegistryAssetCoverageAudit` walks the live AdapterCore block/item registry against the mounted Minecraft resource-pack resolver and writes `reports/echo/standalone/registry-asset-coverage.json`.
-- Current registry asset coverage proves 192 of 192 registered block/item rows complete, with 122 of 122 blockstates, 122 of 122 block models, 70 of 70 item models, 300 of 300 declared texture files, and 192 of 192 language keys present.
+- Current registry asset coverage is real non-placeholder evidence: 192 registered block/item rows audited, 192 complete rows, 0 incomplete rows, 122 of 122 blockstates present, 122 of 122 block models present, 70 of 70 item models present, 300 of 300 declared texture files present, and 192 of 192 language keys present.
 - The OpenGL client atlas caches decoded resource-pack tiles and block texture resolutions across atlas rebuilds; `runStandaloneClientBlockTextureResolverSmoke` covers repeated direct texture-id and model-resolved cache hits.
 - The OpenGL client renderer caches CPU chunk meshes across render-region refreshes using chunk and neighbor versions, while the debug overlay reports mesh cache hits/builds/evictions and atlas cache pressure.
 

@@ -7,6 +7,9 @@ final class EchoClientSettingsController {
     private final EchoClientSettingsStore settingsStore;
     private final Host host;
     private int appliedChunkViewDistance = Integer.MIN_VALUE;
+    private EchoClientSettings lastAppliedSettings;
+    private int appliedSettingsCount;
+    private int skippedUnchangedApplyCount;
 
     EchoClientSettingsController(
             EchoClientScreenController screens,
@@ -29,6 +32,26 @@ final class EchoClientSettingsController {
 
     void applyAndPersist() {
         EchoClientSettings settings = screens.clientSettings();
+        boolean dirty = screens.consumeClientSettingsDirty();
+        if (!settings.equals(lastAppliedSettings)) {
+            apply(settings);
+            lastAppliedSettings = settings;
+            appliedSettingsCount++;
+        } else {
+            skippedUnchangedApplyCount++;
+        }
+        persistIfDirty(settings, dirty);
+    }
+
+    int appliedSettingsCount() {
+        return appliedSettingsCount;
+    }
+
+    int skippedUnchangedApplyCount() {
+        return skippedUnchangedApplyCount;
+    }
+
+    private void apply(EchoClientSettings settings) {
         host.applyInputSettings(settings);
         host.applyAudioSettings(settings);
         host.applyLanguageSettings(settings);
@@ -36,11 +59,10 @@ final class EchoClientSettingsController {
         appliedChunkViewDistance = settings.chunkViewDistance();
         host.applyRenderSettings(settings.chunkViewDistance(), chunkViewChanged);
         host.applyWindowSettings(settings.fullscreen(), settings.vSync());
-        persistIfDirty(settings);
     }
 
-    private void persistIfDirty(EchoClientSettings settings) {
-        if (!screens.consumeClientSettingsDirty()) {
+    private void persistIfDirty(EchoClientSettings settings, boolean dirty) {
+        if (!dirty) {
             return;
         }
         settingsStore.save(settings);

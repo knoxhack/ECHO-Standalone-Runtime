@@ -23,6 +23,7 @@ public final class EchoRuntimePackOsSmokeHarness {
     }
 
     public static void main(String[] args) throws IOException {
+        Path workspaceRoot = Path.of(".").toAbsolutePath().normalize();
         Path fixtureRoot = Files.createTempDirectory("echo-runtime-packos-smoke");
         Path modulesRoot = fixtureRoot.resolve("modules");
         writeDescriptor(modulesRoot.resolve("echo-core/META-INF/echo.runtime.json"), """
@@ -151,6 +152,7 @@ public final class EchoRuntimePackOsSmokeHarness {
 
         EchoRuntimePackRepairPlan repairPlan = badSession.repairPlan();
         require(!repairPlan.plannedActions().isEmpty(), "bad session should produce repair advice");
+        writeReports(workspaceRoot, session, badSession);
 
         System.out.println("phase14.4 packos runtime smoke PASS pack=ashfall mounts="
                 + session.mountPlan().mounts().size()
@@ -171,5 +173,132 @@ public final class EchoRuntimePackOsSmokeHarness {
         if (!condition) {
             throw new AssertionError(message);
         }
+    }
+
+    private static void writeReports(
+            Path workspaceRoot,
+            EchoRuntimePackSession session,
+            EchoRuntimePackSession badSession
+    ) throws IOException {
+        Path reportDir = standaloneRoot(workspaceRoot).resolve("reports/echo/standalone");
+        Files.createDirectories(reportDir);
+        Files.writeString(reportDir.resolve("runtime-packos.json"), runtimePackOsReport(session, badSession));
+        Files.writeString(reportDir.resolve("runtime-pack-session.json"), runtimePackSessionReport(session));
+        Files.writeString(reportDir.resolve("runtime-pack-integrity.json"), runtimePackIntegrityReport(session, badSession));
+        Files.writeString(reportDir.resolve("runtime-pack-mount-plan.json"), runtimePackMountPlanReport(session));
+    }
+
+    private static String runtimePackOsReport(
+            EchoRuntimePackSession session,
+            EchoRuntimePackSession badSession
+    ) {
+        return "{\n"
+                + "  \"schema\": \"echo.standalone.runtime_packos.v2\",\n"
+                + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
+                + "  \"generator\": \"EchoRuntimePackOsSmokeHarness\",\n"
+                + "  \"status\": \"PASS\",\n"
+                + "  \"packId\": \"" + session.packId() + "\",\n"
+                + "  \"channel\": \"" + session.profile().channel().name().toLowerCase() + "\",\n"
+                + "  \"variant\": \"" + session.profile().variant() + "\",\n"
+                + "  \"runtimeVersion\": \"" + session.profile().runtimeVersion() + "\",\n"
+                + "  \"launchMode\": \"" + session.profile().launchMode().id() + "\",\n"
+                + "  \"launchAllowed\": " + session.launchAllowed() + ",\n"
+                + "  \"badProfileLaunchAllowed\": " + badSession.launchAllowed() + ",\n"
+                + "  \"badProfileBlockers\": " + badSession.compatibilityReport().blockers().size() + ",\n"
+                + "  \"badProfileRepairActions\": " + badSession.repairPlan().plannedActions().size() + ",\n"
+                + "  \"repairExecutionAllowed\": " + session.repairPlan().executionAllowed() + "\n"
+                + "}\n";
+    }
+
+    private static String runtimePackSessionReport(EchoRuntimePackSession session) {
+        return "{\n"
+                + "  \"schema\": \"echo.standalone.runtime_pack_session.v2\",\n"
+                + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
+                + "  \"generator\": \"EchoRuntimePackOsSmokeHarness\",\n"
+                + "  \"status\": \"PASS\",\n"
+                + "  \"packId\": \"" + session.packId() + "\",\n"
+                + "  \"packName\": \"" + escape(session.profile().packName()) + "\",\n"
+                + "  \"enabledModuleCount\": " + session.profile().enabledModules().size() + ",\n"
+                + "  \"enabledFeatureCount\": " + session.profile().enabledFeatures().size() + ",\n"
+                + "  \"lockedModuleCount\": " + session.lockfile().lockedModules().size() + ",\n"
+                + "  \"lockedFeatureCount\": " + session.lockfile().lockedFeatures().size() + ",\n"
+                + "  \"launchAllowed\": " + session.launchAllowed() + ",\n"
+                + "  \"sessionServiceBound\": true,\n"
+                + "  \"mountPlanServiceBound\": true,\n"
+                + "  \"integrityReportServiceBound\": true,\n"
+                + "  \"compatibilityReportServiceBound\": true\n"
+                + "}\n";
+    }
+
+    private static String runtimePackIntegrityReport(
+            EchoRuntimePackSession session,
+            EchoRuntimePackSession badSession
+    ) {
+        return "{\n"
+                + "  \"schema\": \"echo.standalone.runtime_pack_integrity.v2\",\n"
+                + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
+                + "  \"generator\": \"EchoRuntimePackOsSmokeHarness\",\n"
+                + "  \"status\": \"PASS\",\n"
+                + "  \"integrityReady\": " + session.integrityReport().integrityReady() + ",\n"
+                + "  \"integrityBlockers\": " + session.integrityReport().blockers().size() + ",\n"
+                + "  \"integrityWarnings\": " + session.integrityReport().warnings().size() + ",\n"
+                + "  \"compatible\": " + session.compatibilityReport().compatible() + ",\n"
+                + "  \"compatibilityBlockers\": " + session.compatibilityReport().blockers().size() + ",\n"
+                + "  \"badProfileCompatible\": " + badSession.compatibilityReport().compatible() + ",\n"
+                + "  \"badProfileCompatibilityBlockers\": " + badSession.compatibilityReport().blockers().size() + ",\n"
+                + "  \"repairExecutionAllowed\": " + session.repairPlan().executionAllowed() + ",\n"
+                + "  \"badProfileRepairExecutionAllowed\": " + badSession.repairPlan().executionAllowed() + "\n"
+                + "}\n";
+    }
+
+    private static String runtimePackMountPlanReport(EchoRuntimePackSession session) {
+        long assetMounts = session.mountPlan().mounts().stream()
+                .filter(mount -> mount.kind().equals("asset"))
+                .count();
+        long dataMounts = session.mountPlan().mounts().stream()
+                .filter(mount -> mount.kind().equals("data"))
+                .count();
+        long themeMounts = session.mountPlan().mounts().stream()
+                .filter(mount -> mount.kind().equals("theme"))
+                .count();
+        boolean runtimeDefaultsMounted = session.mountPlan().mounts().stream()
+                .anyMatch(mount -> mount.path().equals("runtime/defaults"));
+        return "{\n"
+                + "  \"schema\": \"echo.standalone.runtime_pack_mount_plan.v2\",\n"
+                + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
+                + "  \"generator\": \"EchoRuntimePackOsSmokeHarness\",\n"
+                + "  \"status\": \"PASS\",\n"
+                + "  \"packId\": \"" + session.packId() + "\",\n"
+                + "  \"mountCount\": " + session.mountPlan().mounts().size() + ",\n"
+                + "  \"assetMounts\": " + assetMounts + ",\n"
+                + "  \"dataMounts\": " + dataMounts + ",\n"
+                + "  \"themeMounts\": " + themeMounts + ",\n"
+                + "  \"runtimeDefaultsMounted\": " + runtimeDefaultsMounted + ",\n"
+                + "  \"theme\": \"" + session.mountPlan().theme() + "\"\n"
+                + "}\n";
+    }
+
+    private static Path standaloneRoot(Path workspaceRoot) {
+        if (workspaceRoot.getFileName() != null
+                && workspaceRoot.getFileName().toString().equalsIgnoreCase("echo-standalone-runtime")) {
+            return workspaceRoot;
+        }
+        if (Files.isDirectory(workspaceRoot.resolve("echo-runtime-app"))
+                && Files.isRegularFile(workspaceRoot.resolve("settings.gradle"))) {
+            return workspaceRoot;
+        }
+        Path nested = workspaceRoot.resolve("echo-standalone-runtime");
+        if (Files.isDirectory(nested)) {
+            return nested;
+        }
+        return workspaceRoot;
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }

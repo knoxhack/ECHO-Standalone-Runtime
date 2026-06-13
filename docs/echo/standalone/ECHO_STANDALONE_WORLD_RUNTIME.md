@@ -62,6 +62,8 @@ The Phase 14.9 smoke harness proves:
 - the resulting save manifest tracks world files.
 - the save corruption checker reports the world save as healthy.
 
+The smoke writes concrete non-placeholder evidence to `runtime-world.json`, `world-dimensions.json`, `world-regions.json`, `world-chunks.json`, `world-hazards.json`, `world-weather.json`, `world-pois.json`, and `world-save-hooks.json`. `verifyStandaloneWorldRuntime` regenerates that evidence, rejects bootstrap schemas, and requires concrete `PASS` fields for service binding, debug-world shape, dimension ownership, region hazard/weather data, chunk/cell layout, toxic ash hazard queries, ash storm weather, POI queries, and save-hook manifest/corruption-check coverage.
+
 ## Out Of Scope
 
 Phase 14.9 does not:

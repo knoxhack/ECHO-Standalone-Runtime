@@ -19,6 +19,7 @@ final class EchoClientRuntimeAssembly {
     private final EchoClientScreenRuntimeController screenRuntime;
     private final EchoClientSlotGridRuntimeController slotGridRuntime;
     private final EchoClientScreenshotRuntimeController screenshotRuntime;
+    private final EchoClientFocusLossRuntimeController focusLossRuntime;
     private final EchoClientEngineRuntimeBridge runtimeBridge;
 
     private EchoClientInput input;
@@ -45,6 +46,7 @@ final class EchoClientRuntimeAssembly {
             EchoClientScreenRuntimeController screenRuntime,
             EchoClientSlotGridRuntimeController slotGridRuntime,
             EchoClientScreenshotRuntimeController screenshotRuntime,
+            EchoClientFocusLossRuntimeController focusLossRuntime,
             EchoClientEngineRuntimeBridge runtimeBridge
     ) {
         this.worldTemplate = worldTemplate;
@@ -65,6 +67,7 @@ final class EchoClientRuntimeAssembly {
         this.screenRuntime = screenRuntime;
         this.slotGridRuntime = slotGridRuntime;
         this.screenshotRuntime = screenshotRuntime;
+        this.focusLossRuntime = focusLossRuntime;
         this.runtimeBridge = runtimeBridge;
     }
 
@@ -73,12 +76,15 @@ final class EchoClientRuntimeAssembly {
     }
 
     static EchoClientRuntimeAssembly create(int initialWidth, int initialHeight, EchoClientWorldTemplate worldTemplate) {
-        EchoClientWorldPresentation presentation = worldTemplate.presentation();
+        EchoClientWorldTemplate safeTemplate = worldTemplate == null
+                ? EchoClientWorldTemplates.defaultTemplate()
+                : worldTemplate;
+        EchoClientWorldPresentation presentation = safeTemplate.presentation();
         EchoGlfwWindow window = new EchoGlfwWindow(presentation.windowTitle(), initialWidth, initialHeight);
-        EchoClientRuntimeServices runtimeServices = new EchoClientRuntimeServices();
+        EchoClientRuntimeServices runtimeServices = EchoClientRuntimeServices.forTemplate(safeTemplate);
         EchoClientSettingsStore settingsStore = EchoClientSettingsStore.openDefault(presentation);
         EchoClientScreenController screens =
-                new EchoClientScreenController(settingsStore.load(), presentation, worldTemplate.displayName());
+                new EchoClientScreenController(settingsStore.load(), presentation, safeTemplate.displayName());
         EchoClientWorldSessionController worldSessions =
                 new EchoClientWorldSessionController(runtimeServices, screens);
         EchoClientGameplayRuntimeController gameplayRuntime =
@@ -109,6 +115,8 @@ final class EchoClientRuntimeAssembly {
                 new EchoClientScreenRuntimeController(runtimeServices, screens, settingsController, renderRuntime);
         EchoClientScreenshotRuntimeController screenshotRuntime =
                 new EchoClientScreenshotRuntimeController(screens, window);
+        EchoClientFocusLossRuntimeController focusLossRuntime =
+                new EchoClientFocusLossRuntimeController();
         EchoClientSlotGridRuntimeController slotGridRuntime = new EchoClientSlotGridRuntimeController(
                 runtimeServices,
                 screens,
@@ -147,6 +155,7 @@ final class EchoClientRuntimeAssembly {
                 screenRuntime,
                 slotGridRuntime,
                 screenshotRuntime,
+                focusLossRuntime,
                 runtimeBridge
         );
     }
@@ -177,13 +186,22 @@ final class EchoClientRuntimeAssembly {
         }
     }
 
-    void renderFrame(int fps, long frames) {
+    void renderFrame(int fps, long frames, EchoClientFramePacingSnapshot framePacing) {
         musicRuntime.update(frames);
-        renderRuntime.render(fps, frames, input);
+        renderRuntime.render(fps, frames, input, framePacing);
+    }
+
+    void showFatalError(Throwable failure) {
+        if (input != null) {
+            input.setCursorLocked(false);
+            input.clearGameplayTriggers();
+        }
+        screens.showFatalError(failure);
     }
 
     void update(double dt) {
         screens.tick(dt);
+        handleWindowFocusLossIfNeeded();
         fullscreenShortcutRuntime.update(input::consumeToggleFullscreen);
         settingsController.applyAndPersist();
         screenshotRuntime.updateInput(runtimeBridge.screenshotInputGate());
@@ -221,6 +239,13 @@ final class EchoClientRuntimeAssembly {
         gameplayRuntime.updateActiveGameplay(input, dt, runtimeBridge.gameplayRuntimeHost());
     }
 
+    private void handleWindowFocusLossIfNeeded() {
+        if (input == null || !window.consumeFocusLost()) {
+            return;
+        }
+        focusLossRuntime.handleFocusLost(screens, input::releaseForFocusLoss, runtimeServices.hasActiveWorld());
+    }
+
     void close() {
         if (renderer != null) {
             renderer.delete();
@@ -241,6 +266,10 @@ final class EchoClientRuntimeAssembly {
 
     EchoClientScreenController screens() {
         return screens;
+    }
+
+    EchoClientRuntimeServices runtimeServices() {
+        return runtimeServices;
     }
 
     EchoClientSettingsController settingsController() {
@@ -285,6 +314,10 @@ final class EchoClientRuntimeAssembly {
 
     EchoClientScreenshotRuntimeController screenshotRuntime() {
         return screenshotRuntime;
+    }
+
+    EchoClientFocusLossRuntimeController focusLossRuntime() {
+        return focusLossRuntime;
     }
 
     EchoClientEngineRuntimeBridge runtimeBridge() {

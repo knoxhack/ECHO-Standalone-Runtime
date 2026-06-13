@@ -16,4 +16,9 @@ final class EchoClientWorldTemplates {
     static EchoClientWorldTemplate ashfallCrashSite() {
         return DEFAULT_TEMPLATE;
     }
+
+    static EchoClientWorldTemplate openlandsFirstHour() {
+        return EchoClientContentProfiles.openlandsFirstHour()
+                .toWorldTemplate(EchoClientOpenlandsSessionFactory.instance());
+    }
 }

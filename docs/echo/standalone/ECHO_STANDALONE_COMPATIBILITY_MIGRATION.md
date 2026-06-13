@@ -25,7 +25,7 @@ The current catalog evidence is `reports/echo/standalone/neoforge-compat-candida
 
 ```text
 status: PASS
-candidates: 93
+candidates: 132
 warnings: 0
 errors: 0
 runtimeStatus: runtime-disabled-with-reason
@@ -38,8 +38,8 @@ The metadata report preserves required and optional dependency rows, including `
 The Phase 14.17 debug mapping set contains seven ECHO-owned source records:
 
 ```text
-echoashfallprotocol:item/water_ration -> ashfall:water_ration
-echoashfallprotocol:item/salvaged_metal -> ashfall:salvaged_metal
+echoashfallprotocol:item/clean_water_bottle -> echoashfallprotocol:clean_water_bottle
+echoashfallprotocol:item/scrap_metal -> echoashfallprotocol:scrap_metal
 echoashfallprotocol:world_region/crash_site -> ashfall:crash_site
 echoashfallprotocol:world_hazard/toxic_ash -> ashfall:toxic_ash
 echoashfallprotocol:entity/hostile_scavenger -> ashfall:hostile_scavenger
@@ -97,7 +97,9 @@ The Phase 14.17 smoke harness proves:
 - diagnostics are deterministic and contain no errors.
 - NeoForge metadata fixture parsing preserves platform dependencies, required ECHO dependency reasons/orderings, and optional dependency reasons.
 - module runtime smoke proves a NeoForge-only `META-INF/neoforge.mods.toml` fixture remains outside standalone module activation.
-- AdapterCore module coverage smoke writes the source/template NeoForge metadata candidate report and verifies Ashfall, Core, and resource-backed metadata discovery.
+- AdapterCore module coverage smoke writes the source/template NeoForge metadata candidate report, `runtime-adaptercore-module-blockers.json`, and `runtime-adaptercore-permission-catalog.json`; current evidence verifies Ashfall, Core, resource-backed metadata discovery, 0 module blockers, and 0 unknown descriptor permissions.
+
+`verifyStandaloneCompatRuntime` now depends on `runStandaloneCompatRuntimeSmoke`, rejects `echo.standalone.evidence.bootstrap.v1` placeholders, and validates the concrete `echo.standalone.runtime_compatibility.v2`, boundary, mapping, source-record, validation, migration-policy, migration-plan, manual-review, diagnostics, and NeoForge-candidate reports before Phase 14.17 can pass.
 
 ## Out Of Scope
 

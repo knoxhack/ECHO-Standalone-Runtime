@@ -2,6 +2,8 @@
 
 Phase 14.2 adds the first executable standalone runtime shell. It is intentionally headless: it can boot, transition lifecycle states, run a fixed tick loop, catch a simulated crash, and shut down cleanly without starting a renderer, loading Minecraft, launching NeoForge, or touching saves.
 
+This shell is not the player-facing runtime authority. Player launch, packaged runtime image, and launcher handoff must target the LWJGL/OpenGL client entrypoint `dev.echo.standalone.runtime.client.EchoClientMain`; `EchoRuntimeMain` remains a headless evidence and lifecycle smoke entrypoint. `reports/echo/standalone/player-runtime-authority.json` is the machine-readable guard for that split.
+
 ## Implemented Runtime Pieces
 
 - `EchoRuntimeLauncher` creates the app runtime context and runs the boot sequence.

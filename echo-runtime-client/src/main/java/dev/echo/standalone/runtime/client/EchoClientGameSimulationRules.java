@@ -152,6 +152,29 @@ final class EchoClientGameSimulationRules {
         return 2;
     }
 
+    static boolean isProjectileAmmo(EchoItemDefinition definition) {
+        String id = normalizedItemId(definition);
+        return definition != null
+                && (definition.tagged("projectile")
+                || definition.tagged("ammo")
+                || definition.tagged("arrow")
+                || id.contains("arrow")
+                || id.contains("bolt")
+                || id.contains("dart")
+                || id.contains("throwing"));
+    }
+
+    static int projectileDamage(EchoItemDefinition definition) {
+        if (!isProjectileAmmo(definition)) {
+            return 0;
+        }
+        String id = normalizedItemId(definition);
+        if (definition.tagged("combat") || definition.tagged("weapon") || id.contains("broadhead")) {
+            return 7;
+        }
+        return 5;
+    }
+
     static int entityKillExperience(EchoClientEntityAttackResult attackResult) {
         if (attackResult == null || !attackResult.killed()) {
             return 0;

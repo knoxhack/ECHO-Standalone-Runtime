@@ -12,12 +12,18 @@ import java.util.Map;
 public final class EchoStandaloneClientContentProfileLoader {
     public static final String ASHFALL_CRASH_SITE_RESOURCE =
             "/data/echoashfallprotocol/standalone/client_content/ashfall_crash_site.json";
+    public static final String OPENLANDS_FIRST_HOUR_RESOURCE =
+            "/data/echoopenlandsprotocol/standalone/client_content/openlands_first_hour.json";
 
     private EchoStandaloneClientContentProfileLoader() {
     }
 
     public static EchoStandaloneClientContentProfile loadAshfallCrashSite() {
         return loadClasspath(ASHFALL_CRASH_SITE_RESOURCE);
+    }
+
+    public static EchoStandaloneClientContentProfile loadOpenlandsFirstHour() {
+        return loadClasspath(OPENLANDS_FIRST_HOUR_RESOURCE);
     }
 
     public static EchoStandaloneClientContentProfile loadClasspath(String resourcePath) {

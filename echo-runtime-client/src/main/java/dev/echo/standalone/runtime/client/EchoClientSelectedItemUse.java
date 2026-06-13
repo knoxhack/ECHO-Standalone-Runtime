@@ -29,6 +29,10 @@ record EchoClientSelectedItemUse(
         return new EchoClientSelectedItemUse("interact", label);
     }
 
+    static EchoClientSelectedItemUse bucketed(String label) {
+        return new EchoClientSelectedItemUse("bucket", label);
+    }
+
     boolean active() {
         return !action.isBlank();
     }
@@ -48,6 +52,9 @@ record EchoClientSelectedItemUse(
         }
         if (action.equals("interact")) {
             return "Interacted with " + label;
+        }
+        if (action.equals("bucket")) {
+            return "Used " + label;
         }
         return label;
     }

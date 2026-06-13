@@ -1,14 +1,18 @@
 package dev.echo.standalone.runtime.client;
 
 import dev.echo.standalone.runtime.compat.EchoAdapterCoreStandaloneContentBridge;
+import dev.echo.standalone.runtime.audio.EchoAudioDeviceSettings;
+import dev.echo.standalone.runtime.audio.EchoJavaSoundAudioBackend;
 import dev.echo.standalone.runtime.world.EchoVoxelBlock;
 import dev.echo.standalone.runtime.world.EchoVoxelBlockState;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.zip.ZipFile;
 
 public final class EchoClientCommandControllerSmokeHarness {
     private EchoClientCommandControllerSmokeHarness() {
@@ -44,6 +48,59 @@ public final class EchoClientCommandControllerSmokeHarness {
                 "Command controller should handle Resource Packs refresh");
         require(host.assetReloads == 2 && host.rebuildAtlasRequests == 2,
                 "Resource Packs refresh should refresh assets and request atlas rebuild for an active world");
+        EchoClientFramePacingMonitor framePacing = new EchoClientFramePacingMonitor();
+        framePacing.record(1.0D / 60.0D, 0.018D, 1, 0.001D, 0.0D);
+        EchoClientAudio audio = new EchoClientAudio();
+        audio.init(new EchoJavaSoundAudioBackend(EchoAudioDeviceSettings.forcedFallback()));
+        audio.playUiClick();
+        screens.updateRuntimeDiagnostics(EchoClientRuntimeDiagnosticsSnapshot.from(
+                services.worldSession(),
+                EchoClientRenderDiagnosticsSnapshot.EMPTY,
+                framePacing.snapshot(),
+                audio.diagnosticsSnapshot()
+        ));
+        require(commands.execute(EchoClientScreenCommand.EXPORT_SUPPORT_BUNDLE),
+                "Command controller should export a client support bundle from the player-facing UI");
+        EchoClientSupportBundleResult supportBundle = services.lastSupportBundleResult();
+        require(supportBundle.exported(),
+                "Support bundle result should report a completed export");
+        Path supportArchive = Path.of(supportBundle.archivePath());
+        require(Files.isRegularFile(supportArchive) && supportBundle.archiveBytes() > 0L,
+                "Support bundle command should write a non-empty zip archive");
+        require(zipContains(supportArchive, "EchoClientSupportBundle.manifest"),
+                "Support bundle archive should contain the manifest");
+        require(zipContains(supportArchive, "runtime-diagnostics.json"),
+                "Support bundle archive should contain runtime diagnostics");
+        require(zipTextContains(supportArchive, "runtime-diagnostics.json", "Frame: Last 18.0ms"),
+                "Support bundle runtime diagnostics should preserve frame pacing counters");
+        require(zipTextContains(supportArchive, "runtime-diagnostics.json", "\"backendId\": \"echo:java_sound_audio\""),
+                "Support bundle runtime diagnostics should preserve the OpenGL audio backend id");
+        require(zipTextContains(supportArchive, "runtime-diagnostics.json", "\"deviceLabel\": \"FALLBACK\""),
+                "Support bundle runtime diagnostics should preserve audio fallback status");
+        require(zipTextContains(supportArchive, "runtime-diagnostics.json", "Audio: Backend echo:java_sound_audio Device FALLBACK"),
+                "Support bundle runtime diagnostics should preserve player-facing audio diagnostics lines");
+        require(zipContains(supportArchive, "screen-snapshot.json"),
+                "Support bundle archive should contain the current ScreenCore snapshot");
+        require(zipContains(supportArchive, "client-settings.json"),
+                "Support bundle archive should contain client settings");
+        require(zipContains(supportArchive, "save-slots.json"),
+                "Support bundle archive should contain save-slot diagnostics");
+        require(zipTextContains(
+                        supportArchive,
+                        "save-slots.json",
+                        EchoClientSaveSlotThumbnailGenerator.FRAMEBUFFER_THUMBNAIL_SOURCE
+                ),
+                "Support bundle save-slot diagnostics should preserve framebuffer thumbnail source metadata");
+        require(screens.snapshot(true).toast().message().contains("Support bundle exported"),
+                "Support bundle command should report the export path through a player-facing toast");
+        require(commands.execute(EchoClientScreenCommand.OPEN_DIAGNOSTICS),
+                "Command controller should open Diagnostics after exporting the support bundle");
+        EchoClientScreenSnapshot diagnostics = screens.snapshot(true);
+        require(optionCommand(diagnostics, EchoClientScreenCommand.EXPORT_SUPPORT_BUNDLE),
+                "Diagnostics should keep the support bundle export action visible after export");
+        require(optionLabelPrefix(diagnostics, "Support Bundle: "),
+                "Diagnostics should display the latest support bundle export status");
+        audio.close();
 
         services.session().quickMoveContainerSlotToPlayer(1);
         screens.showPauseMenu();
@@ -165,9 +222,10 @@ public final class EchoClientCommandControllerSmokeHarness {
         require(thumbnail.statusLabel().equals("READY"),
                 "World Select thumbnail should expose the selected save loadability status");
         require(thumbnail.captured()
-                        && thumbnail.source().equals(EchoClientSaveSlotThumbnailGenerator.THUMBNAIL_SOURCE)
+                        && thumbnail.source()
+                        .equals(EchoClientSaveSlotThumbnailGenerator.FRAMEBUFFER_THUMBNAIL_SOURCE)
                         && thumbnail.relativePath().equals(EchoClientSaveSlotThumbnailGenerator.THUMBNAIL_PATH),
-                "World Select thumbnail should use the captured saved-world icon metadata for fresh saves");
+                "World Select thumbnail should use the captured OpenGL framebuffer metadata for fresh saves");
         require(thumbnail.width() == 160
                         && thumbnail.height() == 90
                         && Files.isRegularFile(Path.of(thumbnail.resolvedPath()))
@@ -241,6 +299,23 @@ public final class EchoClientCommandControllerSmokeHarness {
         }
     }
 
+    private static boolean zipContains(Path archive, String entryName) throws IOException {
+        try (ZipFile zip = new ZipFile(archive.toFile())) {
+            return zip.getEntry(entryName) != null;
+        }
+    }
+
+    private static boolean zipTextContains(Path archive, String entryName, String expectedText) throws IOException {
+        try (ZipFile zip = new ZipFile(archive.toFile())) {
+            var entry = zip.getEntry(entryName);
+            if (entry == null) {
+                return false;
+            }
+            String text = new String(zip.getInputStream(entry).readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            return text.contains(expectedText);
+        }
+    }
+
     private static void placeSecondMachineNetwork(EchoClientGameSession session) {
         placeMachineBlock(session, EchoAdapterCoreStandaloneContentBridge.MICRO_GENERATOR_BLOCK_ID, 20);
         placeMachineBlock(session, EchoAdapterCoreStandaloneContentBridge.POWER_CABLE_BLOCK_ID, 21);
@@ -271,6 +346,10 @@ public final class EchoClientCommandControllerSmokeHarness {
 
     private static boolean optionLabel(EchoClientScreenSnapshot snapshot, String label) {
         return snapshot.options().stream().anyMatch(option -> option.label().equals(label));
+    }
+
+    private static boolean optionCommand(EchoClientScreenSnapshot snapshot, EchoClientScreenCommand command) {
+        return snapshot.options().stream().anyMatch(option -> option.command() == command);
     }
 
     private static boolean optionLabelPrefix(EchoClientScreenSnapshot snapshot, String prefix) {
@@ -372,6 +451,27 @@ public final class EchoClientCommandControllerSmokeHarness {
         }
     }
 
+    private static EchoClientSaveSlotThumbnailCapture framebufferThumbnailCapture() throws IOException {
+        BufferedImage image = new BufferedImage(320, 180, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int color = y < 60
+                        ? 0xFF234E70
+                        : y < 132
+                        ? 0xFF456240
+                        : 0xFF101D18;
+                if (x > 122 && x < 198 && y > 48 && y < 136) {
+                    color = 0xFFD8C15B;
+                }
+                image.setRGB(x, y, color);
+            }
+        }
+        return EchoClientSaveSlotThumbnailCapture.fromImage(
+                EchoClientSaveSlotThumbnailGenerator.FRAMEBUFFER_THUMBNAIL_SOURCE,
+                image
+        );
+    }
+
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);
@@ -411,6 +511,15 @@ public final class EchoClientCommandControllerSmokeHarness {
             assetReloads++;
             if (rebuildAtlas) {
                 rebuildAtlasRequests++;
+            }
+        }
+
+        @Override
+        public EchoClientSaveSlotThumbnailCapture captureSaveThumbnail() {
+            try {
+                return framebufferThumbnailCapture();
+            } catch (IOException exception) {
+                return EchoClientSaveSlotThumbnailCapture.EMPTY;
             }
         }
     }

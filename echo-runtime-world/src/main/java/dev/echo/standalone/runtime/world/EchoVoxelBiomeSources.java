@@ -33,6 +33,9 @@ public final class EchoVoxelBiomeSources {
         if (normalized.equals(EchoVoxelAshfallBiomes.SOURCE_ID)) {
             return EchoVoxelAshfallBiomes.source();
         }
+        if (normalized.equals(EchoVoxelOpenlandsBiomes.SOURCE_ID)) {
+            return EchoVoxelOpenlandsBiomes.source();
+        }
         return GENERIC_SOURCE;
     }
 
@@ -40,6 +43,9 @@ public final class EchoVoxelBiomeSources {
         String normalized = normalize(worldId);
         if (normalized.equals(EchoVoxelAshfallWorldGeneration.WORLD_ID)) {
             return EchoVoxelAshfallBiomes.source();
+        }
+        if (normalized.equals(EchoVoxelOpenlandsWorldGeneration.WORLD_ID)) {
+            return EchoVoxelOpenlandsBiomes.source();
         }
         return GENERIC_SOURCE;
     }

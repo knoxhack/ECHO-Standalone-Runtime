@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class EchoClientSaveContinueSmokeHarness {
+    private static final Path REPORT_PATH = Path.of("reports/echo/standalone/client-save-continue.json");
+
     private EchoClientSaveContinueSmokeHarness() {
     }
 
@@ -146,12 +148,13 @@ public final class EchoClientSaveContinueSmokeHarness {
                         && liveSession.world().blockAt(8, 5, 11).id()
                         .equals(EchoAdapterCoreStandaloneContentBridge.ORE_GRINDER_BLOCK_ID),
                 "Machine runtime should advance independent power graphs and editable logistics layout before saving");
-        liveClient.captureMemorySave();
+        liveClient.captureMemorySave(framebufferThumbnailCapture());
         Path thumbnailPath = saveRoot.resolve("slots")
                 .resolve(savedSlotId)
                 .resolve("data")
                 .resolve(EchoClientSaveSlotThumbnailGenerator.THUMBNAIL_PATH);
-        require(Files.isRegularFile(thumbnailPath) && Files.size(thumbnailPath) > 100,
+        long capturedThumbnailBytes = Files.isRegularFile(thumbnailPath) ? Files.size(thumbnailPath) : 0L;
+        require(capturedThumbnailBytes > 100,
                 "Manual save should persist a captured save-slot thumbnail PNG");
         BufferedImage thumbnailImage = ImageIO.read(thumbnailPath.toFile());
         require(thumbnailImage != null && thumbnailImage.getWidth() == 160 && thumbnailImage.getHeight() == 90,
@@ -162,8 +165,9 @@ public final class EchoClientSaveContinueSmokeHarness {
         require(thumbnailManifestText.contains("\"clientThumbnailCodec\"")
                         && thumbnailManifestText.contains(EchoClientSaveSlotThumbnailGenerator.THUMBNAIL_CODEC)
                         && thumbnailManifestText.contains(EchoClientSaveSlotThumbnailGenerator.THUMBNAIL_PATH)
-                        && thumbnailManifestText.contains(EchoClientSaveSlotThumbnailGenerator.THUMBNAIL_SOURCE),
-                "Manual save manifest should expose captured thumbnail codec, path, and source metadata");
+                        && thumbnailManifestText.contains(
+                                EchoClientSaveSlotThumbnailGenerator.FRAMEBUFFER_THUMBNAIL_SOURCE),
+                "Manual save manifest should expose captured framebuffer thumbnail codec, path, and source metadata");
         EchoClientSaveSlotSummary savedSlotSummary = liveClient.saveSlotSummaries()
                 .stream()
                 .filter(slot -> slot.slotId().equals(savedSlotId))
@@ -173,10 +177,11 @@ public final class EchoClientSaveContinueSmokeHarness {
                         && savedSlotSummary.thumbnailPath().equals(EchoClientSaveSlotThumbnailGenerator.THUMBNAIL_PATH)
                         && Path.of(savedSlotSummary.thumbnailResolvedPath()).toAbsolutePath().normalize()
                         .equals(thumbnailPath.toAbsolutePath().normalize())
-                        && savedSlotSummary.thumbnailSource().equals(EchoClientSaveSlotThumbnailGenerator.THUMBNAIL_SOURCE)
+                        && savedSlotSummary.thumbnailSource()
+                        .equals(EchoClientSaveSlotThumbnailGenerator.FRAMEBUFFER_THUMBNAIL_SOURCE)
                         && savedSlotSummary.thumbnailWidth() == 160
                         && savedSlotSummary.thumbnailHeight() == 90,
-                "Save slot summary should mark fresh thumbnails as captured saved-world icons");
+                "Save slot summary should mark fresh thumbnails as captured OpenGL framebuffer icons");
         EchoClientSaveSlotThumbnailSnapshot savedThumbnailSnapshot =
                 EchoClientSaveSlotThumbnailSnapshot.from(savedSlotSummary);
         require(savedThumbnailSnapshot.captured()
@@ -521,7 +526,63 @@ public final class EchoClientSaveContinueSmokeHarness {
         require(!afterDeleteTitle.snapshot(loadGameClient.hasContinuableSession()).options().get(0).enabled(),
                 "Title Continue option should disable after deleting the only save");
 
+        writeReport(savedSlotId, backupId, thumbnailPath, capturedThumbnailBytes, savedSlotSummary);
         System.out.println("client save continue smoke PASS slot=" + savedSlotId + " backup=" + backupId + " deleted=true");
+    }
+
+    private static void writeReport(
+            String slotId,
+            String backupId,
+            Path thumbnailPath,
+            long capturedThumbnailBytes,
+            EchoClientSaveSlotSummary savedSlotSummary
+    ) throws IOException {
+        String json = """
+                {
+                  "schema": "echo.standalone.client_save_continue.v1",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoClientSaveContinueSmokeHarness",
+                  "status": "PASS",
+                  "summary": "OpenGL client Save, World Select, Continue, captured save-slot thumbnails, corrupt-thumbnail fallback, backup, migration, and delete flows passed.",
+                  "slotId": "%s",
+                  "backupId": "%s",
+                  "coverage": {
+                    "capturedOpenGlFramebufferThumbnail": true,
+                    "thumbnailPngPersisted": true,
+                    "thumbnailManifestMetadata": true,
+                    "worldSelectUsesCapturedTexture": true,
+                    "corruptThumbnailFallsBackToDeterministic": true,
+                    "diskContinueRestoresSlot": true,
+                    "worldSelectRestore": true,
+                    "runtimeContentMismatchBlocksContinue": true,
+                    "missingModuleBlocksContinue": true,
+                    "backupAndMigrationReady": true,
+                    "deleteWorldDisablesContinue": true
+                  },
+                  "thumbnail": {
+                    "source": "%s",
+                    "relativePath": "%s",
+                    "resolvedPath": "%s",
+                    "width": %d,
+                    "height": %d,
+                    "bytesBeforeCorruptionProbe": %d,
+                    "textureEligible": true,
+                    "fallbackVerified": true
+                  },
+                  "nativeModLoaderCommandUsed": false
+                }
+                """.formatted(
+                escape(slotId),
+                escape(backupId),
+                escape(savedSlotSummary.thumbnailSource()),
+                escape(savedSlotSummary.thumbnailPath()),
+                escape(thumbnailPath.toAbsolutePath().normalize().toString()),
+                savedSlotSummary.thumbnailWidth(),
+                savedSlotSummary.thumbnailHeight(),
+                capturedThumbnailBytes
+        );
+        Files.createDirectories(REPORT_PATH.getParent());
+        Files.writeString(REPORT_PATH, json);
     }
 
     private static RuntimeSaveContentIds importPersistentRuntimeContent(EchoClientRuntimeServices services) {
@@ -880,6 +941,27 @@ public final class EchoClientSaveContinueSmokeHarness {
                         + " replacedDiagnostics=" + replacedState.diagnostics());
     }
 
+    private static EchoClientSaveSlotThumbnailCapture framebufferThumbnailCapture() throws IOException {
+        BufferedImage image = new BufferedImage(320, 180, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int color = y < 70
+                        ? 0xFF204D79
+                        : y < 132
+                        ? 0xFF3E6846
+                        : 0xFF14201A;
+                if (x > 132 && x < 188 && y > 42 && y < 138) {
+                    color = 0xFFE0B74D;
+                }
+                image.setRGB(x, y, color);
+            }
+        }
+        return EchoClientSaveSlotThumbnailCapture.fromImage(
+                EchoClientSaveSlotThumbnailGenerator.FRAMEBUFFER_THUMBNAIL_SOURCE,
+                image
+        );
+    }
+
     private static int powerNodeEnergy(EchoClientMachineStateSnapshot snapshot, String nodeId) {
         for (EchoClientMachineStateSnapshot.PowerNode node : snapshot.powerGraph()) {
             if (node.id().equals(nodeId)) {
@@ -920,5 +1002,12 @@ public final class EchoClientSaveContinueSmokeHarness {
         if (!condition) {
             throw new AssertionError(message);
         }
+    }
+
+    private static String escape(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

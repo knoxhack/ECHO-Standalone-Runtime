@@ -26,6 +26,18 @@ record EchoClientDamageSource(
         return new EchoClientDamageSource("echo:hostile/" + normalized, "Hostile", false, false, 0.1D);
     }
 
+    static EchoClientDamageSource projectile(String projectileId, String ownerId) {
+        String projectile = projectileId == null || projectileId.isBlank() ? "projectile" : projectileId.trim();
+        String owner = ownerId == null || ownerId.isBlank() ? "unknown" : ownerId.trim();
+        return new EchoClientDamageSource(
+                "echo:projectile/" + projectile + "/" + owner,
+                "Projectile",
+                false,
+                false,
+                0.05D
+        );
+    }
+
     static EchoClientDamageSource starvation() {
         return new EchoClientDamageSource("minecraft:starve", "Starvation", true, false, 0.0D);
     }

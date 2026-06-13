@@ -23,6 +23,7 @@ import dev.echo.standalone.runtime.world.EchoWorldRuntime;
 import dev.echo.standalone.runtime.world.EchoWorldRuntimeResult;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -122,6 +123,17 @@ public final class EchoRuntimeEntitySmokeHarness {
         EchoSaveCorruptionReport saveCheck = saves.check("slot-entities");
         require(saveCheck.healthy(), "entity save should pass corruption check");
 
+        writeReports(
+                Path.of(".").toAbsolutePath().normalize(),
+                store,
+                moved,
+                blocked,
+                aiTick,
+                saved,
+                manifest,
+                saveCheck
+        );
+
         System.out.println("phase14.10 entity runtime smoke PASS entities="
                 + store.count()
                 + " hostiles="
@@ -131,6 +143,269 @@ public final class EchoRuntimeEntitySmokeHarness {
                 + " savedFiles="
                 + saved.writtenPaths().size()
                 + " damage=10");
+    }
+
+    private static void writeReports(
+            Path standaloneRoot,
+            EchoEntityStore store,
+            EchoEntityMovementResult moved,
+            EchoEntityMovementResult blocked,
+            EchoEntityAiTickResult aiTick,
+            EchoEntitySaveResult saved,
+            EchoSaveManifest manifest,
+            EchoSaveCorruptionReport saveCheck
+    ) throws IOException {
+        Path root = standaloneRoot.resolve("reports/echo/standalone");
+        Files.createDirectories(root);
+
+        EchoEntityState player = store.require(new EchoEntityId("player-001"));
+        EchoEntityState scavenger = store.require(new EchoEntityId("scavenger-001"));
+        EchoEntityAiTickResult ai = aiTick;
+
+        write(root.resolve("runtime-entity.json"), """
+                {
+                  "schema": "echo.standalone.runtime_entity.v2",
+                  "status": "PASS",
+                  "phase": "14.10",
+                  "summary": "Entity runtime created service-bound debug player and hostile scavenger, moved through world queries, ticked hostile AI, mutated health, and saved through the save runtime.",
+                  "serviceBound": true,
+                  "storeBound": true,
+                  "entityCount": %d,
+                  "livingCount": %d,
+                  "hostileCount": %d,
+                  "playerId": "%s",
+                  "hostileId": "%s",
+                  "worldQueryBacked": true,
+                  "saveHealthy": %s
+                }
+                """.formatted(
+                store.count(),
+                store.living().size(),
+                store.hostile().size(),
+                escape(player.id().value()),
+                escape(scavenger.id().value()),
+                saveCheck.healthy()
+        ));
+
+        write(root.resolve("entity-definitions.json"), """
+                {
+                  "schema": "echo.standalone.entity_definitions.v2",
+                  "status": "PASS",
+                  "definitionCount": %d,
+                  "definitions": [
+                    {
+                      "entityId": "%s",
+                      "definitionId": "%s",
+                      "displayName": "%s",
+                      "kind": "%s",
+                      "maxHealth": %d,
+                      "movementSpeed": %d,
+                      "aiProfile": "%s"
+                    },
+                    {
+                      "entityId": "%s",
+                      "definitionId": "%s",
+                      "displayName": "%s",
+                      "kind": "%s",
+                      "maxHealth": %d,
+                      "movementSpeed": %d,
+                      "aiProfile": "%s"
+                    }
+                  ],
+                  "ashfallHostileRegistered": true,
+                  "manualPlayerRegistered": true
+                }
+                """.formatted(
+                store.count(),
+                escape(player.id().value()),
+                escape(player.definition().definitionId()),
+                escape(player.definition().displayName()),
+                player.definition().kind(),
+                player.definition().maxHealth(),
+                player.definition().movementSpeed(),
+                escape(player.definition().aiProfile()),
+                escape(scavenger.id().value()),
+                escape(scavenger.definition().definitionId()),
+                escape(scavenger.definition().displayName()),
+                scavenger.definition().kind(),
+                scavenger.definition().maxHealth(),
+                scavenger.definition().movementSpeed(),
+                escape(scavenger.definition().aiProfile())
+        ));
+
+        write(root.resolve("entity-components.json"), """
+                {
+                  "schema": "echo.standalone.entity_components.v2",
+                  "status": "PASS",
+                  "componentFamilies": ["position", "health", "movement", "ai"],
+                  "entityCount": %d,
+                  "playerComponents": {
+                    "position": %s,
+                    "health": {"current": %d, "max": %d, "alive": %s},
+                    "movement": {"speed": %d, "blockedByWorld": %s},
+                    "ai": {"profile": "%s", "state": "%s"}
+                  },
+                  "hostileComponents": {
+                    "position": %s,
+                    "health": {"current": %d, "max": %d, "alive": %s},
+                    "movement": {"speed": %d, "blockedByWorld": %s},
+                    "ai": {"profile": "%s", "state": "%s"}
+                  }
+                }
+                """.formatted(
+                store.count(),
+                positionJson(player.worldPosition()),
+                player.health().currentHealth(),
+                player.health().maxHealth(),
+                player.alive(),
+                player.movement().movementSpeed(),
+                player.movement().blockedByWorld(),
+                escape(player.ai().profile()),
+                player.ai().state(),
+                positionJson(scavenger.worldPosition()),
+                scavenger.health().currentHealth(),
+                scavenger.health().maxHealth(),
+                scavenger.alive(),
+                scavenger.movement().movementSpeed(),
+                scavenger.movement().blockedByWorld(),
+                escape(scavenger.ai().profile()),
+                scavenger.ai().state()
+        ));
+
+        write(root.resolve("entity-movement.json"), """
+                {
+                  "schema": "echo.standalone.entity_movement.v2",
+                  "status": "PASS",
+                  "worldAware": true,
+                  "successfulMove": {
+                    "entityId": "%s",
+                    "from": %s,
+                    "to": %s,
+                    "moved": %s,
+                    "reason": "%s"
+                  },
+                  "blockedMove": {
+                    "entityId": "%s",
+                    "from": %s,
+                    "to": %s,
+                    "moved": %s,
+                    "reason": "%s"
+                  },
+                  "finalPlayerPosition": %s,
+                  "blockedCellRejected": %s
+                }
+                """.formatted(
+                escape(moved.entityId().value()),
+                positionJson(moved.from()),
+                positionJson(moved.to()),
+                moved.moved(),
+                escape(moved.reason()),
+                escape(blocked.entityId().value()),
+                positionJson(blocked.from()),
+                positionJson(blocked.to()),
+                blocked.moved(),
+                escape(blocked.reason()),
+                positionJson(player.worldPosition()),
+                !blocked.moved() && blocked.reason().equals("blocked_cell")
+        ));
+
+        write(root.resolve("entity-health.json"), """
+                {
+                  "schema": "echo.standalone.entity_health.v2",
+                  "status": "PASS",
+                  "damageApplied": 10,
+                  "hostileId": "%s",
+                  "hostileHealthAfterDamage": %d,
+                  "hostileMaxHealth": %d,
+                  "hostileAlive": %s,
+                  "playerHealth": %d,
+                  "healthMutationDeterministic": %s
+                }
+                """.formatted(
+                escape(scavenger.id().value()),
+                scavenger.health().currentHealth(),
+                scavenger.health().maxHealth(),
+                scavenger.alive(),
+                player.health().currentHealth(),
+                scavenger.health().currentHealth() == 25
+        ));
+
+        write(root.resolve("entity-ai.json"), """
+                {
+                  "schema": "echo.standalone.entity_ai.v2",
+                  "status": "PASS",
+                  "tickMovements": %d,
+                  "tickAttacks": %d,
+                  "intentCount": %d,
+                  "hostileId": "%s",
+                  "targetId": "%s",
+                  "hostileAiProfile": "%s",
+                  "hostileAiState": "%s",
+                  "hostilePositionAfterTick": %s,
+                  "pursuitMovedTowardPlayer": %s
+                }
+                """.formatted(
+                ai.movements(),
+                ai.attacks(),
+                ai.intents().size(),
+                escape(scavenger.id().value()),
+                "player-001",
+                escape(scavenger.ai().profile()),
+                scavenger.ai().state(),
+                positionJson(scavenger.worldPosition()),
+                ai.movements() == 1 && scavenger.ai().state() == EchoEntityAiState.PURSUING
+        ));
+
+        write(root.resolve("entity-save-hooks.json"), """
+                {
+                  "schema": "echo.standalone.entity_save_hooks.v2",
+                  "status": "PASS",
+                  "slotId": "%s",
+                  "transactionId": "tx-entity-001",
+                  "filesWritten": %d,
+                  "writtenPaths": %s,
+                  "manifestTrackedSummary": %s,
+                  "manifestTrackedPlayer": %s,
+                  "manifestTrackedHostile": %s,
+                  "corruptionHealthy": %s,
+                  "checkedFiles": %d,
+                  "journalEntries": %d
+                }
+                """.formatted(
+                escape(manifest.slotId()),
+                saved.commit().filesWritten(),
+                jsonStringArray(saved.writtenPaths()),
+                manifest.file("entities/summary.json").isPresent(),
+                manifest.file("entities/player-001.json").isPresent(),
+                manifest.file("entities/scavenger-001.json").isPresent(),
+                saveCheck.healthy(),
+                saveCheck.checkedFiles(),
+                saveCheck.journalEntries()
+        ));
+    }
+
+    private static String positionJson(dev.echo.standalone.runtime.world.EchoWorldPosition position) {
+        return """
+                {"x": %d, "y": %d, "z": %d, "key": "%s"}""".formatted(
+                position.x(),
+                position.y(),
+                position.z(),
+                escape(position.key())
+        ).trim();
+    }
+
+    private static String jsonStringArray(List<String> values) {
+        return values.stream()
+                .map(value -> "\"" + escape(value) + "\"")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static void write(Path path, String content) throws IOException {
+        Files.writeString(path, content, StandardCharsets.UTF_8);
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static void require(boolean condition, String message) {

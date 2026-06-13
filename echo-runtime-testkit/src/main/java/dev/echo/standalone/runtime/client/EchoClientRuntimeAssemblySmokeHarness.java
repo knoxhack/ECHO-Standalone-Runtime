@@ -22,6 +22,7 @@ public final class EchoClientRuntimeAssemblySmokeHarness {
         require(runtime.screenRuntime() != null, "Runtime assembly should expose screen runtime controller");
         require(runtime.slotGridRuntime() != null, "Runtime assembly should expose slot-grid runtime controller");
         require(runtime.screenshotRuntime() != null, "Runtime assembly should expose screenshot runtime controller");
+        require(runtime.focusLossRuntime() != null, "Runtime assembly should expose focus-loss runtime controller");
         require(runtime.runtimeBridge() != null, "Runtime assembly should expose engine runtime bridge");
         require(runtime.input() == null, "Runtime assembly should not create native input before live initialization");
 

@@ -21,5 +21,6 @@ enum EchoClientScreenKind {
     MACHINE,
     TERMINAL,
     DIAGNOSTICS,
+    FATAL_ERROR,
     REGISTERED_SCREEN
 }

@@ -1,6 +1,7 @@
 package dev.echo.standalone.runtime.player;
 
 import dev.echo.standalone.runtime.world.EchoVoxelBlock;
+import dev.echo.standalone.runtime.world.EchoVoxelFluidRuntime;
 import dev.echo.standalone.runtime.world.EchoVoxelWorld;
 
 import java.util.Objects;
@@ -10,9 +11,17 @@ public final class EchoVoxelPlayerController {
     private static final double WALK_SPEED = 4.2D;
     private static final double SPRINT_SPEED = 6.4D;
     private static final double CROUCH_SPEED = 1.9D;
+    private static final double SWIM_SPEED = 2.4D;
+    private static final double SWIM_SPRINT_SPEED = 3.1D;
+    private static final double SWIM_CROUCH_SPEED = 1.2D;
     private static final double JUMP_VELOCITY = 7.8D;
     private static final double GRAVITY = 22.0D;
     private static final double TERMINAL_VELOCITY = -18.0D;
+    private static final double SWIM_UPWARD_SPEED = 3.2D;
+    private static final double SWIM_SINK_SPEED = -2.0D;
+    private static final double SWIM_TERMINAL_VELOCITY = -3.0D;
+    private static final double SWIM_DRAG = 0.55D;
+    private static final double SWIM_BUOYANCY_ACCEL = 8.0D;
     private static final double MAX_STEP_HEIGHT = 1.0D;
     private static final double GROUND_SNAP_TOLERANCE = 0.08D;
     private static final int COLLISION_CLIP_ITERATIONS = 8;
@@ -80,7 +89,11 @@ public final class EchoVoxelPlayerController {
         double pitch = clamp(state.pitchDegrees() + input.pitchDeltaDegrees(), -75.0D, 55.0D);
         boolean crouching = input.crouch();
         boolean sprinting = input.sprint() && input.forward() && !crouching;
-        double speed = crouching ? CROUCH_SPEED : sprinting ? SPRINT_SPEED : WALK_SPEED;
+        double bodyHeight = crouching ? 1.35D : 1.82D;
+        boolean inFluid = isBodyInFluid(world, state.x(), state.y(), state.z(), bodyHeight);
+        double speed = inFluid
+                ? (crouching ? SWIM_CROUCH_SPEED : sprinting ? SWIM_SPRINT_SPEED : SWIM_SPEED)
+                : (crouching ? CROUCH_SPEED : sprinting ? SPRINT_SPEED : WALK_SPEED);
         double moveX = 0.0D;
         double moveZ = 0.0D;
         if (input.wantsHorizontalMovement()) {
@@ -118,16 +131,36 @@ public final class EchoVoxelPlayerController {
         double velocityY = state.velocityY();
         boolean grounded = state.grounded();
         boolean jumped = false;
-        if (input.jump() && grounded && !crouching) {
-            velocityY = JUMP_VELOCITY;
+        if (inFluid) {
             grounded = false;
-            jumped = true;
-        }
-        if (!grounded || jumped) {
-            velocityY = Math.max(TERMINAL_VELOCITY, velocityY - GRAVITY * dt);
+            if (input.jump() && !crouching) {
+                velocityY = Math.min(
+                        SWIM_UPWARD_SPEED,
+                        Math.max(1.2D, velocityY * SWIM_DRAG + SWIM_BUOYANCY_ACCEL * dt)
+                );
+                jumped = true;
+            } else if (crouching) {
+                velocityY = Math.max(
+                        SWIM_SINK_SPEED,
+                        velocityY * SWIM_DRAG - SWIM_BUOYANCY_ACCEL * 0.35D * dt
+                );
+            } else {
+                velocityY = Math.max(
+                        SWIM_TERMINAL_VELOCITY,
+                        Math.min(1.0D, velocityY * SWIM_DRAG + SWIM_BUOYANCY_ACCEL * 0.25D * dt)
+                );
+            }
+        } else {
+            if (input.jump() && grounded && !crouching) {
+                velocityY = JUMP_VELOCITY;
+                grounded = false;
+                jumped = true;
+            }
+            if (!grounded || jumped) {
+                velocityY = Math.max(TERMINAL_VELOCITY, velocityY - GRAVITY * dt);
+            }
         }
 
-        double bodyHeight = crouching ? 1.35D : 1.82D;
         boolean collidedHorizontal = false;
         double newY = y;
         if (moveX != 0.0D) {
@@ -195,7 +228,11 @@ public final class EchoVoxelPlayerController {
                 || previous.crouching() != state.crouching()
                 || previous.sprinting() != state.sprinting()
                 || previous.grounded() != state.grounded();
-        String reason = jumped ? "jump" : collidedHorizontal ? "horizontal_collision" : collidedVertical ? "vertical_collision" : moved ? "moved" : "idle";
+        String reason = jumped
+                ? (inFluid ? "swim" : "jump")
+                : collidedHorizontal
+                        ? "horizontal_collision"
+                        : collidedVertical ? "vertical_collision" : inFluid && moved ? "fluid" : moved ? "moved" : "idle";
         return new EchoVoxelPlayerStep(previous, state, moved, jumped, collidedHorizontal, collidedVertical, reason);
     }
 
@@ -273,6 +310,25 @@ public final class EchoVoxelPlayerController {
                 y + bodyHeight - 0.02D,
                 z + EchoVoxelPlayerState.PLAYER_RADIUS
         );
+    }
+
+    private static boolean isBodyInFluid(EchoVoxelWorld world, double x, double y, double z, double bodyHeight) {
+        int minX = floor(x - EchoVoxelPlayerState.PLAYER_RADIUS);
+        int maxX = floor(Math.nextDown(x + EchoVoxelPlayerState.PLAYER_RADIUS));
+        int minY = floor(y + 0.02D);
+        int maxY = floor(Math.nextDown(y + bodyHeight - 0.02D));
+        int minZ = floor(z - EchoVoxelPlayerState.PLAYER_RADIUS);
+        int maxZ = floor(Math.nextDown(z + EchoVoxelPlayerState.PLAYER_RADIUS));
+        for (int blockY = minY; blockY <= maxY; blockY++) {
+            for (int blockZ = minZ; blockZ <= maxZ; blockZ++) {
+                for (int blockX = minX; blockX <= maxX; blockX++) {
+                    if (EchoVoxelFluidRuntime.isFluid(world.blockStateAt(blockX, blockY, blockZ))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean hasGroundBelow(EchoVoxelWorld world, double x, double y, double z) {

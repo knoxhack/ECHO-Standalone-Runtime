@@ -23,7 +23,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -37,6 +40,7 @@ public final class EchoRuntimeAssetSmokeHarness {
         Path ashfallBase = fixtureRoot.resolve("ashfall-base");
         Path ashfallOverride = fixtureRoot.resolve("ashfall-dev-override");
         Path archivePack = fixtureRoot.resolve("archive-pack.zip");
+        Path jarPack = fixtureRoot.resolve("jar-pack.jar");
 
         write(runtimeDefaults.resolve("assets/echo/lang/en_us.json"), "{\"echo.boot\":\"Boot\"}");
         write(runtimeDefaults.resolve("assets/echo/materials/cyberglass.json"), "{\"alpha\":0.64}");
@@ -76,12 +80,14 @@ public final class EchoRuntimeAssetSmokeHarness {
         write(ashfallOverride.resolve("assets/ashfall/textures/gui/terminal.png"), "override-terminal");
         write(ashfallOverride.resolve("data/ashfall/world_hazards/toxic_ash.json"), "{\"toxicity\":2}");
         writeArchivePack(archivePack);
+        writeJarPack(jarPack);
 
         EchoAssetRuntime runtime = new EchoAssetRuntime(List.of(
                 new EchoAssetMount(0, "asset", runtimeDefaults, "runtime-defaults"),
                 new EchoAssetMount(1, "asset", ashfallBase, "pack-base"),
                 new EchoAssetMount(2, "asset", ashfallOverride, "dev-override"),
-                new EchoAssetMount(3, "asset", archivePack, "archive-pack")
+                new EchoAssetMount(3, "asset", archivePack, "archive-pack"),
+                new EchoAssetMount(4, "asset", jarPack, "jar-pack")
         ));
         EchoDefaultRuntimeServiceRegistry services = new EchoDefaultRuntimeServiceRegistry();
         EchoAssetRuntimeResult result = runtime.load(services, List.of(
@@ -94,7 +100,8 @@ public final class EchoRuntimeAssetSmokeHarness {
         require(index.namespaces().contains("ashfall"), "ashfall namespace should be indexed");
         require(index.namespaces().contains("echo"), "echo namespace should be indexed");
         require(index.namespaces().contains("ziptest"), "archive pack namespace should be indexed");
-        require(index.entries().size() == 21, "directory and archive assets/data definitions should be indexed");
+        require(index.namespaces().contains("jartest"), "jar resource pack namespace should be indexed");
+        require(index.entries().size() == 27, "directory, zip archive, and jar archive assets/data definitions should be indexed");
         require(result.resolver().loadText("ashfall:textures/gui/terminal.png")
                         .orElseThrow()
                         .equals("override-terminal"),
@@ -152,6 +159,18 @@ public final class EchoRuntimeAssetSmokeHarness {
                         .orElseThrow()
                         .equals("ziptest:item/archive_badge"),
                 "item texture resolver should read item model JSON from a zip resource pack");
+        require(new EchoBlockTextureResolver(minecraft)
+                        .resolve("jartest:jar_block")
+                        .textureId()
+                        .orElseThrow()
+                        .equals("jartest:block/jar_block"),
+                "block texture resolver should read blockstate/model JSON from a jar resource pack");
+        require(new EchoItemTextureResolver(minecraft)
+                        .resolve("jartest:jar_badge")
+                        .textureId()
+                        .orElseThrow()
+                        .equals("jartest:item/jar_badge"),
+                "item texture resolver should read item model JSON from a jar resource pack");
         EchoSoundsJsonLoader.EchoSoundsDefinition sounds = new EchoSoundsJsonLoader(minecraft).load("ashfall");
         EchoSoundsJsonLoader.EchoSoundEventDefinition echoMessage =
                 sounds.findEvent("ashfall:ui.echo_message").orElseThrow();
@@ -169,11 +188,20 @@ public final class EchoRuntimeAssetSmokeHarness {
         require(scannedArchive.modelCount() == 2, "zip resource pack scanner should count models");
         require(scannedArchive.blockstateCount() == 1, "zip resource pack scanner should count blockstates");
         require(scannedArchive.langCount() == 1, "zip resource pack scanner should count lang files");
+        EchoMinecraftResourcePack scannedJar = EchoMinecraftResourcePack.scan(jarPack);
+        require(scannedJar.hasPackMetadata(), "jar resource pack scanner should read pack.mcmeta");
+        require(scannedJar.namespaces().contains("jartest"), "jar resource pack scanner should find namespaces");
+        require(scannedJar.textureCount() == 2, "jar resource pack scanner should count textures");
+        require(scannedJar.modelCount() == 2, "jar resource pack scanner should count models");
+        require(scannedJar.blockstateCount() == 1, "jar resource pack scanner should count blockstates");
+        require(scannedJar.langCount() == 1, "jar resource pack scanner should count lang files");
 
         write(ashfallOverride.resolve("assets/ashfall/icons/hazard.png"), "hazard-icon");
         EchoAssetReloadReport reload = new EchoAssetHotReload(runtime).reload(index);
         require(reload.added().equals(List.of("ashfall:icons/hazard.png")), "hot reload should report added hazard icon");
-        require(reload.nextIndex().entries().size() == 22, "hot reload next index should include new asset");
+        require(reload.nextIndex().entries().size() == 28, "hot reload next index should include new asset");
+
+        writeReports(result, scannedArchive, scannedJar, reload);
 
         System.out.println("phase14.5 asset runtime smoke PASS assets="
                 + index.entries().size()
@@ -183,6 +211,166 @@ public final class EchoRuntimeAssetSmokeHarness {
                 + result.missingReport().missingLogicalIds().size()
                 + " added="
                 + reload.added().size());
+    }
+
+    private static void writeReports(
+            EchoAssetRuntimeResult result,
+            EchoMinecraftResourcePack scannedArchive,
+            EchoMinecraftResourcePack scannedJar,
+            EchoAssetReloadReport reload
+    ) throws IOException {
+        Path reportDir = Path.of("reports/echo/standalone");
+        Files.createDirectories(reportDir);
+        EchoAssetIndex index = result.index();
+        List<String> mountKinds = result.mounts().stream()
+                .map(mount -> mount.kind().toLowerCase(Locale.ROOT))
+                .distinct()
+                .sorted()
+                .toList();
+        List<String> mountSources = result.mounts().stream()
+                .map(EchoAssetMount::source)
+                .toList();
+        List<String> indexedLogicalIds = index.entries().stream()
+                .map(entry -> entry.logicalId())
+                .distinct()
+                .sorted()
+                .toList();
+        List<String> conflictIds = result.conflicts().stream()
+                .map(EchoAssetConflict::logicalId)
+                .sorted()
+                .toList();
+
+        write(reportDir.resolve("asset-index.json"), """
+                {
+                  "schema": "echo.standalone.asset_index.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAssetSmokeHarness",
+                  "status": "PASS",
+                  "entryCount": %d,
+                  "namespaceCount": %d,
+                  "namespaces": %s,
+                  "logicalIds": %s,
+                  "archiveBytesIndexed": %s,
+                  "jarBytesIndexed": %s,
+                  "directoryAssetsIndexed": %s,
+                  "dataDefinitionsIndexed": %s
+                }
+                """.formatted(
+                index.entries().size(),
+                index.namespaces().size(),
+                jsonArray(index.namespaces()),
+                jsonArray(indexedLogicalIds),
+                bool(indexedLogicalIds.contains("ziptest:textures/block/archive_block.png")),
+                bool(indexedLogicalIds.contains("jartest:textures/block/jar_block.png")),
+                bool(indexedLogicalIds.contains("ashfall:textures/gui/terminal.png")),
+                bool(indexedLogicalIds.contains("ashfall:world_regions/crash_site.json"))
+        ));
+
+        write(reportDir.resolve("asset-mounts.json"), """
+                {
+                  "schema": "echo.standalone.asset_mounts.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAssetSmokeHarness",
+                  "status": "PASS",
+                  "mountCount": %d,
+                  "mountSources": %s,
+                  "mountKinds": %s,
+                  "folderMounts": %d,
+                  "archiveMounts": %d,
+                  "jarMounts": %d,
+                  "overrideWins": %s,
+                  "serviceResolverBound": %s
+                }
+                """.formatted(
+                result.mounts().size(),
+                jsonArray(mountSources),
+                jsonArray(mountKinds),
+                result.mounts().stream().filter(mount -> Files.isDirectory(mount.root())).count(),
+                result.mounts().stream().filter(mount -> Files.isRegularFile(mount.root())).count(),
+                result.mounts().stream().filter(mount -> mount.root().getFileName().toString().endsWith(".jar")).count(),
+                bool(result.resolver().resolve("ashfall:textures/gui/terminal.png")
+                        .map(entry -> "dev-override".equals(entry.mount().source()))
+                        .orElse(false)),
+                bool(true)
+        ));
+
+        write(reportDir.resolve("asset-missing.json"), """
+                {
+                  "schema": "echo.standalone.asset_missing.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAssetSmokeHarness",
+                  "status": "PASS",
+                  "missingCount": %d,
+                  "missingLogicalIds": %s,
+                  "requiredMissingDetected": %s
+                }
+                """.formatted(
+                result.missingReport().missingLogicalIds().size(),
+                jsonArray(result.missingReport().missingLogicalIds()),
+                bool(result.missingReport().missingLogicalIds().contains("ashfall:missing/not_found.json"))
+        ));
+
+        write(reportDir.resolve("asset-conflicts.json"), """
+                {
+                  "schema": "echo.standalone.asset_conflicts.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAssetSmokeHarness",
+                  "status": "PASS",
+                  "conflictCount": %d,
+                  "conflictLogicalIds": %s,
+                  "overrideConflictDetected": %s
+                }
+                """.formatted(
+                result.conflicts().size(),
+                jsonArray(conflictIds),
+                bool(conflictIds.contains("ashfall:textures/gui/terminal.png"))
+        ));
+
+        write(reportDir.resolve("resource-pack-plan.json"), """
+                {
+                  "schema": "echo.standalone.resource_pack_plan.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAssetSmokeHarness",
+                  "status": "PASS",
+                  "supportsFolderMounts": %s,
+                  "supportsZipMounts": %s,
+                  "supportsJarMounts": %s,
+                  "packMetadataRead": %s,
+                  "jarPackMetadataRead": %s,
+                  "archiveNamespaceCount": %d,
+                  "archiveNamespaces": %s,
+                  "jarArchiveNamespaces": %s,
+                  "archiveTextureCount": %d,
+                  "archiveModelCount": %d,
+                  "archiveBlockstateCount": %d,
+                  "archiveLangCount": %d,
+                  "jarArchiveTextureCount": %d,
+                  "jarArchiveModelCount": %d,
+                  "jarArchiveBlockstateCount": %d,
+                  "jarArchiveLangCount": %d,
+                  "minecraftStyleResolvers": %s,
+                  "hotReloadAdded": %s
+                }
+                """.formatted(
+                bool(true),
+                bool(true),
+                bool(true),
+                bool(scannedArchive.hasPackMetadata()),
+                bool(scannedJar.hasPackMetadata()),
+                scannedArchive.namespaces().size(),
+                jsonArray(scannedArchive.namespaces()),
+                jsonArray(scannedJar.namespaces()),
+                scannedArchive.textureCount(),
+                scannedArchive.modelCount(),
+                scannedArchive.blockstateCount(),
+                scannedArchive.langCount(),
+                scannedJar.textureCount(),
+                scannedJar.modelCount(),
+                scannedJar.blockstateCount(),
+                scannedJar.langCount(),
+                bool(true),
+                jsonArray(reload.added())
+        ));
     }
 
     private static void write(Path path, String content) throws IOException {
@@ -223,5 +411,46 @@ public final class EchoRuntimeAssetSmokeHarness {
         if (!condition) {
             throw new AssertionError(message);
         }
+    }
+
+    private static void writeJarPack(Path jarPack) throws IOException {
+        Files.createDirectories(jarPack.getParent());
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(jarPack))) {
+            zipEntry(zip, "pack.mcmeta", """
+                    {
+                      "pack": {
+                        "pack_format": 34,
+                        "description": "Jar smoke pack"
+                      }
+                    }
+                    """);
+            zipEntry(zip, "assets/jartest/lang/en_us.json", "{\"jartest.badge\":\"Jar Badge\"}");
+            zipEntry(zip, "assets/jartest/blockstates/jar_block.json",
+                    "{\"variants\":{\"\":{\"model\":\"jartest:block/jar_block\"}}}");
+            zipEntry(zip, "assets/jartest/models/block/jar_block.json",
+                    "{\"parent\":\"minecraft:block/cube_all\",\"textures\":{\"all\":\"jartest:block/jar_block\"}}");
+            zipEntry(zip, "assets/jartest/textures/block/jar_block.png", "jar-block-texture");
+            zipEntry(zip, "assets/jartest/models/item/jar_badge.json",
+                    "{\"parent\":\"minecraft:item/generated\",\"textures\":{\"layer0\":\"jartest:item/jar_badge\"}}");
+            zipEntry(zip, "assets/jartest/textures/item/jar_badge.png", "jar-item-texture");
+        }
+    }
+
+    private static String jsonArray(Collection<String> values) {
+        List<String> escaped = new ArrayList<>();
+        for (String value : values.stream().sorted().toList()) {
+            escaped.add("\"" + jsonEscape(value) + "\"");
+        }
+        return "[" + String.join(", ", escaped) + "]";
+    }
+
+    private static String jsonEscape(String value) {
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"");
+    }
+
+    private static String bool(boolean value) {
+        return value ? "true" : "false";
     }
 }

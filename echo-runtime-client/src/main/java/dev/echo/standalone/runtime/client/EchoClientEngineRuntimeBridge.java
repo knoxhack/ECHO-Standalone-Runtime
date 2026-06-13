@@ -79,6 +79,7 @@ final class EchoClientEngineRuntimeBridge {
     private final EchoClientShellRuntimeController shellRuntime;
     private final EchoClientSlotGridRuntimeController slotGridRuntime;
     private final CloseTarget closeTarget;
+    private final ThumbnailCaptureTarget thumbnailCaptureTarget;
     private InputSource input = NO_INPUT;
 
     private final EchoClientScreenshotRuntimeController.InputGate screenshotInputGate;
@@ -94,7 +95,13 @@ final class EchoClientEngineRuntimeBridge {
             EchoClientSlotGridRuntimeController slotGridRuntime,
             EchoGlfwWindow window
     ) {
-        this(renderRuntime, shellRuntime, slotGridRuntime, window::requestClose);
+        this(
+                renderRuntime,
+                shellRuntime,
+                slotGridRuntime,
+                window::requestClose,
+                () -> EchoClientScreenshotService.captureSaveSlotThumbnail(window.width(), window.height())
+        );
     }
 
     EchoClientEngineRuntimeBridge(
@@ -102,6 +109,22 @@ final class EchoClientEngineRuntimeBridge {
             EchoClientShellRuntimeController shellRuntime,
             EchoClientSlotGridRuntimeController slotGridRuntime,
             CloseTarget closeTarget
+    ) {
+        this(
+                renderRuntime,
+                shellRuntime,
+                slotGridRuntime,
+                closeTarget,
+                () -> EchoClientSaveSlotThumbnailCapture.EMPTY
+        );
+    }
+
+    EchoClientEngineRuntimeBridge(
+            EchoClientRenderRuntimeController renderRuntime,
+            EchoClientShellRuntimeController shellRuntime,
+            EchoClientSlotGridRuntimeController slotGridRuntime,
+            CloseTarget closeTarget,
+            ThumbnailCaptureTarget thumbnailCaptureTarget
     ) {
         if (renderRuntime == null) {
             throw new IllegalArgumentException("renderRuntime must not be null");
@@ -115,10 +138,14 @@ final class EchoClientEngineRuntimeBridge {
         if (closeTarget == null) {
             throw new IllegalArgumentException("closeTarget must not be null");
         }
+        if (thumbnailCaptureTarget == null) {
+            throw new IllegalArgumentException("thumbnailCaptureTarget must not be null");
+        }
         this.renderRuntime = renderRuntime;
         this.shellRuntime = shellRuntime;
         this.slotGridRuntime = slotGridRuntime;
         this.closeTarget = closeTarget;
+        this.thumbnailCaptureTarget = thumbnailCaptureTarget;
         screenshotInputGate = () -> input.consumeScreenshot();
         shellInputGate = new EchoClientShellRuntimeController.InputGate() {
             @Override
@@ -218,6 +245,11 @@ final class EchoClientEngineRuntimeBridge {
             public void attachSession() {
                 EchoClientEngineRuntimeBridge.this.renderRuntime.attachActiveSession();
             }
+
+            @Override
+            public EchoClientSaveSlotThumbnailCapture captureSaveThumbnail() {
+                return EchoClientEngineRuntimeBridge.this.captureSaveThumbnail();
+            }
         };
         commandHost = new EchoClientCommandController.Host() {
             @Override
@@ -244,7 +276,21 @@ final class EchoClientEngineRuntimeBridge {
             public void reloadMinecraftAssets(boolean rebuildAtlas) {
                 EchoClientEngineRuntimeBridge.this.renderRuntime.reloadMinecraftAssets(rebuildAtlas);
             }
+
+            @Override
+            public EchoClientSaveSlotThumbnailCapture captureSaveThumbnail() {
+                return EchoClientEngineRuntimeBridge.this.captureSaveThumbnail();
+            }
         };
+    }
+
+    private EchoClientSaveSlotThumbnailCapture captureSaveThumbnail() {
+        try {
+            EchoClientSaveSlotThumbnailCapture capture = thumbnailCaptureTarget.capture();
+            return capture == null ? EchoClientSaveSlotThumbnailCapture.EMPTY : capture;
+        } catch (Exception exception) {
+            return EchoClientSaveSlotThumbnailCapture.EMPTY;
+        }
     }
 
     void attachInput(EchoClientInput input) {
@@ -390,5 +436,9 @@ final class EchoClientEngineRuntimeBridge {
 
     interface CloseTarget {
         void requestClose();
+    }
+
+    interface ThumbnailCaptureTarget {
+        EchoClientSaveSlotThumbnailCapture capture() throws Exception;
     }
 }

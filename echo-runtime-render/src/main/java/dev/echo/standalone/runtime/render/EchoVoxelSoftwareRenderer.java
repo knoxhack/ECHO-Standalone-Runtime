@@ -72,45 +72,43 @@ public final class EchoVoxelSoftwareRenderer {
         }
     }
 
-    private static final int[][] CORNER_INDICES = {
-            {3, 2, 6, 7},   // UP
-            {1, 5, 6, 2},   // EAST
-            {4, 0, 3, 7},   // WEST
-            {5, 4, 7, 6},   // SOUTH
-            {0, 1, 2, 3},   // NORTH
-            {0, 1, 5, 4}    // DOWN
-    };
-
-    private static final double[][] CORNER_OFFSETS = {
-            {0.0D, 1.0D, 0.0D, 1.0D, 1.0D, 1.0D, 1.0D, 0.0D, 1.0D, 0.0D, 0.0D, 1.0D},   // UP
-            {1.0D, 0.0D, 0.0D, 1.0D, 0.0D, 1.0D, 1.0D, 1.0D, 1.0D, 1.0D, 0.0D, 0.0D},   // EAST
-            {0.0D, 0.0D, 1.0D, 0.0D, 0.0D, 0.0D, 0.0D, 1.0D, 0.0D, 0.0D, 1.0D, 1.0D},   // WEST
-            {0.0D, 0.0D, 1.0D, 0.0D, 0.0D, 0.0D, 0.0D, 1.0D, 1.0D, 1.0D, 1.0D, 1.0D},   // SOUTH
-            {0.0D, 0.0D, 0.0D, 1.0D, 0.0D, 0.0D, 1.0D, 1.0D, 0.0D, 0.0D, 0.0D, 1.0D},   // NORTH
-            {0.0D, 0.0D, 0.0D, 1.0D, 0.0D, 0.0D, 1.0D, 0.0D, 1.0D, 0.0D, 0.0D, 1.0D}    // DOWN
-    };
-
     private static void addFace(EchoVoxelCamera camera, EchoVoxelMeshFace meshFace, List<Face> faces,
                                 double sinYaw, double cosYaw, double sinPitch, double cosPitch) {
         int x = meshFace.x();
         int y = meshFace.y();
         int z = meshFace.z();
-        if (!faceVisibleFrom(camera, meshFace.direction(), x, y, z)) {
+        if (!faceVisibleFrom(camera, meshFace)) {
             return;
         }
-        int dirOrdinal = meshFace.direction().ordinal();
-        double[] offs = CORNER_OFFSETS[dirOrdinal];
+        double[] offs = cornerOffsets(meshFace);
         addProjectedFace(camera, meshFace, x, y, z, offs, faces, sinYaw, cosYaw, sinPitch, cosPitch);
     }
 
-    private static boolean faceVisibleFrom(EchoVoxelCamera camera, EchoVoxelMeshDirection direction, int x, int y, int z) {
-        return switch (direction) {
-            case UP -> camera.y() > y + 1;
-            case DOWN -> camera.y() < y;
-            case EAST -> camera.x() > x + 1;
-            case WEST -> camera.x() < x;
-            case SOUTH -> camera.z() > z + 1;
-            case NORTH -> camera.z() < z;
+    private static boolean faceVisibleFrom(EchoVoxelCamera camera, EchoVoxelMeshFace face) {
+        return switch (face.direction()) {
+            case UP -> camera.y() > face.y() + face.maxY();
+            case DOWN -> camera.y() < face.y() + face.minY();
+            case EAST -> camera.x() > face.x() + face.maxX();
+            case WEST -> camera.x() < face.x() + face.minX();
+            case SOUTH -> camera.z() > face.z() + face.maxZ();
+            case NORTH -> camera.z() < face.z() + face.minZ();
+        };
+    }
+
+    private static double[] cornerOffsets(EchoVoxelMeshFace face) {
+        double minX = face.minX();
+        double minY = face.minY();
+        double minZ = face.minZ();
+        double maxX = face.maxX();
+        double maxY = face.maxY();
+        double maxZ = face.maxZ();
+        return switch (face.direction()) {
+            case UP -> new double[]{minX, maxY, minZ, minX, maxY, maxZ, maxX, maxY, maxZ, maxX, maxY, minZ};
+            case EAST -> new double[]{maxX, minY, minZ, maxX, minY, maxZ, maxX, maxY, maxZ, maxX, maxY, minZ};
+            case WEST -> new double[]{minX, minY, maxZ, minX, minY, minZ, minX, maxY, minZ, minX, maxY, maxZ};
+            case SOUTH -> new double[]{minX, minY, maxZ, maxX, minY, maxZ, maxX, maxY, maxZ, minX, maxY, maxZ};
+            case NORTH -> new double[]{maxX, minY, minZ, minX, minY, minZ, minX, maxY, minZ, maxX, maxY, minZ};
+            case DOWN -> new double[]{minX, minY, minZ, maxX, minY, minZ, maxX, minY, maxZ, minX, minY, maxZ};
         };
     }
 

@@ -41,6 +41,8 @@ public final class EchoRuntimeModuleDescriptorSchema {
             "classpath",
             "entrypoint",
             "adapterCoreEntrypoint",
+            "nativeEntrypoint",
+            "nativeClasspath",
             "requiresVersions",
             "optionalVersions"
     );
@@ -66,6 +68,8 @@ public final class EchoRuntimeModuleDescriptorSchema {
             Map.entry("classpath", "string[]"),
             Map.entry("entrypoint", "string"),
             Map.entry("adapterCoreEntrypoint", "string"),
+            Map.entry("nativeEntrypoint", "string"),
+            Map.entry("nativeClasspath", "string[]"),
             Map.entry("requiresVersions", "object<string,string>"),
             Map.entry("optionalVersions", "object<string,string>"),
             Map.entry("access", "object")
@@ -75,6 +79,8 @@ public final class EchoRuntimeModuleDescriptorSchema {
             "classPath",
             "entrypoint",
             "adapterCoreEntrypoint",
+            "nativeEntrypoint",
+            "nativeClasspath",
             "requiresVersions",
             "optionalVersions",
             "permissions"

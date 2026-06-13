@@ -69,6 +69,8 @@ The Phase 14.6 smoke harness proves:
 - `dismiss` closes the top modal.
 - generated frames expose active screen, modal, and theme state.
 
+The harness also writes concrete non-placeholder evidence to the Phase 14.6 UI reports under `reports/echo/standalone`. `verifyStandaloneUiRuntime` regenerates those reports, rejects bootstrap schemas, and requires PASS evidence for service binding, screen stack push/pop, menu routing, modal input blocking and dismissal, mounted theme loading, and Terminal shell command output.
+
 ## Out Of Scope
 
 Phase 14.6 does not:

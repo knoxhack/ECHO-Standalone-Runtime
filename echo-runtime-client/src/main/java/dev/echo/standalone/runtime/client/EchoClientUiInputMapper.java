@@ -50,6 +50,17 @@ final class EchoClientUiInputMapper {
             screens.handleTextInput(input.consumeTextCharacters(), input.consumeBackspace(), hasSession);
             return EchoClientScreenCommand.NONE;
         }
+        if (screens.keyRebindActive()) {
+            if (input.consumeKeyPress(GLFW.GLFW_KEY_ESCAPE)) {
+                screens.cancelKeyRebind(hasSession);
+                return EchoClientScreenCommand.NONE;
+            }
+            int key = input.consumeFirstKeyPress(EchoClientKeyBindings.configurableKeys());
+            if (key != GLFW.GLFW_KEY_UNKNOWN) {
+                screens.finishKeyRebind(key, hasSession);
+            }
+            return EchoClientScreenCommand.NONE;
+        }
         EchoClientScreenCommand pointerCommand = screens.handlePointer(
                 pointerX,
                 pointerY,

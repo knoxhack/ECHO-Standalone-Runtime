@@ -64,6 +64,8 @@ The Phase 14.12 smoke harness proves:
 - the resulting save manifest tracks gameplay files.
 - the save corruption checker reports the gameplay save as healthy.
 
+It also writes concrete non-placeholder evidence to `runtime-gameplay.json`, `gameplay-missions.json`, `gameplay-objectives.json`, `gameplay-progression.json`, `gameplay-hazards.json`, `gameplay-weather.json`, `gameplay-survival.json`, `gameplay-factions.json`, `gameplay-interactions.json`, `gameplay-notifications.json`, and `gameplay-save-hooks.json`. `verifyStandaloneGameplayRuntime` regenerates that evidence, rejects bootstrap schemas, and requires concrete `PASS` fields for service binding, mission completion, objective completion, deterministic XP/level/milestone progression, toxic ash damage/exposure, ash-storm heat pressure, hydration and water consumption, faction reputation shifts, water/terminal/cache interactions, deterministic notifications, and gameplay save manifest/corruption coverage.
+
 ## Out Of Scope
 
 Phase 14.12 does not:

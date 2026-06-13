@@ -71,7 +71,7 @@ final class EchoClientModScanService {
         Map<String, Object> adapterCore = object(descriptor.access().get("adapterCore"));
         List<String> domains = stringList(adapterCore.get("domains"));
         List<String> runtimes = stringList(adapterCore.get("runtimes"));
-        String nativeEntrypoint = descriptor.adapterCoreEntrypoint();
+        String nativeEntrypoint = descriptor.nativeEntrypoint();
         return new EchoClientModSummary(
                 descriptor.id(),
                 descriptor.name(),

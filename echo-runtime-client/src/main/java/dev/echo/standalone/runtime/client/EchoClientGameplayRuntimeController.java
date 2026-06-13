@@ -113,7 +113,7 @@ final class EchoClientGameplayRuntimeController {
         }
 
         if (input.consumeSave()) {
-            captureMemorySave();
+            captureMemorySave(host == null ? EchoClientSaveSlotThumbnailCapture.EMPTY : host.captureSaveThumbnail());
         }
         if (input.consumeLoad()) {
             restoreMemorySave(host);
@@ -149,7 +149,11 @@ final class EchoClientGameplayRuntimeController {
     }
 
     void captureMemorySave() {
-        runtimeServices.captureMemorySave();
+        captureMemorySave(EchoClientSaveSlotThumbnailCapture.EMPTY);
+    }
+
+    void captureMemorySave(EchoClientSaveSlotThumbnailCapture thumbnailCapture) {
+        runtimeServices.captureMemorySave(thumbnailCapture);
         screens.showToast("Session saved");
         System.out.println("[echo-client] in-memory ScreenCore session save captured");
     }
@@ -207,5 +211,9 @@ final class EchoClientGameplayRuntimeController {
         void refreshWorldStreamingAndMeshes();
 
         void attachSession();
+
+        default EchoClientSaveSlotThumbnailCapture captureSaveThumbnail() {
+            return EchoClientSaveSlotThumbnailCapture.EMPTY;
+        }
     }
 }

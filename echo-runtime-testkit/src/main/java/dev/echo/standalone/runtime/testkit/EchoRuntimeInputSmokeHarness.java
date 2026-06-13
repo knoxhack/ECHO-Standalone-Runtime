@@ -8,9 +8,11 @@ import dev.echo.standalone.runtime.gameplay.EchoGameplayMissionStatus;
 import dev.echo.standalone.runtime.gameplay.EchoGameplayRuntime;
 import dev.echo.standalone.runtime.gameplay.EchoGameplayRuntimeResult;
 import dev.echo.standalone.runtime.input.EchoInputAction;
+import dev.echo.standalone.runtime.input.EchoInputBinding;
 import dev.echo.standalone.runtime.input.EchoInputBindingMap;
 import dev.echo.standalone.runtime.input.EchoInputContext;
 import dev.echo.standalone.runtime.input.EchoInputControl;
+import dev.echo.standalone.runtime.input.EchoInputDeviceType;
 import dev.echo.standalone.runtime.input.EchoInputEvent;
 import dev.echo.standalone.runtime.input.EchoInputFocusState;
 import dev.echo.standalone.runtime.input.EchoInputRouteResult;
@@ -32,11 +34,17 @@ import dev.echo.standalone.runtime.world.EchoWorldGenerationProfiles;
 import dev.echo.standalone.runtime.world.EchoWorldRuntime;
 import dev.echo.standalone.runtime.world.EchoWorldRuntimeResult;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
 public final class EchoRuntimeInputSmokeHarness {
     private EchoRuntimeInputSmokeHarness() {
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         EchoDefaultRuntimeServiceRegistry services = new EchoDefaultRuntimeServiceRegistry();
         EchoWorldRuntimeResult world = new EchoWorldRuntime().createDebugWorld(
                 services,
@@ -138,10 +146,11 @@ public final class EchoRuntimeInputSmokeHarness {
         require(quickSlot.handled(), "quick slot should route to gameplay");
         require(quickSlot.interactionResult().orElseThrow().interactionId().equals("ashfall:drink_water"),
                 "quick slot 1 should consume water");
-        require(items.operations().count(
+        int waterRemainingAfterQuickSlot = items.operations().count(
                 items.inventoryStore().require(new EchoInventoryId("inventory:player-001")),
                 new EchoItemId(EchoItemRuntime.CLEAN_WATER_BOTTLE_ITEM_ID)
-        ) == 1, "quick slot should consume one water ration");
+        );
+        require(waterRemainingAfterQuickSlot == 1, "quick slot should consume one water ration");
         EchoInputRouteResult slotNine = input.dispatch(EchoInputEvent.press(10, EchoInputControl.keyboard("DIGIT9")));
         require(slotNine.handled() && slotNine.effects().contains("quick-slot:9"),
                 "quick slot 9 should route to hotbar selection");
@@ -229,11 +238,410 @@ public final class EchoRuntimeInputSmokeHarness {
         require(gameplay.mission().status() == EchoGameplayMissionStatus.ACTIVE,
                 "input smoke should not claim full mission completion yet");
 
+        writeReports(
+                Path.of(".").toAbsolutePath().normalize(),
+                input,
+                entities,
+                gameplay,
+                shell,
+                staleKey,
+                quickSlot,
+                waterRemainingAfterQuickSlot,
+                slotNine,
+                mouseLook,
+                inventoryToggle,
+                pauseToggle,
+                inventoryDrag,
+                inventorySplit,
+                inventoryAssign,
+                inventoryTooltip,
+                inventoryUse,
+                keyboardEast,
+                gamepadEast,
+                gamepadSouth,
+                mouseInteract,
+                focusTerminal,
+                terminalText,
+                expectedTerminalStatus,
+                blockedMove,
+                blurTerminal,
+                playerId
+        );
+
         System.out.println("phase15.3 input runtime smoke PASS bindings="
                 + input.bindings().bindings().size()
                 + " history=" + shell.history().size()
                 + " position=" + entities.store().require(playerId).worldPosition().key()
                 + " focus=" + input.focus().activeContext().name());
+    }
+
+    private static void writeReports(
+            Path standaloneRoot,
+            EchoInputRuntimeResult input,
+            EchoEntityRuntimeResult entities,
+            EchoGameplayRuntimeResult gameplay,
+            EchoTerminalShell shell,
+            EchoInputRouteResult staleKey,
+            EchoInputRouteResult quickSlot,
+            int waterRemainingAfterQuickSlot,
+            EchoInputRouteResult slotNine,
+            EchoInputRouteResult mouseLook,
+            EchoInputRouteResult inventoryToggle,
+            EchoInputRouteResult pauseToggle,
+            EchoInputRouteResult inventoryDrag,
+            EchoInputRouteResult inventorySplit,
+            EchoInputRouteResult inventoryAssign,
+            EchoInputRouteResult inventoryTooltip,
+            EchoInputRouteResult inventoryUse,
+            EchoInputRouteResult keyboardEast,
+            EchoInputRouteResult gamepadEast,
+            EchoInputRouteResult gamepadSouth,
+            EchoInputRouteResult mouseInteract,
+            EchoInputRouteResult focusTerminal,
+            EchoInputRouteResult terminalText,
+            String expectedTerminalStatus,
+            EchoInputRouteResult blockedMove,
+            EchoInputRouteResult blurTerminal,
+            EchoEntityId playerId
+    ) throws IOException {
+        Path root = standaloneRoot.resolve("reports/echo/standalone");
+        Files.createDirectories(root);
+
+        List<EchoInputBinding> bindings = input.bindings().bindings();
+        EchoWorldPosition finalPosition = entities.store().require(playerId).worldPosition();
+        boolean terminalStatusOutput = shell.outputLines().stream()
+                .anyMatch(line -> line.contains(expectedTerminalStatus));
+
+        write(root.resolve("runtime-input.json"), """
+                {
+                  "schema": "echo.standalone.runtime_input.v2",
+                  "status": "PASS",
+                  "phase": "15.3",
+                  "summary": "Input runtime booted service-bound device-neutral bindings, focus state, and router, then routed gameplay, UI inventory, terminal, and blocked-focus inputs deterministically.",
+                  "serviceBound": true,
+                  "bindingsBound": true,
+                  "focusBound": true,
+                  "routerBound": true,
+                  "bindingCount": %d,
+                  "deviceCount": %d,
+                  "contexts": %s,
+                  "finalFocusContext": "%s",
+                  "finalFocusPath": "%s",
+                  "finalPlayerPosition": %s,
+                  "missionStatus": "%s",
+                  "terminalHistoryCount": %d,
+                  "terminalStatusOutput": %s
+                }
+                """.formatted(
+                bindings.size(),
+                deviceCount(bindings),
+                jsonStringArray(List.of("GAMEPLAY", "TERMINAL", "UI")),
+                input.focus().activeContext(),
+                escape(input.focus().focusPath()),
+                positionJson(finalPosition),
+                gameplay.mission().status(),
+                shell.history().size(),
+                terminalStatusOutput
+        ));
+
+        write(root.resolve("input-devices.json"), """
+                {
+                  "schema": "echo.standalone.input_devices.v2",
+                  "status": "PASS",
+                  "deviceNeutral": true,
+                  "nativePollingRequired": false,
+                  "deviceTypes": %s,
+                  "keyboardBindingCount": %d,
+                  "mouseBindingCount": %d,
+                  "gamepadBindingCount": %d,
+                  "supportsTextInput": %s,
+                  "supportsMouseLook": %s,
+                  "supportsGamepadMovement": %s
+                }
+                """.formatted(
+                jsonStringArray(List.of("KEYBOARD", "MOUSE", "GAMEPAD")),
+                countDevice(bindings, EchoInputDeviceType.KEYBOARD),
+                countDevice(bindings, EchoInputDeviceType.MOUSE),
+                countDevice(bindings, EchoInputDeviceType.GAMEPAD),
+                hasBinding(bindings, EchoInputContext.TERMINAL, EchoInputControl.keyboard("TEXT"), EchoInputAction.TERMINAL_SUBMIT_TEXT),
+                hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.mouse("MOVE"), EchoInputAction.MOUSE_LOOK),
+                hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.gamepad("DPAD_RIGHT"), EchoInputAction.MOVE_EAST)
+        ));
+
+        write(root.resolve("input-bindings.json"), """
+                {
+                  "schema": "echo.standalone.input_bindings.v2",
+                  "status": "PASS",
+                  "bindingCount": %d,
+                  "gameplayBindingCount": %d,
+                  "uiBindingCount": %d,
+                  "terminalBindingCount": %d,
+                  "hasKeyboardMovement": %s,
+                  "hasMousePrimary": %s,
+                  "hasMouseSecondary": %s,
+                  "hasMouseLook": %s,
+                  "hasHotbarDigits": %s,
+                  "hasInventoryDrag": %s,
+                  "hasInventorySplit": %s,
+                  "hasInventoryHotbarAssign": %s,
+                  "hasInventoryTooltip": %s,
+                  "hasInventoryUse": %s,
+                  "hasPause": %s,
+                  "hasGamepadInteract": %s,
+                  "bindings": %s
+                }
+                """.formatted(
+                bindings.size(),
+                countContext(bindings, EchoInputContext.GAMEPLAY),
+                countContext(bindings, EchoInputContext.UI),
+                countContext(bindings, EchoInputContext.TERMINAL),
+                hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.keyboard("W"), EchoInputAction.MOVE_NORTH),
+                hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.mouse("PRIMARY"), EchoInputAction.POINTER_PRIMARY),
+                hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.mouse("SECONDARY"), EchoInputAction.POINTER_SECONDARY),
+                hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.mouse("MOVE"), EchoInputAction.MOUSE_LOOK),
+                hasHotbarDigits(bindings),
+                hasBinding(bindings, EchoInputContext.UI, EchoInputControl.mouse("PRIMARY"), EchoInputAction.INVENTORY_DRAG_STACK),
+                hasBinding(bindings, EchoInputContext.UI, EchoInputControl.mouse("SECONDARY"), EchoInputAction.INVENTORY_SPLIT_STACK),
+                hasBinding(bindings, EchoInputContext.UI, EchoInputControl.keyboard("DIGIT1"), EchoInputAction.INVENTORY_ASSIGN_HOTBAR),
+                hasBinding(bindings, EchoInputContext.UI, EchoInputControl.mouse("MOVE"), EchoInputAction.INVENTORY_SHOW_TOOLTIP),
+                hasBinding(bindings, EchoInputContext.UI, EchoInputControl.keyboard("ENTER"), EchoInputAction.INVENTORY_USE_SELECTED),
+                hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.keyboard("ESCAPE"), EchoInputAction.PAUSE_TOGGLE),
+                hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.gamepad("BUTTON_SOUTH"), EchoInputAction.INTERACT),
+                bindingsJson(bindings)
+        ));
+
+        write(root.resolve("input-rebinding.json"), """
+                {
+                  "schema": "echo.standalone.input_rebinding.v2",
+                  "status": "PASS",
+                  "context": "GAMEPLAY",
+                  "action": "MOVE_EAST",
+                  "oldControl": "keyboard:d",
+                  "newControl": "keyboard:arrowright",
+                  "oldBindingRemoved": %s,
+                  "newBindingActive": %s,
+                  "staleKey": %s,
+                  "reboundRoute": %s,
+                  "playerPositionAfterRebound": %s
+                }
+                """.formatted(
+                !hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.keyboard("D"), EchoInputAction.MOVE_EAST),
+                hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.keyboard("ARROWRIGHT"), EchoInputAction.MOVE_EAST),
+                routeResultJson(staleKey),
+                routeResultJson(keyboardEast),
+                positionJson(keyboardEast.movementResult().orElseThrow().to())
+        ));
+
+        write(root.resolve("input-focus.json"), """
+                {
+                  "schema": "echo.standalone.input_focus.v2",
+                  "status": "PASS",
+                  "focusTerminal": %s,
+                  "terminalText": %s,
+                  "blockedMove": %s,
+                  "blurTerminal": %s,
+                  "terminalHistory": %s,
+                  "terminalStatusOutput": %s,
+                  "blockedMovementPreservedPosition": %s,
+                  "finalContext": "%s",
+                  "finalFocusPath": "%s"
+                }
+                """.formatted(
+                routeResultJson(focusTerminal),
+                routeResultJson(terminalText),
+                routeResultJson(blockedMove),
+                routeResultJson(blurTerminal),
+                jsonStringArray(shell.history()),
+                terminalStatusOutput,
+                finalPosition.equals(new EchoWorldPosition(2, 0, 1)),
+                input.focus().activeContext(),
+                escape(input.focus().focusPath())
+        ));
+
+        write(root.resolve("input-routing.json"), """
+                {
+                  "schema": "echo.standalone.input_routing.v2",
+                  "status": "PASS",
+                  "quickSlot": %s,
+                  "waterRemainingAfterQuickSlot": %d,
+                  "slotNine": %s,
+                  "mouseLook": %s,
+                  "inventoryToggle": %s,
+                  "pauseToggle": %s,
+                  "inventoryDrag": %s,
+                  "inventorySplit": %s,
+                  "inventoryAssign": %s,
+                  "inventoryTooltip": %s,
+                  "inventoryUse": %s,
+                  "gamepadEast": %s,
+                  "gamepadSouth": %s,
+                  "mouseInteract": %s,
+                  "finalPlayerPosition": %s,
+                  "routingCoveredGameplayUiAndTerminal": %s
+                }
+                """.formatted(
+                routeResultJson(quickSlot),
+                waterRemainingAfterQuickSlot,
+                routeResultJson(slotNine),
+                routeResultJson(mouseLook),
+                routeResultJson(inventoryToggle),
+                routeResultJson(pauseToggle),
+                routeResultJson(inventoryDrag),
+                routeResultJson(inventorySplit),
+                routeResultJson(inventoryAssign),
+                routeResultJson(inventoryTooltip),
+                routeResultJson(inventoryUse),
+                routeResultJson(gamepadEast),
+                routeResultJson(gamepadSouth),
+                routeResultJson(mouseInteract),
+                positionJson(finalPosition),
+                quickSlot.handled()
+                        && inventoryDrag.handled()
+                        && terminalText.handled()
+                        && !blockedMove.handled()
+        ));
+    }
+
+    private static int deviceCount(List<EchoInputBinding> bindings) {
+        return (int) bindings.stream()
+                .map(binding -> binding.control().deviceType())
+                .distinct()
+                .count();
+    }
+
+    private static int countDevice(List<EchoInputBinding> bindings, EchoInputDeviceType deviceType) {
+        return (int) bindings.stream()
+                .filter(binding -> binding.control().deviceType() == deviceType)
+                .count();
+    }
+
+    private static int countContext(List<EchoInputBinding> bindings, EchoInputContext context) {
+        return (int) bindings.stream()
+                .filter(binding -> binding.context() == context)
+                .count();
+    }
+
+    private static boolean hasBinding(
+            List<EchoInputBinding> bindings,
+            EchoInputContext context,
+            EchoInputControl control,
+            EchoInputAction action
+    ) {
+        return bindings.stream().anyMatch(binding -> binding.context() == context
+                && binding.control().equals(control)
+                && binding.action() == action);
+    }
+
+    private static boolean hasHotbarDigits(List<EchoInputBinding> bindings) {
+        for (int slot = 1; slot <= 9; slot++) {
+            EchoInputAction action = EchoInputAction.valueOf("QUICK_SLOT_" + slot);
+            if (!hasBinding(bindings, EchoInputContext.GAMEPLAY, EchoInputControl.keyboard("DIGIT" + slot), action)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String bindingsJson(List<EchoInputBinding> bindings) {
+        return bindings.stream()
+                .map(binding -> """
+                        {
+                          "context": "%s",
+                          "device": "%s",
+                          "control": "%s",
+                          "action": "%s",
+                          "label": "%s"
+                        }""".formatted(
+                        binding.context(),
+                        binding.control().deviceType(),
+                        escape(binding.control().stableId()),
+                        binding.action(),
+                        escape(binding.label())
+                ).strip())
+                .collect(java.util.stream.Collectors.joining(",\n", "[\n", "\n]"));
+    }
+
+    private static String routeResultJson(EchoInputRouteResult result) {
+        return """
+                {
+                  "handled": %s,
+                  "target": "%s",
+                  "action": %s,
+                  "context": %s,
+                  "control": %s,
+                  "movement": %s,
+                  "interaction": %s,
+                  "uiHandled": %s,
+                  "effects": %s
+                }""".formatted(
+                result.handled(),
+                result.target(),
+                result.action().map(action -> "\"" + action.action().name() + "\"").orElse("null"),
+                result.action().map(action -> "\"" + action.context().name() + "\"").orElse("null"),
+                result.action().map(action -> "\"" + escape(action.source().control().stableId()) + "\"").orElse("null"),
+                result.movementResult().map(EchoRuntimeInputSmokeHarness::movementJson).orElse("null"),
+                result.interactionResult().map(EchoRuntimeInputSmokeHarness::interactionJson).orElse("null"),
+                result.uiResult().map(ui -> Boolean.toString(ui.handled())).orElse("null"),
+                jsonStringArray(result.effects())
+        ).strip();
+    }
+
+    private static String movementJson(dev.echo.standalone.runtime.entity.EchoEntityMovementResult movement) {
+        return """
+                {
+                  "entityId": "%s",
+                  "from": %s,
+                  "to": %s,
+                  "moved": %s,
+                  "reason": "%s"
+                }""".formatted(
+                escape(movement.entityId().value()),
+                positionJson(movement.from()),
+                positionJson(movement.to()),
+                movement.moved(),
+                escape(movement.reason())
+        ).strip();
+    }
+
+    private static String interactionJson(dev.echo.standalone.runtime.gameplay.EchoGameplayInteractionResult interaction) {
+        return """
+                {
+                  "interactionId": "%s",
+                  "success": %s,
+                  "objectiveCompleted": %s,
+                  "experienceAwarded": %d,
+                  "reason": "%s"
+                }""".formatted(
+                escape(interaction.interactionId()),
+                interaction.success(),
+                interaction.objectiveCompleted(),
+                interaction.experienceAwarded(),
+                escape(interaction.reason())
+        ).strip();
+    }
+
+    private static String positionJson(EchoWorldPosition position) {
+        return """
+                {"x": %d, "y": %d, "z": %d, "key": "%s"}""".formatted(
+                position.x(),
+                position.y(),
+                position.z(),
+                escape(position.key())
+        ).trim();
+    }
+
+    private static String jsonStringArray(List<String> values) {
+        return values.stream()
+                .map(value -> "\"" + escape(value) + "\"")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static void write(Path path, String content) throws IOException {
+        Files.writeString(path, content, StandardCharsets.UTF_8);
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static void require(boolean condition, String message) {

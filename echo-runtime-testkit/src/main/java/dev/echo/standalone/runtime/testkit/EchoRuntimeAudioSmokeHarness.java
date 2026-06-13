@@ -29,13 +29,17 @@ import dev.echo.standalone.runtime.world.EchoWorldGenerationProfiles;
 import dev.echo.standalone.runtime.world.EchoWorldRuntime;
 import dev.echo.standalone.runtime.world.EchoWorldRuntimeResult;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 
 public final class EchoRuntimeAudioSmokeHarness {
     private EchoRuntimeAudioSmokeHarness() {
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         EchoDefaultRuntimeServiceRegistry services = new EchoDefaultRuntimeServiceRegistry();
         EchoWorldRuntimeResult world = new EchoWorldRuntime().createDebugWorld(
                 services,
@@ -107,6 +111,8 @@ public final class EchoRuntimeAudioSmokeHarness {
         require(audio.backend().events().size() == 4, "backend event log should contain four events");
         require(audio.backend().diagnostics().size() >= 5,
                 "backend diagnostics should include initialization/device/fallback and four submitted events");
+        boolean defaultDeviceOpenDuringRun = audio.backend().deviceOpen();
+        boolean defaultFallbackActiveDuringRun = deviceBackend.fallbackActive();
 
         EchoAudioPlaybackEvent ambience = audio.backend().events().get(0);
         EchoAudioPlaybackEvent music = audio.backend().events().get(1);
@@ -159,6 +165,7 @@ public final class EchoRuntimeAudioSmokeHarness {
         require(fallbackBackend.fallbackActive(), "forced device failure should activate recording fallback");
         require(!forcedFallback.backend().deviceOpen(), "forced fallback should not leave a device open");
         require(forcedFallback.backend().events().size() == 4, "forced fallback should preserve event logging");
+        boolean forcedFallbackActiveDuringRun = fallbackBackend.fallbackActive();
         forcedFallback.backend().close();
         require(forcedFallback.backend().diagnostics().stream()
                         .anyMatch(diagnostic -> diagnostic.message().endsWith("backend closed")),
@@ -168,6 +175,16 @@ public final class EchoRuntimeAudioSmokeHarness {
         require(audio.backend().diagnostics().stream()
                         .anyMatch(diagnostic -> diagnostic.message().endsWith("backend closed")),
                 "default device backend should close cleanly");
+
+        writeReports(
+                audio,
+                forcedFallback,
+                defaultDeviceOpenDuringRun,
+                defaultFallbackActiveDuringRun,
+                forcedFallbackActiveDuringRun,
+                mutedEvent,
+                quietUi
+        );
 
         System.out.println("phase15.6 audio device runtime smoke PASS backend="
                 + audio.backend().backendId()
@@ -182,6 +199,326 @@ public final class EchoRuntimeAudioSmokeHarness {
                 + audio.backend().deviceOpen()
                 + " fallback="
                 + deviceBackend.fallbackActive());
+    }
+
+    private static void writeReports(
+            EchoAudioRuntimeResult audio,
+            EchoAudioRuntimeResult forcedFallback,
+            boolean defaultDeviceOpenDuringRun,
+            boolean defaultFallbackActiveDuringRun,
+            boolean forcedFallbackActiveDuringRun,
+            EchoAudioPlaybackEvent mutedEvent,
+            EchoAudioVolumeProfile quietUi
+    ) throws IOException {
+        Path root = Path.of("reports", "echo", "standalone");
+        Files.createDirectories(root);
+        String busCounts = busCounts(audio);
+        String initialEvents = events(audio.initialEvents());
+        String gameplayClips = clips(audio.clipRegistry().all());
+        String diagnostics = diagnostics(audio.backend().diagnostics());
+        String forcedDiagnostics = diagnostics(forcedFallback.backend().diagnostics());
+        String volumeProfile = volumeProfile(audio.volumeProfile());
+
+        write(root.resolve("runtime-audio.json"), """
+                {
+                  "schema": "echo.standalone.runtime_audio.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "summary": "Standalone audio runtime booted a service-bound Java Sound backend with deterministic fallback semantics, cue planning, clip registry, mixer, volume profile, and diagnostics.",
+                  "backendId": "%s",
+                  "serviceBound": true,
+                  "clipCount": %d,
+                  "busCounts": %s,
+                  "initialCueRequests": %d,
+                  "initialEvents": %s,
+                  "volumeProfile": %s
+                }
+                """.formatted(
+                quoteRaw(audio.backend().backendId()),
+                audio.clipRegistry().count(),
+                busCounts,
+                audio.initialCuePlan().size(),
+                initialEvents,
+                volumeProfile
+        ));
+        write(root.resolve("audio-backend.json"), """
+                {
+                  "schema": "echo.standalone.audio_backend.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "backendId": "%s",
+                  "deviceOpenDuringRun": %s,
+                  "fallbackActiveDuringRun": %s,
+                  "eventCount": %d,
+                  "diagnosticCount": %d
+                }
+                """.formatted(
+                quoteRaw(audio.backend().backendId()),
+                defaultDeviceOpenDuringRun,
+                defaultFallbackActiveDuringRun,
+                audio.backend().events().size(),
+                audio.backend().diagnostics().size()
+        ));
+        write(root.resolve("audio-buses.json"), """
+                {
+                  "schema": "echo.standalone.audio_buses.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "busCounts": %s,
+                  "coveredBuses": ["AMBIENCE", "MUSIC", "SFX", "UI", "STINGER", "ALERT"]
+                }
+                """.formatted(busCounts));
+        write(root.resolve("audio-clips.json"), """
+                {
+                  "schema": "echo.standalone.audio_clips.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "clipCount": %d,
+                  "clips": %s
+                }
+                """.formatted(audio.clipRegistry().count(), gameplayClips));
+        write(root.resolve("audio-ambience.json"), cueReport(
+                "echo.standalone.audio_ambience.v1",
+                "ashfall:ambience_ash_storm",
+                audio.initialEvents().get(0)
+        ));
+        write(root.resolve("audio-music.json"), cueReport(
+                "echo.standalone.audio_music.v1",
+                "ashfall:music_survival_pulse",
+                audio.initialEvents().get(1)
+        ));
+        write(root.resolve("audio-ui-sounds.json"), cueReport(
+                "echo.standalone.audio_ui_sounds.v1",
+                "echo:ui_terminal_blip",
+                audio.initialEvents().get(2)
+        ));
+        write(root.resolve("audio-mission-stingers.json"), cueReport(
+                "echo.standalone.audio_mission_stingers.v1",
+                "ashfall:mission_secure_stinger",
+                audio.initialEvents().get(3)
+        ));
+        write(root.resolve("audio-volume-profiles.json"), """
+                {
+                  "schema": "echo.standalone.audio_volume_profiles.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "profile": %s,
+                  "mutedGain": %.4f,
+                  "quietUiGain": %.4f
+                }
+                """.formatted(
+                volumeProfile,
+                mutedEvent.effectiveGain(),
+                quietUi.gainFor(EchoAudioBus.UI, audio.clipRegistry().require("echo:ui_terminal_blip").baseGain())
+        ));
+        write(root.resolve("audio-diagnostics.json"), """
+                {
+                  "schema": "echo.standalone.audio_diagnostics.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "diagnosticCount": %d,
+                  "diagnostics": %s
+                }
+                """.formatted(audio.backend().diagnostics().size(), diagnostics));
+
+        write(root.resolve("runtime-audio-device.json"), """
+                {
+                  "schema": "echo.standalone.runtime_audio_device.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "summary": "Java Sound audio device path and forced recording fallback path both preserve submitted playback events and close cleanly.",
+                  "backendId": "%s",
+                  "deviceOpenDuringRun": %s,
+                  "fallbackActiveDuringRun": %s,
+                  "forcedFallbackActive": %s,
+                  "forcedFallbackEvents": %d
+                }
+                """.formatted(
+                quoteRaw(audio.backend().backendId()),
+                defaultDeviceOpenDuringRun,
+                defaultFallbackActiveDuringRun,
+                forcedFallbackActiveDuringRun,
+                forcedFallback.backend().events().size()
+        ));
+        write(root.resolve("audio-device-output.json"), """
+                {
+                  "schema": "echo.standalone.audio_device_output.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "backendId": "%s",
+                  "deviceOpenDuringRun": %s,
+                  "events": %s
+                }
+                """.formatted(quoteRaw(audio.backend().backendId()), defaultDeviceOpenDuringRun, events(audio.backend().events())));
+        write(root.resolve("audio-device-fallback.json"), """
+                {
+                  "schema": "echo.standalone.audio_device_fallback.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "forcedFallbackActive": %s,
+                  "fallbackBackendId": "%s",
+                  "fallbackEvents": %d,
+                  "fallbackDiagnostics": %s
+                }
+                """.formatted(
+                forcedFallbackActiveDuringRun,
+                quoteRaw(forcedFallback.backend().backendId()),
+                forcedFallback.backend().events().size(),
+                forcedDiagnostics
+        ));
+        write(root.resolve("audio-device-volume-controls.json"), """
+                {
+                  "schema": "echo.standalone.audio_device_volume_controls.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "mutedGain": %.4f,
+                  "quietUiGain": %.4f,
+                  "profile": %s
+                }
+                """.formatted(
+                mutedEvent.effectiveGain(),
+                quietUi.gainFor(EchoAudioBus.UI, audio.clipRegistry().require("echo:ui_terminal_blip").baseGain()),
+                volumeProfile
+        ));
+        write(root.resolve("audio-device-smoke.json"), """
+                {
+                  "schema": "echo.standalone.audio_device_smoke.v1",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "defaultBackendEvents": %d,
+                  "forcedFallbackEvents": %d,
+                  "defaultDiagnostics": %d,
+                  "forcedFallbackDiagnostics": %d,
+                  "closeDiagnosticsObserved": true
+                }
+                """.formatted(
+                audio.backend().events().size(),
+                forcedFallback.backend().events().size(),
+                audio.backend().diagnostics().size(),
+                forcedFallback.backend().diagnostics().size()
+        ));
+    }
+
+    private static String cueReport(String schema, String expectedClip, EchoAudioPlaybackEvent event) {
+        return """
+                {
+                  "schema": "%s",
+                  "status": "PASS",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeAudioSmokeHarness",
+                  "expectedClip": "%s",
+                  "event": %s
+                }
+                """.formatted(schema, quoteRaw(expectedClip), event(event));
+    }
+
+    private static String busCounts(EchoAudioRuntimeResult audio) {
+        StringBuilder json = new StringBuilder("{");
+        EchoAudioBus[] buses = EchoAudioBus.values();
+        for (int i = 0; i < buses.length; i++) {
+            EchoAudioBus bus = buses[i];
+            if (i > 0) {
+                json.append(", ");
+            }
+            json.append("\"").append(bus.name()).append("\": ")
+                    .append(audio.clipRegistry().byBus(bus).size());
+        }
+        return json.append("}").toString();
+    }
+
+    private static String clips(List<dev.echo.standalone.runtime.audio.EchoAudioClip> clips) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < clips.size(); i++) {
+            dev.echo.standalone.runtime.audio.EchoAudioClip clip = clips.get(i);
+            if (i > 0) {
+                json.append(", ");
+            }
+            json.append("{\"clipId\": \"").append(quoteRaw(clip.clipId()))
+                    .append("\", \"assetKey\": \"").append(quoteRaw(clip.assetKey()))
+                    .append("\", \"type\": \"").append(clip.type().name())
+                    .append("\", \"bus\": \"").append(clip.bus().name())
+                    .append("\", \"looping\": ").append(clip.looping())
+                    .append(", \"baseGain\": ").append(formatGain(clip.baseGain()))
+                    .append("}");
+        }
+        return json.append("]").toString();
+    }
+
+    private static String events(List<EchoAudioPlaybackEvent> events) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < events.size(); i++) {
+            if (i > 0) {
+                json.append(", ");
+            }
+            json.append(event(events.get(i)));
+        }
+        return json.append("]").toString();
+    }
+
+    private static String event(EchoAudioPlaybackEvent event) {
+        return "{\"eventId\": \"" + quoteRaw(event.eventId())
+                + "\", \"action\": \"" + event.action().name()
+                + "\", \"clipId\": \"" + quoteRaw(event.clip().clipId())
+                + "\", \"bus\": \"" + event.bus().name()
+                + "\", \"effectiveGain\": " + formatGain(event.effectiveGain())
+                + ", \"reason\": \"" + quoteRaw(event.reason())
+                + "\", \"tick\": " + event.tick()
+                + "}";
+    }
+
+    private static String diagnostics(List<dev.echo.standalone.runtime.audio.EchoAudioDiagnostic> diagnostics) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < diagnostics.size(); i++) {
+            dev.echo.standalone.runtime.audio.EchoAudioDiagnostic diagnostic = diagnostics.get(i);
+            if (i > 0) {
+                json.append(", ");
+            }
+            json.append("{\"severity\": \"").append(diagnostic.severity().name())
+                    .append("\", \"message\": \"").append(quoteRaw(diagnostic.message()))
+                    .append("\"}");
+        }
+        return json.append("]").toString();
+    }
+
+    private static String volumeProfile(EchoAudioVolumeProfile profile) {
+        StringBuilder volumes = new StringBuilder("{");
+        EchoAudioBus[] buses = EchoAudioBus.values();
+        for (int i = 0; i < buses.length; i++) {
+            EchoAudioBus bus = buses[i];
+            if (i > 0) {
+                volumes.append(", ");
+            }
+            volumes.append("\"").append(bus.name()).append("\": ")
+                    .append(formatGain(profile.busVolumes().get(bus)));
+        }
+        return "{\"profileId\": \"" + quoteRaw(profile.profileId())
+                + "\", \"muted\": " + profile.muted()
+                + ", \"busVolumes\": " + volumes.append("}")
+                + "}";
+    }
+
+    private static void write(Path path, String json) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, json);
+    }
+
+    private static String quoteRaw(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static String formatGain(double value) {
+        return String.format(Locale.ROOT, "%.4f", value);
     }
 
     private static void require(boolean condition, String message) {

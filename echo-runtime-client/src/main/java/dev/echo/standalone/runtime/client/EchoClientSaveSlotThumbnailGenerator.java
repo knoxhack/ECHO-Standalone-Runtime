@@ -14,9 +14,11 @@ import java.io.IOException;
 final class EchoClientSaveSlotThumbnailGenerator {
     static final String THUMBNAIL_PATH = "client/thumbnail.png";
     static final String THUMBNAIL_CODEC = "echo.client.thumbnail.v1";
-    static final String THUMBNAIL_SOURCE = "saved_world_camera";
-    private static final int WIDTH = 160;
-    private static final int HEIGHT = 90;
+    static final String GENERATED_THUMBNAIL_SOURCE = "saved_world_camera";
+    static final String FRAMEBUFFER_THUMBNAIL_SOURCE = "opengl_framebuffer";
+    static final String THUMBNAIL_SOURCE = GENERATED_THUMBNAIL_SOURCE;
+    static final int THUMBNAIL_WIDTH = 160;
+    static final int THUMBNAIL_HEIGHT = 90;
 
     private EchoClientSaveSlotThumbnailGenerator() {
     }
@@ -25,6 +27,15 @@ final class EchoClientSaveSlotThumbnailGenerator {
             EchoSaveTransaction transaction,
             EchoVoxelWorld world,
             EchoVoxelPlayerState player
+    ) throws IOException {
+        return writeThumbnail(transaction, world, player, EchoClientSaveSlotThumbnailCapture.EMPTY);
+    }
+
+    static Snapshot writeThumbnail(
+            EchoSaveTransaction transaction,
+            EchoVoxelWorld world,
+            EchoVoxelPlayerState player,
+            EchoClientSaveSlotThumbnailCapture capture
     ) throws IOException {
         if (transaction == null) {
             throw new IllegalArgumentException("transaction must not be null");
@@ -48,6 +59,25 @@ final class EchoClientSaveSlotThumbnailGenerator {
         )
                 : player;
         EchoVoxelBiome biome = safeWorld.biomeAt(safePlayer.x(), safePlayer.z());
+        if (capture != null && capture.captured()) {
+            transaction.writeBytes(THUMBNAIL_PATH, capture.pngBytes());
+            return new Snapshot(
+                    THUMBNAIL_PATH,
+                    capture.source(),
+                    capture.width(),
+                    capture.height(),
+                    biome.id(),
+                    safePlayer.x(),
+                    safePlayer.y(),
+                    safePlayer.z(),
+                    safePlayer.yawDegrees(),
+                    safePlayer.pitchDegrees(),
+                    capture.skyArgb(),
+                    capture.terrainArgb(),
+                    capture.accentArgb(),
+                    capture.shadowArgb()
+            );
+        }
         EchoClientBiomeEnvironment environment = EchoClientBiomeEnvironment.fromBiome(biome);
         int skyArgb = skyColor(environment, biome);
         int terrainArgb = terrainColor(safeWorld, biome, safePlayer);
@@ -61,9 +91,9 @@ final class EchoClientSaveSlotThumbnailGenerator {
         transaction.writeBytes(THUMBNAIL_PATH, output.toByteArray());
         return new Snapshot(
                 THUMBNAIL_PATH,
-                THUMBNAIL_SOURCE,
-                WIDTH,
-                HEIGHT,
+                GENERATED_THUMBNAIL_SOURCE,
+                THUMBNAIL_WIDTH,
+                THUMBNAIL_HEIGHT,
                 biome.id(),
                 safePlayer.x(),
                 safePlayer.y(),
@@ -85,14 +115,14 @@ final class EchoClientSaveSlotThumbnailGenerator {
             int accentArgb,
             int shadowArgb
     ) {
-        BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage image = new BufferedImage(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, BufferedImage.TYPE_INT_ARGB);
         int horizon = 48;
-        for (int y = 0; y < HEIGHT; y++) {
-            double t = y / (double) Math.max(1, HEIGHT - 1);
+        for (int y = 0; y < THUMBNAIL_HEIGHT; y++) {
+            double t = y / (double) Math.max(1, THUMBNAIL_HEIGHT - 1);
             int color = y < horizon
                     ? blend(lighten(skyArgb, 1.22D), skyArgb, t * 1.35D)
                     : blend(terrainArgb, shadowArgb, Math.min(1.0D, (y - horizon) / 42.0D));
-            for (int x = 0; x < WIDTH; x++) {
+            for (int x = 0; x < THUMBNAIL_WIDTH; x++) {
                 image.setRGB(x, y, color);
             }
         }
@@ -125,7 +155,7 @@ final class EchoClientSaveSlotThumbnailGenerator {
             int sampleX = (int) Math.floor(player.x() + forwardX * 9.0D + sideX * centered * 18.0D);
             int sampleZ = (int) Math.floor(player.z() + forwardZ * 9.0D + sideZ * centered * 18.0D);
             int surfaceY = surfaceY(world, sampleX, sampleZ);
-            int nextX = Math.min(WIDTH - 1, Math.round(step * (WIDTH - 1) / 12.0F));
+            int nextX = Math.min(THUMBNAIL_WIDTH - 1, Math.round(step * (THUMBNAIL_WIDTH - 1) / 12.0F));
             int nextY = horizon + ridgeOffset(seed, step) - Math.max(-8, Math.min(12, surfaceY - 5));
             drawLine(image, previousX, previousY, nextX, nextY, lighten(terrainArgb, 1.10D));
             drawLine(image, previousX, previousY + 10, nextX, nextY + 10, shadowArgb);
@@ -140,7 +170,8 @@ final class EchoClientSaveSlotThumbnailGenerator {
             int accentArgb,
             int shadowArgb
     ) {
-        int centerX = WIDTH / 2 + Math.max(-22, Math.min(22, (int) Math.round(player.pitchDegrees() * 0.35D)));
+        int centerX = THUMBNAIL_WIDTH / 2
+                + Math.max(-22, Math.min(22, (int) Math.round(player.pitchDegrees() * 0.35D)));
         int baseY = 61;
         fillRect(image, centerX - 3, baseY - 26, 6, 30, shadowArgb);
         fillRect(image, centerX - 12, baseY - 30, 24, 5, accentArgb);
@@ -149,13 +180,13 @@ final class EchoClientSaveSlotThumbnailGenerator {
     }
 
     private static void drawFrame(BufferedImage image, int accentArgb, int shadowArgb) {
-        for (int x = 0; x < WIDTH; x++) {
+        for (int x = 0; x < THUMBNAIL_WIDTH; x++) {
             image.setRGB(x, 0, accentArgb);
-            image.setRGB(x, HEIGHT - 1, shadowArgb);
+            image.setRGB(x, THUMBNAIL_HEIGHT - 1, shadowArgb);
         }
-        for (int y = 0; y < HEIGHT; y++) {
+        for (int y = 0; y < THUMBNAIL_HEIGHT; y++) {
             image.setRGB(0, y, shadowArgb);
-            image.setRGB(WIDTH - 1, y, shadowArgb);
+            image.setRGB(THUMBNAIL_WIDTH - 1, y, shadowArgb);
         }
     }
 
@@ -228,8 +259,8 @@ final class EchoClientSaveSlotThumbnailGenerator {
     }
 
     private static void fillRect(BufferedImage image, int x, int y, int width, int height, int argb) {
-        for (int yy = Math.max(0, y); yy < Math.min(HEIGHT, y + height); yy++) {
-            for (int xx = Math.max(0, x); xx < Math.min(WIDTH, x + width); xx++) {
+        for (int yy = Math.max(0, y); yy < Math.min(THUMBNAIL_HEIGHT, y + height); yy++) {
+            for (int xx = Math.max(0, x); xx < Math.min(THUMBNAIL_WIDTH, x + width); xx++) {
                 image.setRGB(xx, yy, argb);
             }
         }
@@ -244,9 +275,9 @@ final class EchoClientSaveSlotThumbnailGenerator {
         int x = x0;
         int y = y0;
         while (true) {
-            if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+            if (x >= 0 && x < THUMBNAIL_WIDTH && y >= 0 && y < THUMBNAIL_HEIGHT) {
                 image.setRGB(x, y, argb);
-                if (y + 1 < HEIGHT) {
+                if (y + 1 < THUMBNAIL_HEIGHT) {
                     image.setRGB(x, y + 1, argb);
                 }
             }

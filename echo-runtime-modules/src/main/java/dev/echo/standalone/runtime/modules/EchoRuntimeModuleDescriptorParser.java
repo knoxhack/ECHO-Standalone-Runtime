@@ -9,7 +9,11 @@ import java.util.Map;
 
 public final class EchoRuntimeModuleDescriptorParser {
     public EchoRuntimeModuleDescriptor parse(Path descriptorPath) throws IOException {
-        Object parsed = EchoRuntimeModuleJson.parse(Files.readString(descriptorPath));
+        return parse(descriptorPath, Files.readString(descriptorPath), inferModuleRoot(descriptorPath));
+    }
+
+    EchoRuntimeModuleDescriptor parse(Path descriptorPath, String descriptorJson, Path moduleRoot) {
+        Object parsed = EchoRuntimeModuleJson.parse(descriptorJson);
         if (!(parsed instanceof Map<?, ?> rawMap)) {
             throw new IllegalArgumentException("Module descriptor must be a JSON object: " + descriptorPath);
         }
@@ -40,11 +44,35 @@ public final class EchoRuntimeModuleDescriptorParser {
                 classPath(json),
                 text(json, "entrypoint", ""),
                 adapterCoreEntrypoint(json),
+                nativeEntrypoint(json),
                 stringObject(json, "requiresVersions"),
                 stringObject(json, "optionalVersions"),
                 object(json, "access"),
-                descriptorPath.toAbsolutePath().normalize()
+                descriptorPath.toAbsolutePath().normalize(),
+                moduleRoot.toAbsolutePath().normalize()
         );
+    }
+
+    private static Path inferModuleRoot(Path descriptorPath) {
+        Path descriptor = descriptorPath.toAbsolutePath().normalize();
+        Path metaInf = descriptor.getParent();
+        if (metaInf != null && "META-INF".equals(metaInf.getFileName().toString())) {
+            Path maybeResources = metaInf.getParent();
+            if (maybeResources != null
+                    && "resources".equals(maybeResources.getFileName().toString())
+                    && maybeResources.getParent() != null
+                    && "main".equals(maybeResources.getParent().getFileName().toString())
+                    && maybeResources.getParent().getParent() != null
+                    && "src".equals(maybeResources.getParent().getParent().getFileName().toString())
+                    && maybeResources.getParent().getParent().getParent() != null) {
+                return maybeResources.getParent().getParent().getParent().toAbsolutePath().normalize();
+            }
+            if (maybeResources != null) {
+                return maybeResources.toAbsolutePath().normalize();
+            }
+        }
+        Path parent = descriptor.getParent();
+        return parent == null ? Path.of(".").toAbsolutePath().normalize() : parent.toAbsolutePath().normalize();
     }
 
     private static String text(Map<String, Object> json, String key, String defaultValue) {
@@ -106,12 +134,21 @@ public final class EchoRuntimeModuleDescriptorParser {
             return root;
         }
         Map<String, Object> access = object(json, "access");
-        Object nativeEntrypoint = access.get("nativeEntrypoint");
-        if (nativeEntrypoint instanceof String text && !text.isBlank()) {
-            return text;
-        }
         Object standaloneEntrypoint = access.get("standaloneEntrypoint");
         if (standaloneEntrypoint instanceof String text && !text.isBlank()) {
+            return text;
+        }
+        return "";
+    }
+
+    private static String nativeEntrypoint(Map<String, Object> json) {
+        String root = text(json, "nativeEntrypoint", "");
+        if (!root.isBlank()) {
+            return root;
+        }
+        Map<String, Object> access = object(json, "access");
+        Object nativeEntrypoint = access.get("nativeEntrypoint");
+        if (nativeEntrypoint instanceof String text && !text.isBlank()) {
             return text;
         }
         return "";
@@ -122,7 +159,11 @@ public final class EchoRuntimeModuleDescriptorParser {
         if (!classPath.isEmpty()) {
             return classPath;
         }
-        return stringList(json, "classpath");
+        classPath = stringList(json, "classpath");
+        if (!classPath.isEmpty()) {
+            return classPath;
+        }
+        return stringList(object(json, "access"), "nativeClasspath");
     }
 
     private static Map<String, String> stringObject(Map<String, Object> json, String key) {

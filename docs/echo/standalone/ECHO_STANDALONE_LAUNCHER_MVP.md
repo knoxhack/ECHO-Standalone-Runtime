@@ -38,10 +38,13 @@ The support bundle writes a deterministic manifest plus zip archive. It records 
 - `settings.gradle`
 - `docs/echo/standalone/ECHO_STANDALONE_VERTICAL_SLICE.md`
 - `docs/echo/standalone/ECHO_STANDALONE_LAUNCHER_MVP.md`
+- `scripts/sign-release-artifacts.ps1`
+- `scripts/capture-clean-install-uninstall-evidence.ps1`
+- `scripts/capture-manual-wallclock-playtest.ps1`
 - `reports/echo/standalone/runtime-vertical-slice.json`
 - `reports/echo/standalone/vertical-slice-clean-exit.json`
 - `reports/echo/standalone/runtime-launcher.json`
-- release, distribution, install/uninstall, wall-clock, audio, workspace-build, and acceptance evidence reports.
+- release, distribution, full-mechanics parity, full command/keybind/debug/chat mechanics, full data/resource-pack mechanics, full addon extension mechanics, full progression/statistics/objectives mechanics, full worldgen/dimensions/structures mechanics, full entity AI/spawn mechanics, full survival/player-loop mechanics, full presentation mechanics, external-evidence handoff, install/uninstall, 30-/60-minute wall-clock monitor, audio, workspace-build, and acceptance evidence reports.
 - `build/support/standalone-mod-diagnostics.json`, generated at bundle time with module graph status, AdapterCore coverage, bounded client save metadata, ScreenCore route, and renderer handoff metadata.
 - `build/support/standalone-runtime-registry-fingerprint.json`, generated at bundle time with deterministic module graph and runtime registry fingerprints.
 - `build/support/standalone-adaptercore-target-diff.json`, generated at bundle time with AdapterCore runtime target gaps and non-ready binding diagnostics.
@@ -56,7 +59,7 @@ This gives future desktop launcher work a stable support-bundle contract without
 - standalone workspace detection passes.
 - launcher verification passes for the current workspace.
 - repair planning is planning-only and empty for a ready workspace.
-- the support bundle contains the launcher, tester, release, distribution, wall-clock, acceptance evidence, generated mod diagnostics, runtime registry fingerprints, AdapterCore target diffs, and descriptor-only module lifecycle trace entries.
+- the support bundle contains the launcher, tester, release signing, clean install/uninstall, and manual wall-clock capture helpers, release, distribution, full-mechanics parity, full command/keybind/debug/chat mechanics, full data/resource-pack mechanics, full addon extension mechanics, full progression/statistics/objectives mechanics, full worldgen/dimensions/structures mechanics, full entity AI/spawn mechanics, full survival/player-loop mechanics, full presentation mechanics, external-evidence handoff, 30-/60-minute wall-clock monitor, acceptance evidence, generated mod diagnostics, runtime registry fingerprints, AdapterCore target diffs, and descriptor-only module lifecycle trace entries.
 - standalone mode runs a deterministic three-tick app-runtime smoke.
 - standalone mode records the OpenGL client task as the player-facing launch target.
 - platform handoff mode does not launch the standalone runtime.

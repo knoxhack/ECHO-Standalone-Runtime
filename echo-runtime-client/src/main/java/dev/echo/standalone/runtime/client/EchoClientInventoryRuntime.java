@@ -648,6 +648,42 @@ final class EchoClientInventoryRuntime {
         return Optional.of(removedStack);
     }
 
+    boolean canReplaceSelectedItem(EchoVoxelPlayerHotbar hotbar, EchoItemDefinition replacement) {
+        if (replacement == null) {
+            return false;
+        }
+        Optional<SelectedStack> selected = selectedStack(hotbar);
+        if (selected.isEmpty()) {
+            return false;
+        }
+        registerDefinition(replacement);
+        EchoItemStack selectedStack = selected.orElseThrow().stack();
+        return selectedStack.quantity() == 1 || operations.availableSpace(playerInventory, replacement) > 0;
+    }
+
+    boolean replaceSelectedItem(EchoVoxelPlayerHotbar hotbar, EchoItemDefinition replacement) {
+        if (!canReplaceSelectedItem(hotbar, replacement)) {
+            return false;
+        }
+        Optional<SelectedStack> selected = selectedStack(hotbar);
+        if (selected.isEmpty()) {
+            return false;
+        }
+        EchoItemStack stack = selected.orElseThrow().stack();
+        EchoItemStack removed = new EchoItemStack(stack.definition(), 1);
+        stack.remove(1).ifPresentOrElse(selected.orElseThrow().slot()::setStack, selected.orElseThrow().slot()::clear);
+        EchoInventoryOperationResult result = operations.add(playerInventory, new EchoItemStack(replacement, 1));
+        if (result.quantity() != 1) {
+            operations.add(playerInventory, removed);
+            markPlayerInventoryChanged();
+            syncHotbarFromInventory(hotbar);
+            return false;
+        }
+        markPlayerInventoryChanged();
+        syncHotbarFromInventory(hotbar);
+        return true;
+    }
+
     Optional<EchoItemStack> removeCursorStack(int quantity) {
         if (cursorStack == null || quantity <= 0) {
             return Optional.empty();

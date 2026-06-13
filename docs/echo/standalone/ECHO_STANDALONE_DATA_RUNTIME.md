@@ -67,6 +67,8 @@ The Phase 14.8 smoke harness proves:
 - freeze policy rejects late registry mutation.
 - the registry-backed asset coverage audit cross-checks live AdapterCore block/item ids against mounted blockstates, models, textures, and language keys before the renderer/gameplay stack relies on them.
 
+The smoke writes concrete non-placeholder evidence to `runtime-data.json`, `data-registries.json`, `data-schemas.json`, `data-tags.json`, `data-recipes.json`, `data-loot.json`, and `data-freeze-policy.json`. `verifyStandaloneDataRuntime` regenerates that evidence, rejects bootstrap schemas, and requires concrete `PASS` fields for service binding, schema validation, item registries, tags, Minecraft/NeoForge-style recipes, loot tables and modifiers, MissionCore data, WorldCore regions/hazards, worldgen structures/biomes/features, sounds, and freeze-after-load enforcement.
+
 ## Out Of Scope
 
 Phase 14.8 does not:

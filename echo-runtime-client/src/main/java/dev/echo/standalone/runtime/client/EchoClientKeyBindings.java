@@ -2,7 +2,9 @@ package dev.echo.standalone.runtime.client;
 
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 
@@ -70,6 +72,34 @@ final class EchoClientKeyBindings {
         return validKey(glfwKey) && key(action) == glfwKey;
     }
 
+    static List<Integer> configurableKeys() {
+        ArrayList<Integer> keys = new ArrayList<>();
+        for (int key = GLFW.GLFW_KEY_A; key <= GLFW.GLFW_KEY_Z; key++) {
+            keys.add(key);
+        }
+        for (int key = GLFW.GLFW_KEY_0; key <= GLFW.GLFW_KEY_9; key++) {
+            keys.add(key);
+        }
+        keys.add(GLFW.GLFW_KEY_SPACE);
+        keys.add(GLFW.GLFW_KEY_ENTER);
+        keys.add(GLFW.GLFW_KEY_TAB);
+        keys.add(GLFW.GLFW_KEY_BACKSPACE);
+        keys.add(GLFW.GLFW_KEY_LEFT_SHIFT);
+        keys.add(GLFW.GLFW_KEY_RIGHT_SHIFT);
+        keys.add(GLFW.GLFW_KEY_LEFT_CONTROL);
+        keys.add(GLFW.GLFW_KEY_RIGHT_CONTROL);
+        keys.add(GLFW.GLFW_KEY_LEFT_ALT);
+        keys.add(GLFW.GLFW_KEY_RIGHT_ALT);
+        keys.add(GLFW.GLFW_KEY_UP);
+        keys.add(GLFW.GLFW_KEY_DOWN);
+        keys.add(GLFW.GLFW_KEY_LEFT);
+        keys.add(GLFW.GLFW_KEY_RIGHT);
+        for (int key = GLFW.GLFW_KEY_F1; key <= GLFW.GLFW_KEY_F12; key++) {
+            keys.add(key);
+        }
+        return List.copyOf(keys);
+    }
+
     String label(EchoClientKeyAction action) {
         return keyLabel(key(action));
     }
@@ -88,6 +118,22 @@ final class EchoClientKeyBindings {
             joiner.add(action.id() + "=" + keyToken(key(action)));
         }
         return joiner.toString();
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof EchoClientKeyBindings that)) {
+            return false;
+        }
+        return keys.equals(that.keys);
+    }
+
+    @Override
+    public int hashCode() {
+        return keys.hashCode();
     }
 
     private static EnumMap<EchoClientKeyAction, Integer> defaultMap() {

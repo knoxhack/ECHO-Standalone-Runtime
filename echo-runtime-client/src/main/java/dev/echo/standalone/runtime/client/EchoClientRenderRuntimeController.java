@@ -18,6 +18,7 @@ final class EchoClientRenderRuntimeController {
     private EchoClientHud hud;
     private EchoClientAudio audio;
     private EchoClientParticleRuntimeController particleRuntime;
+    private EchoClientFramePacingSnapshot framePacing = EchoClientFramePacingSnapshot.EMPTY;
     private EchoVoxelBiome cachedEnvironmentBiome;
     private EchoClientBiomeEnvironment cachedEnvironment = EchoClientBiomeEnvironment.DEFAULT;
     private int biomeEnvironmentBuildCount;
@@ -126,13 +127,23 @@ final class EchoClientRenderRuntimeController {
         return state.camera(screens.clientSettings().fovDegrees());
     }
 
-    void render(int fps, long environmentTick, EchoClientInput input) {
+    EchoClientFramePacingSnapshot framePacingSnapshot() {
+        return framePacing;
+    }
+
+    void render(
+            int fps,
+            long environmentTick,
+            EchoClientInput input,
+            EchoClientFramePacingSnapshot framePacing
+    ) {
         if (renderer == null || hud == null) {
             return;
         }
+        this.framePacing = framePacing == null ? EchoClientFramePacingSnapshot.EMPTY : framePacing;
         EchoClientGameSession session = runtimeServices.session();
         EchoClientUiViewport viewport = viewport();
-        if (session == null) {
+        if (session == null || screens.state() == EchoClientGameState.FATAL_ERROR) {
             clearBiomeEnvironmentCache();
             renderer.clearShell();
             hud.renderShell(
@@ -176,7 +187,8 @@ final class EchoClientRenderRuntimeController {
                         screens.screenKind(),
                         session,
                         runtimeServices.gameplay(),
-                        renderer
+                        renderer,
+                        this.framePacing
                 )
                         : "",
                 audio == null ? java.util.List.of() : audio.subtitleLines()

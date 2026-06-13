@@ -25,10 +25,12 @@ public record EchoRuntimeModuleDescriptor(
         List<String> classPath,
         String entrypoint,
         String adapterCoreEntrypoint,
+        String nativeEntrypoint,
         Map<String, String> requiresVersions,
         Map<String, String> optionalVersions,
         Map<String, Object> access,
-        Path descriptorPath
+        Path descriptorPath,
+        Path moduleRoot
 ) {
     public EchoRuntimeModuleDescriptor {
         schema = requireText(schema, "schema");
@@ -48,10 +50,12 @@ public record EchoRuntimeModuleDescriptor(
         Objects.requireNonNull(classPath, "classPath");
         entrypoint = entrypoint == null ? "" : entrypoint;
         adapterCoreEntrypoint = adapterCoreEntrypoint == null ? "" : adapterCoreEntrypoint;
+        nativeEntrypoint = nativeEntrypoint == null ? "" : nativeEntrypoint;
         Objects.requireNonNull(requiresVersions, "requiresVersions");
         Objects.requireNonNull(optionalVersions, "optionalVersions");
         Objects.requireNonNull(access, "access");
         Objects.requireNonNull(descriptorPath, "descriptorPath");
+        Objects.requireNonNull(moduleRoot, "moduleRoot");
         requires = sortedCopy(requires);
         optional = sortedCopy(optional);
         provides = sortedCopy(provides);
@@ -65,7 +69,10 @@ public record EchoRuntimeModuleDescriptor(
     }
 
     public String executableEntrypoint() {
-        return !adapterCoreEntrypoint.isBlank() ? adapterCoreEntrypoint : entrypoint;
+        if (!adapterCoreEntrypoint.isBlank()) {
+            return adapterCoreEntrypoint;
+        }
+        return !nativeEntrypoint.isBlank() ? nativeEntrypoint : entrypoint;
     }
 
     private static List<String> sortedCopy(List<String> values) {

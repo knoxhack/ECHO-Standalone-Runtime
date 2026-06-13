@@ -209,7 +209,7 @@ public final class EchoAdapterCoreStandaloneContentBridge {
             "radiation_block",
             "radioactive_sludge",
             "rebar_block",
-            "riftstone",
+            "nexus_scar_stone",
             "rubble",
             "rusted_metal_sheet",
             "rusty_wheat",
@@ -3307,7 +3307,7 @@ public final class EchoAdapterCoreStandaloneContentBridge {
                         environmentBlock("radiation_block"),
                         environmentBlock("radioactive_sludge"),
                         environmentBlock("rebar_block"),
-                        environmentBlock("riftstone"),
+                        environmentBlock("nexus_scar_stone"),
                         environmentBlock("rubble"),
                         environmentBlock("rusted_metal_sheet"),
                         environmentBlock("rusty_wheat"),
@@ -4127,6 +4127,163 @@ public final class EchoAdapterCoreStandaloneContentBridge {
         );
     }
 
+    public static EchoAdapterCoreStandaloneContentBridge openlandsStandard() {
+        return openlandsStandard(null);
+    }
+
+    public static EchoAdapterCoreStandaloneContentBridge openlandsStandard(EchoDataRegistryStore dataStore) {
+        return new EchoAdapterCoreStandaloneContentBridge(
+                new EchoAdapterCoreStandaloneRegistry(withRemainingSystemContracts(openlandsStandardEntries())),
+                EchoAdapterCoreRenderTarget.OPENGL,
+                dataStore
+        );
+    }
+
+    private static List<EchoAdapterCoreRegistryEntry> openlandsStandardEntries() {
+        ArrayList<EchoAdapterCoreRegistryEntry> entries = new ArrayList<>();
+        entries.add(block(
+                "echoadaptercore",
+                "echoadaptercore:block/runtime_marker_block",
+                "adapter.runtime_standalone.marker_block",
+                RUNTIME_MARKER_BLOCK_ID,
+                RUNTIME_MARKER_BLOCK_ID,
+                RUNTIME_MARKER_BLOCK_ID,
+                RUNTIME_MARKER_BLOCK_ID,
+                "Runtime Marker",
+                0xFF67C7F0,
+                0xFFE8F8FF,
+                EchoVoxelMaterialPattern.MARKER_GRID,
+                0.8D
+        ));
+        for (String blockId : List.of(
+                "meadow_grass_block",
+                "forest_soil",
+                "dry_soil",
+                "mud",
+                "sand",
+                "clay",
+                "gravel",
+                "fieldstone",
+                "limestone",
+                "granite",
+                "shale",
+                "deepstone",
+                "copper_ore",
+                "tin_ore",
+                "iron_ore",
+                "glow_crystal_cluster",
+                "branchwood_log",
+                "branchwood_planks",
+                "branchwood_beam",
+                "branchwood_post",
+                "pine_log",
+                "pine_planks",
+                "pine_beam",
+                "pine_post",
+                "wooden_slab",
+                "wooden_stairs",
+                "wooden_fence",
+                "thatch_roof",
+                "fieldstone_bricks",
+                "brick_block",
+                "glass_block",
+                "wooden_door",
+                "wooden_trapdoor",
+                "ladder",
+                "chest",
+                "shelf",
+                "sign",
+                "bedroll_block",
+                "campfire",
+                "torch",
+                "lantern",
+                "workbench",
+                "kiln",
+                "forge",
+                "loom",
+                "cookpot",
+                "mason_table",
+                "map_table",
+                "old_road_block",
+                "old_road_marker",
+                "broken_waystone",
+                "restored_waystone",
+                "waystone_plinth"
+        )) {
+            entries.add(openlandsBlock(blockId));
+        }
+        for (String itemId : List.of(
+                "branchwood_stick",
+                "fieldstone_piece",
+                "soil_clump",
+                "reed_fiber",
+                "fiber_binding",
+                "flint_shard",
+                "raw_clay",
+                "brick",
+                "glass_pane",
+                "hide",
+                "bone",
+                "pitch",
+                "resin",
+                "charcoal",
+                "copper_ore_chunk",
+                "copper_ingot",
+                "tin_ore_chunk",
+                "tin_ingot",
+                "bronze_ingot",
+                "iron_ore_chunk",
+                "iron_ingot",
+                "glow_crystal",
+                "berries",
+                "mushroom",
+                "raw_meat",
+                "cooked_meat",
+                "grain",
+                "root_crop",
+                "fish",
+                "stew_bowl",
+                "crude_axe",
+                "crude_pick",
+                "crude_spade",
+                "flint_knife",
+                "wooden_hammer",
+                "copper_pick",
+                "bronze_pick",
+                "iron_pick",
+                "bedroll",
+                "small_pack",
+                "torch_bundle",
+                "repair_kit",
+                "copper_fitting",
+                "waystone_core",
+                "region_rubbing",
+                "old_road_token",
+                "route_binding",
+                "compost",
+                "scaffold_bundle",
+                "wooden_bowl"
+        )) {
+            entries.add(openlandsItem(itemId));
+        }
+        for (String biomeId : List.of("meadows", "woodlands", "stonehills", "marshlands")) {
+            entries.add(openlandsBiome(biomeId));
+        }
+        entries.add(virtual(
+                "echoopenlandsprotocol",
+                "echoopenlandsprotocol:world_region/standalone_first_hour",
+                EchoAdapterCoreContentKind.WORLD_REGION,
+                EchoAdapterCoreDomain.WORLDGEN,
+                "openlands.world.first_hour_region",
+                "echoopenlandsprotocol:standalone_first_hour",
+                "echoopenlandsprotocol:standalone_first_hour",
+                "echoopenlandsprotocol:standalone_first_hour",
+                "echoopenlandsprotocol:standalone_first_hour",
+                "Openlands First-Hour Region"
+        ));
+        return List.copyOf(entries);
+    }
+
     private String resolveContentId(String key, String defaultId) {
         if (dataStore == null) {
             return defaultId;
@@ -4627,6 +4784,203 @@ public final class EchoAdapterCoreStandaloneContentBridge {
                 environmentPattern(blockId),
                 environmentHardness(blockId)
         );
+    }
+
+    private static EchoAdapterCoreRegistryEntry openlandsBlock(String blockId) {
+        String namespacedBlockId = "echoopenlandsprotocol:" + blockId;
+        return block(
+                "echoopenlandsprotocol",
+                "echoopenlandsprotocol:block/" + blockId,
+                "openlands.blocks." + blockId,
+                namespacedBlockId,
+                namespacedBlockId,
+                namespacedBlockId,
+                namespacedBlockId,
+                titleCase(blockId),
+                openlandsColor(blockId),
+                openlandsDetailColor(blockId),
+                openlandsPattern(blockId),
+                openlandsHardness(blockId)
+        );
+    }
+
+    private static EchoAdapterCoreRegistryEntry openlandsItem(String itemId) {
+        String namespacedItemId = "echoopenlandsprotocol:" + itemId;
+        return item(
+                "echoopenlandsprotocol",
+                "echoopenlandsprotocol:item/" + itemId,
+                "openlands.items." + itemId,
+                namespacedItemId,
+                namespacedItemId,
+                namespacedItemId,
+                namespacedItemId,
+                titleCase(itemId),
+                openlandsColor(itemId),
+                openlandsDetailColor(itemId),
+                openlandsPattern(itemId)
+        );
+    }
+
+    private static EchoAdapterCoreRegistryEntry openlandsBiome(String biomeId) {
+        String namespacedBiomeId = "echoopenlandsprotocol:" + biomeId;
+        return virtual(
+                "echoopenlandsprotocol",
+                "echoopenlandsprotocol:biome/" + biomeId,
+                EchoAdapterCoreContentKind.WORLDGEN_DEFINITION,
+                EchoAdapterCoreDomain.BIOMES,
+                "openlands.biomes." + biomeId,
+                namespacedBiomeId,
+                namespacedBiomeId,
+                namespacedBiomeId,
+                namespacedBiomeId,
+                titleCase(biomeId)
+        );
+    }
+
+    private static EchoVoxelMaterialPattern openlandsPattern(String id) {
+        String normalized = id.toLowerCase();
+        if (normalized.contains("ore") || normalized.contains("ingot") || normalized.contains("metal")) {
+            return EchoVoxelMaterialPattern.ORE_VEIN;
+        }
+        if (normalized.contains("stone")
+                || normalized.contains("granite")
+                || normalized.contains("limestone")
+                || normalized.contains("shale")
+                || normalized.contains("brick")
+                || normalized.contains("plinth")) {
+            return EchoVoxelMaterialPattern.BASALT_CRACKS;
+        }
+        if (normalized.contains("grass")
+                || normalized.contains("soil")
+                || normalized.contains("mud")
+                || normalized.contains("clay")
+                || normalized.contains("berries")
+                || normalized.contains("mushroom")
+                || normalized.contains("grain")
+                || normalized.contains("crop")) {
+            return EchoVoxelMaterialPattern.WASTELAND_GRASS;
+        }
+        if (normalized.contains("log")
+                || normalized.contains("plank")
+                || normalized.contains("wood")
+                || normalized.contains("branch")
+                || normalized.contains("pine")
+                || normalized.contains("thatch")
+                || normalized.contains("reed")
+                || normalized.contains("fiber")) {
+            return EchoVoxelMaterialPattern.CACHE_PANEL;
+        }
+        if (normalized.contains("torch")
+                || normalized.contains("lantern")
+                || normalized.contains("glow")
+                || normalized.contains("crystal")) {
+            return EchoVoxelMaterialPattern.POWER_NODE;
+        }
+        if (normalized.contains("waystone")
+                || normalized.contains("road")
+                || normalized.contains("marker")
+                || normalized.contains("map")
+                || normalized.contains("route")) {
+            return EchoVoxelMaterialPattern.MARKER_GRID;
+        }
+        return EchoVoxelMaterialPattern.FLAT;
+    }
+
+    private static double openlandsHardness(String blockId) {
+        String normalized = blockId.toLowerCase();
+        if (normalized.contains("torch") || normalized.contains("bedroll")) {
+            return 0.3D;
+        }
+        if (normalized.contains("glass")) {
+            return 0.3D;
+        }
+        if (normalized.contains("soil")
+                || normalized.contains("mud")
+                || normalized.contains("sand")
+                || normalized.contains("clay")
+                || normalized.contains("gravel")
+                || normalized.contains("thatch")) {
+            return 0.6D;
+        }
+        if (normalized.contains("wood")
+                || normalized.contains("plank")
+                || normalized.contains("log")
+                || normalized.contains("beam")
+                || normalized.contains("post")
+                || normalized.contains("door")
+                || normalized.contains("chest")
+                || normalized.contains("shelf")
+                || normalized.contains("workbench")) {
+            return 1.2D;
+        }
+        if (normalized.contains("ore")
+                || normalized.contains("deepstone")
+                || normalized.contains("waystone")) {
+            return 2.0D;
+        }
+        if (normalized.contains("stone")
+                || normalized.contains("granite")
+                || normalized.contains("limestone")
+                || normalized.contains("shale")
+                || normalized.contains("brick")
+                || normalized.contains("kiln")
+                || normalized.contains("forge")) {
+            return 1.5D;
+        }
+        return 0.9D;
+    }
+
+    private static int openlandsColor(String id) {
+        String normalized = id.toLowerCase();
+        if (normalized.contains("grass") || normalized.contains("berries") || normalized.contains("crop")) {
+            return 0xFF6EA84F;
+        }
+        if (normalized.contains("soil") || normalized.contains("mud") || normalized.contains("clay")) {
+            return 0xFF7A6042;
+        }
+        if (normalized.contains("wood")
+                || normalized.contains("branch")
+                || normalized.contains("pine")
+                || normalized.contains("plank")
+                || normalized.contains("thatch")
+                || normalized.contains("reed")
+                || normalized.contains("fiber")) {
+            return 0xFFA77D4B;
+        }
+        if (normalized.contains("copper")) {
+            return 0xFFC1794B;
+        }
+        if (normalized.contains("tin")) {
+            return 0xFFB8C0BD;
+        }
+        if (normalized.contains("bronze")) {
+            return 0xFFB88945;
+        }
+        if (normalized.contains("iron")) {
+            return 0xFF9EA4A6;
+        }
+        if (normalized.contains("glow") || normalized.contains("crystal")) {
+            return 0xFF7FD9C8;
+        }
+        if (normalized.contains("waystone")
+                || normalized.contains("road")
+                || normalized.contains("marker")
+                || normalized.contains("stone")
+                || normalized.contains("granite")
+                || normalized.contains("limestone")
+                || normalized.contains("shale")
+                || normalized.contains("brick")) {
+            return 0xFF85877F;
+        }
+        return 0xFF000000 | (id.hashCode() & 0x00FFFFFF);
+    }
+
+    private static int openlandsDetailColor(String id) {
+        int color = openlandsColor(id);
+        int red = Math.min(255, (int) Math.round(((color >>> 16) & 0xFF) * 1.12D));
+        int green = Math.min(255, (int) Math.round(((color >>> 8) & 0xFF) * 1.08D));
+        int blue = Math.max(0, (int) Math.round((color & 0xFF) * 0.92D));
+        return 0xFF000000 | (red << 16) | (green << 8) | blue;
     }
 
     private static EchoVoxelMaterialPattern environmentPattern(String blockId) {

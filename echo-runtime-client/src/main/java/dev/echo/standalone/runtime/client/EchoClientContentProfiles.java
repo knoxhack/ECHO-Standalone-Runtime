@@ -19,6 +19,10 @@ final class EchoClientContentProfiles {
         return from(EchoStandaloneClientContentProfileLoader.loadAshfallCrashSite());
     }
 
+    static Profile openlandsFirstHour() {
+        return from(EchoStandaloneClientContentProfileLoader.loadOpenlandsFirstHour());
+    }
+
     private static Profile from(EchoStandaloneClientContentProfile source) {
         return new Profile(
                 worldTemplate(source.worldTemplate()),

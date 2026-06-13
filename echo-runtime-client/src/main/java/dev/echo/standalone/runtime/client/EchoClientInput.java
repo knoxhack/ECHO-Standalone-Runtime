@@ -169,6 +169,17 @@ final class EchoClientInput implements EchoClientGameplayInput {
         hotbarDelta = 0;
     }
 
+    void releaseForFocusLoss() {
+        setCursorLocked(false);
+        clearGameplayTriggers();
+        pressedKeys.clear();
+        firstMouse = true;
+    }
+
+    int pressedKeyCountForDiagnostics() {
+        return pressedKeys.size();
+    }
+
     @Override
     public boolean consumeBreak() {
         boolean v = breakTriggered;
@@ -275,6 +286,18 @@ final class EchoClientInput implements EchoClientGameplayInput {
 
     boolean consumeBackspace() {
         return consumeKeyPress(GLFW.GLFW_KEY_BACKSPACE);
+    }
+
+    int consumeFirstKeyPress(Iterable<Integer> glfwKeys) {
+        if (glfwKeys == null) {
+            return GLFW.GLFW_KEY_UNKNOWN;
+        }
+        for (Integer key : glfwKeys) {
+            if (key != null && consumeKeyPress(key)) {
+                return key;
+            }
+        }
+        return GLFW.GLFW_KEY_UNKNOWN;
     }
 
     String consumeTextCharacters() {

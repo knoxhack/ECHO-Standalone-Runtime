@@ -17,7 +17,9 @@ import dev.echo.standalone.runtime.compat.EchoNeoForgeMetadataScanner;
 import dev.echo.standalone.runtime.compat.EchoNeoForgeModCandidate;
 import dev.echo.standalone.runtime.contracts.EchoRuntimeDiagnosticSink;
 import dev.echo.standalone.runtime.core.EchoDefaultRuntimeServiceRegistry;
+import dev.echo.standalone.runtime.modules.EchoRuntimeModuleDescriptor;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleManager;
+import dev.echo.standalone.runtime.modules.EchoRuntimeModulePermissionCatalog;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleRuntimeResult;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleStatus;
 import dev.echo.standalone.runtime.modules.EchoRuntimeSystemModuleStatusReport;
@@ -27,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
     private static final int MIN_ADAPTERCORE_NATIVE_BRIDGE_MODULES = 90;
@@ -62,6 +65,8 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
 
         try {
             writeCoverageReport(standaloneRoot, coverage, coverage.contractLockedForBeta() ? "PASS" : "FAIL");
+            writeModuleBlockerReport(standaloneRoot, coverage);
+            writePermissionCatalogReport(standaloneRoot, modules);
             writeNeoForgeMetadataReport(standaloneRoot, neoForgeMetadata);
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to write AdapterCore module coverage report", exception);
@@ -84,6 +89,14 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
                         + coverage.contractSummary()
                         + ", graphIssues=" + coverage.graphIssues()
                         + ", nonActive=" + nonActiveSummary(coverage));
+        require(coverage.adapterGapCount() == 0
+                        && coverage.unsupportedCount() == 0
+                        && coverage.graphIssues().isEmpty(),
+                "AdapterCore blocker report should be green: " + nonActiveSummary(coverage)
+                        + ", graphIssues=" + coverage.graphIssues());
+        require(unknownPermissionSummaries(modules).isEmpty(),
+                "AdapterCore permission catalog should recognize every descriptor permission: "
+                        + unknownPermissionSummaries(modules));
         require(coverage.moduleReports().size() == coverage.totalCount(),
                 "coverage should expose one compatibility report per scanned module");
         require(coverage.incompleteModuleReports().isEmpty(),
@@ -236,6 +249,29 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
         require(ashfall.adapterDomains().contains(EchoAdapterCoreDomain.WORLDGEN),
                 "Ashfall should declare worldgen adapter coverage");
         requireAllAdapterRuntimes(ashfall);
+
+        EchoAdapterCoreModuleCoverageEntry openlands = coverage.require("echoopenlandsprotocol");
+        require(openlands.status() == EchoAdapterCoreModuleCoverageStatus.ACTIVE,
+                "Openlands must be active for the standalone experience platform slice");
+        require(openlands.standaloneDeclared(),
+                "Openlands metadata must declare standalone support");
+        require(openlands.adapterCoreDeclared(),
+                "Openlands metadata must declare echoadaptercore as its bridge dependency");
+        require(openlands.nativeEntrypointDeclared(),
+                "Openlands must expose a native loader entrypoint");
+        require(openlands.adapterDomains().contains(EchoAdapterCoreDomain.BIOMES),
+                "Openlands should declare biome adapter coverage");
+        require(openlands.adapterDomains().contains(EchoAdapterCoreDomain.CREATURES),
+                "Openlands should declare creature adapter coverage");
+        require(openlands.adapterDomains().contains(EchoAdapterCoreDomain.PROGRESSION),
+                "Openlands should declare progression adapter coverage");
+        require(openlands.adapterDomains().contains(EchoAdapterCoreDomain.PLAYTESTS),
+                "Openlands should declare playtest adapter coverage");
+        require(openlands.adapterDomains().contains(EchoAdapterCoreDomain.TUTORIALS),
+                "Openlands should declare tutorial adapter coverage");
+        require(openlands.adapterDomains().contains(EchoAdapterCoreDomain.WAYSTONES),
+                "Openlands should declare waystone adapter coverage");
+        requireAllAdapterRuntimes(openlands);
         require(coverage.activeCountsByDomain().containsKey(EchoAdapterCoreDomain.RENDERING),
                 "domain coverage should include rendering after RenderCore declaration");
 
@@ -244,6 +280,11 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
                                 && edge.toModuleId().equals("echoadaptercore")
                                 && edge.kind().equals("requires")),
                 "module graph should include Ashfall -> AdapterCore required edge");
+        require(modules.moduleGraph().dependencyEdges().stream()
+                        .anyMatch(edge -> edge.fromModuleId().equals("echoopenlandsprotocol")
+                                && edge.toModuleId().equals("echoadaptercore")
+                                && edge.kind().equals("requires")),
+                "module graph should include Openlands -> AdapterCore required edge");
         EchoRuntimeSystemModuleStatusReport systemStatus = EchoRuntimeSystemModuleStatusReport.forRequiredModules(
                 modules.registry(),
                 List.of(
@@ -280,6 +321,131 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
                 + " moduleReports=" + coverage.moduleReports().size()
                 + " neoforgeMetadata=" + neoForgeMetadata.candidateCount()
                 + " diagnostics=" + diagnostics.diagnostics().size());
+    }
+
+    private static void writeModuleBlockerReport(
+            Path standaloneRoot,
+            EchoAdapterCoreModuleCoverageReport coverage
+    ) throws IOException {
+        Path report = standaloneRoot.resolve("reports/echo/standalone/runtime-adaptercore-module-blockers.json");
+        Files.createDirectories(report.getParent());
+        List<EchoAdapterCoreModuleCoverageEntry> nonActive = coverage.entries().stream()
+                .filter(entry -> entry.status() != EchoAdapterCoreModuleCoverageStatus.ACTIVE)
+                .toList();
+        int blockerCount = nonActive.size() + coverage.graphIssues().size();
+        StringBuilder json = new StringBuilder();
+        json.append("{\n");
+        json.append("  \"schema\": \"echo.standalone.adaptercore_module_blockers.v1\",\n");
+        json.append("  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n");
+        json.append("  \"status\": \"").append(blockerCount == 0 ? "PASS" : "BLOCKED").append("\",\n");
+        json.append("  \"summary\": \"")
+                .append(blockerCount == 0
+                        ? "AdapterCore module blocker report is green: no adapter gaps, unsupported modules, or graph issues remain."
+                        : "AdapterCore module blocker report found unresolved module blockers.")
+                .append("\",\n");
+        json.append("  \"counts\": {\n");
+        json.append("    \"total\": ").append(coverage.totalCount()).append(",\n");
+        json.append("    \"active\": ").append(coverage.activeCount()).append(",\n");
+        json.append("    \"adapterGaps\": ").append(coverage.adapterGapCount()).append(",\n");
+        json.append("    \"unsupported\": ").append(coverage.unsupportedCount()).append(",\n");
+        json.append("    \"graphIssues\": ").append(coverage.graphIssues().size()).append(",\n");
+        json.append("    \"blockers\": ").append(blockerCount).append("\n");
+        json.append("  },\n");
+        json.append("  \"contractLockedForBeta\": ").append(coverage.contractLockedForBeta()).append(",\n");
+        json.append("  \"blockers\": [\n");
+        ArrayList<String> blockers = new ArrayList<>();
+        for (EchoAdapterCoreModuleCoverageEntry entry : nonActive) {
+            blockers.add("    {"
+                    + "\"kind\":\"module\","
+                    + "\"moduleId\":\"" + escape(entry.moduleId()) + "\","
+                    + "\"status\":\"" + entry.status().name().toLowerCase() + "\","
+                    + "\"standaloneDeclared\":" + entry.standaloneDeclared() + ","
+                    + "\"adapterCoreDeclared\":" + entry.adapterCoreDeclared() + ","
+                    + "\"nativeEntrypointDeclared\":" + entry.nativeEntrypointDeclared() + ","
+                    + "\"runtimes\":" + stringArray(entry.adapterRuntimes().stream()
+                    .map(EchoAdapterCoreRuntimeKind::adapterId)
+                    .toList()) + ","
+                    + "\"domains\":" + stringArray(entry.adapterDomains().stream()
+                    .map(EchoAdapterCoreDomain::id)
+                    .toList()) + ","
+                    + "\"gaps\":" + stringArray(entry.gaps()) + ","
+                    + "\"descriptorPath\":\""
+                    + escape(standaloneRoot.relativize(entry.descriptorPath()).toString().replace('\\', '/'))
+                    + "\""
+                    + "}");
+        }
+        for (String graphIssue : coverage.graphIssues()) {
+            blockers.add("    {\"kind\":\"graph\",\"issue\":\"" + escape(graphIssue) + "\"}");
+        }
+        for (int i = 0; i < blockers.size(); i++) {
+            json.append(blockers.get(i)).append(i + 1 == blockers.size() ? "\n" : ",\n");
+        }
+        json.append("  ]\n");
+        json.append("}\n");
+        Files.writeString(report, json.toString());
+    }
+
+    private static void writePermissionCatalogReport(
+            Path standaloneRoot,
+            EchoRuntimeModuleRuntimeResult modules
+    ) throws IOException {
+        Path report = standaloneRoot.resolve("reports/echo/standalone/runtime-adaptercore-permission-catalog.json");
+        Files.createDirectories(report.getParent());
+        List<EchoRuntimeModuleDescriptor> descriptors = modules.registry().descriptors();
+        List<String> knownPermissions = EchoRuntimeModulePermissionCatalog.knownPermissions();
+        List<String> usedPermissions = descriptors.stream()
+                .flatMap(descriptor -> descriptor.permissions().stream())
+                .distinct()
+                .sorted()
+                .toList();
+        TreeSet<String> unknownPermissions = new TreeSet<>();
+        ArrayList<String> moduleRows = new ArrayList<>();
+        int modulesWithUnknownPermissions = 0;
+        for (EchoRuntimeModuleDescriptor descriptor : descriptors) {
+            List<String> unknown = EchoRuntimeModulePermissionCatalog.unknownPermissions(descriptor);
+            unknownPermissions.addAll(unknown);
+            if (!unknown.isEmpty()) {
+                modulesWithUnknownPermissions++;
+            }
+            moduleRows.add("    {"
+                    + "\"moduleId\":\"" + escape(descriptor.id()) + "\","
+                    + "\"permissionCount\":" + descriptor.permissions().size() + ","
+                    + "\"permissions\":" + stringArray(descriptor.permissions()) + ","
+                    + "\"unknownPermissions\":" + stringArray(unknown) + ","
+                    + "\"descriptorPath\":\""
+                    + escape(standaloneRoot.relativize(descriptor.descriptorPath()).toString().replace('\\', '/'))
+                    + "\""
+                    + "}");
+        }
+
+        StringBuilder json = new StringBuilder();
+        json.append("{\n");
+        json.append("  \"schema\": \"echo.standalone.adaptercore_permission_catalog.v1\",\n");
+        json.append("  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n");
+        json.append("  \"status\": \"").append(unknownPermissions.isEmpty() ? "PASS" : "BLOCKED").append("\",\n");
+        json.append("  \"summary\": \"")
+                .append(unknownPermissions.isEmpty()
+                        ? "AdapterCore permission catalog is green: every scanned descriptor permission is known."
+                        : "AdapterCore permission catalog has unknown descriptor permissions.")
+                .append("\",\n");
+        json.append("  \"permissionCatalogGreen\": ").append(unknownPermissions.isEmpty()).append(",\n");
+        json.append("  \"counts\": {\n");
+        json.append("    \"knownPermissions\": ").append(knownPermissions.size()).append(",\n");
+        json.append("    \"usedPermissions\": ").append(usedPermissions.size()).append(",\n");
+        json.append("    \"unknownPermissions\": ").append(unknownPermissions.size()).append(",\n");
+        json.append("    \"modulesScanned\": ").append(descriptors.size()).append(",\n");
+        json.append("    \"modulesWithUnknownPermissions\": ").append(modulesWithUnknownPermissions).append("\n");
+        json.append("  },\n");
+        json.append("  \"knownPermissions\": ").append(stringArray(knownPermissions)).append(",\n");
+        json.append("  \"usedPermissions\": ").append(stringArray(usedPermissions)).append(",\n");
+        json.append("  \"unknownPermissions\": ").append(stringArray(unknownPermissions.stream().toList())).append(",\n");
+        json.append("  \"modules\": [\n");
+        for (int i = 0; i < moduleRows.size(); i++) {
+            json.append(moduleRows.get(i)).append(i + 1 == moduleRows.size() ? "\n" : ",\n");
+        }
+        json.append("  ]\n");
+        json.append("}\n");
+        Files.writeString(report, json.toString());
     }
 
     private static void writeNeoForgeMetadataReport(
@@ -429,6 +595,14 @@ public final class EchoRuntimeAdapterCoreModuleCoverageSmokeHarness {
                 .map(entry -> entry.moduleId()
                         + "=" + entry.status().name().toLowerCase()
                         + " gaps=" + entry.gaps())
+                .toList();
+    }
+
+    private static List<String> unknownPermissionSummaries(EchoRuntimeModuleRuntimeResult modules) {
+        return modules.registry().descriptors().stream()
+                .map(descriptor -> descriptor.id()
+                        + "=" + EchoRuntimeModulePermissionCatalog.unknownPermissions(descriptor))
+                .filter(summary -> !summary.endsWith("=[]"))
                 .toList();
     }
 

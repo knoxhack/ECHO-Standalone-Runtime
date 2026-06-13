@@ -19,6 +19,7 @@ final class EchoClientRuntimeServices {
     private final EchoClientModScanService modScan = new EchoClientModScanService();
     private final EchoClientResourcePackService resourcePacks;
     private final EchoClientWorkbenchRecipeService workbenchRecipes = new EchoClientWorkbenchRecipeService();
+    private final EchoClientSupportBundleService supportBundles;
     private final EchoClientDataWorldgenStructureService dataWorldgenStructures =
             new EchoClientDataWorldgenStructureService();
     private final EchoClientDataWorldgenFeatureService dataWorldgenFeatures =
@@ -40,6 +41,7 @@ final class EchoClientRuntimeServices {
     private EchoClientWorldSession worldSession;
     private EchoClientSavedSessionSnapshot memorySave;
     private EchoClientAudio audio;
+    private EchoClientSupportBundleResult lastSupportBundle = EchoClientSupportBundleResult.EMPTY;
     private String memorySaveSlotId = "";
     private String memorySaveDisplayName = "";
     private Boolean diskContinueAvailable;
@@ -59,12 +61,38 @@ final class EchoClientRuntimeServices {
         this(saveSlots, EchoClientWorldSessionFactory.defaultFactory(), resourcePacks);
     }
 
+    static EchoClientRuntimeServices forTemplate(EchoClientWorldTemplate template) {
+        return forTemplate(template, null);
+    }
+
+    static EchoClientRuntimeServices forTemplate(
+            EchoClientWorldTemplate template,
+            java.nio.file.Path saveRoot
+    ) {
+        EchoClientWorldTemplate safeTemplate = template == null
+                ? EchoClientWorldTemplates.defaultTemplate()
+                : template;
+        java.nio.file.Path root = saveRoot == null
+                ? defaultSaveRoot(safeTemplate)
+                : saveRoot;
+        return new EchoClientRuntimeServices(
+                EchoClientSaveSlotService.open(root, safeTemplate),
+                EchoClientWorldSessionFactory.forTemplate(safeTemplate),
+                new EchoClientResourcePackService()
+        );
+    }
+
+    static EchoClientRuntimeServices openlandsStandard(java.nio.file.Path saveRoot) {
+        return forTemplate(EchoClientWorldTemplates.openlandsFirstHour(), saveRoot);
+    }
+
     private EchoClientRuntimeServices(
             EchoClientSaveSlotService saveSlots,
             EchoClientWorldSessionFactory worldSessions,
             EchoClientResourcePackService resourcePacks
     ) {
         this.saveSlots = saveSlots == null ? EchoClientSaveSlotService.openDefault() : saveSlots;
+        this.supportBundles = new EchoClientSupportBundleService(this.saveSlots.saveRoot());
         this.worldSessions = worldSessions == null ? EchoClientWorldSessionFactory.defaultFactory() : worldSessions;
         this.resourcePacks = resourcePacks == null ? new EchoClientResourcePackService() : resourcePacks;
         this.baseEntityCatalog = this.worldSessions.template().entityCatalog();
@@ -82,6 +110,37 @@ final class EchoClientRuntimeServices {
         dataWorldCoreRegions.refresh(this.resourcePacks.assets());
         dataWorldCoreHazards.refresh(this.resourcePacks.assets());
         refreshWorldSessionFactory();
+    }
+
+    private static java.nio.file.Path defaultSaveRoot(EchoClientWorldTemplate template) {
+        EchoClientWorldTemplate safeTemplate = template == null
+                ? EchoClientWorldTemplates.defaultTemplate()
+                : template;
+        String profileId = safeTemplate.saveProfile().profileId();
+        if ("echo-client".equals(profileId)) {
+            return java.nio.file.Path.of("saves").resolve("client");
+        }
+        if ("echo-client-openlands".equals(profileId)) {
+            return java.nio.file.Path.of("saves").resolve("openlands-client");
+        }
+        return java.nio.file.Path.of("saves").resolve(safePathSegment(profileId));
+    }
+
+    private static String safePathSegment(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalized.isBlank()) {
+            return "client";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < normalized.length(); i++) {
+            char ch = normalized.charAt(i);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_') {
+                builder.append(ch);
+            } else {
+                builder.append('-');
+            }
+        }
+        return builder.isEmpty() ? "client" : builder.toString();
     }
 
     EchoClientGameplay gameplay() {
@@ -126,6 +185,32 @@ final class EchoClientRuntimeServices {
 
     String saveSlotError() {
         return saveSlots.lastError();
+    }
+
+    EchoClientSupportBundleResult exportSupportBundle(
+            EchoClientScreenSnapshot screen,
+            EchoClientSettings settings,
+            EchoClientRuntimeDiagnosticsSnapshot diagnostics
+    ) {
+        EchoClientRuntimeDiagnosticsSnapshot safeDiagnostics = diagnostics == null
+                ? runtimeDiagnosticsSnapshot()
+                : diagnostics;
+        lastSupportBundle = supportBundles.export(
+                screen,
+                safeDiagnostics,
+                settings,
+                saveSlotSummaries(),
+                modScanSummary(),
+                runtimeContentSummary(),
+                resourcePackSummaries(),
+                screenCatalog(),
+                workbenchRecipeSummaries()
+        );
+        return lastSupportBundle;
+    }
+
+    EchoClientSupportBundleResult lastSupportBundleResult() {
+        return lastSupportBundle;
     }
 
     EchoClientModScanSummary modScanSummary() {
@@ -648,6 +733,10 @@ final class EchoClientRuntimeServices {
     }
 
     void captureMemorySave() {
+        captureMemorySave(EchoClientSaveSlotThumbnailCapture.EMPTY);
+    }
+
+    void captureMemorySave(EchoClientSaveSlotThumbnailCapture thumbnailCapture) {
         if (worldSession == null) {
             return;
         }
@@ -657,7 +746,8 @@ final class EchoClientRuntimeServices {
                 worldSession,
                 "manual-save",
                 runtimeContentRegistrations.registrations(""),
-                currentSaveEnvironmentMetadata()
+                currentSaveEnvironmentMetadata(),
+                thumbnailCapture
         );
         diskContinueAvailable = true;
     }
@@ -735,17 +825,31 @@ final class EchoClientRuntimeServices {
     }
 
     private void refreshWorldSessionFactory() {
-        EchoClientWorldTemplate template = worldSessions.template().withSessionFactory(
-                EchoClientAshfallSessionFactory.forRuntimeContent(
-                        runtimeContentBridge,
-                        runtimeContentRegistrations.itemDefinitions(),
-                        runtimeEntityCatalog(),
-                        runtimeHazardCatalog(),
-                        runtimeInteractionCatalog(),
-                        runtimeWorldgenCatalog()
-                )
-        );
+        EchoClientWorldTemplate currentTemplate = worldSessions.template();
+        EchoClientWorldTemplate template = currentTemplate.withSessionFactory(runtimeSessionFactory(currentTemplate));
         worldSessions = EchoClientWorldSessionFactory.forTemplate(template);
+    }
+
+    private EchoClientGameSessionFactory runtimeSessionFactory(EchoClientWorldTemplate template) {
+        EchoClientGameSessionFactory current = template == null ? null : template.sessionFactory();
+        if (current instanceof EchoClientOpenlandsSessionFactory) {
+            return EchoClientOpenlandsSessionFactory.forRuntimeContent(
+                    runtimeContentBridge,
+                    runtimeContentRegistrations.itemDefinitions(),
+                    runtimeEntityCatalog(),
+                    runtimeHazardCatalog(),
+                    runtimeInteractionCatalog(),
+                    runtimeWorldgenCatalog()
+            );
+        }
+        return EchoClientAshfallSessionFactory.forRuntimeContent(
+                runtimeContentBridge,
+                runtimeContentRegistrations.itemDefinitions(),
+                runtimeEntityCatalog(),
+                runtimeHazardCatalog(),
+                runtimeInteractionCatalog(),
+                runtimeWorldgenCatalog()
+        );
     }
 
     private void refreshActiveWorldSessionRuntimeContent() {
@@ -786,7 +890,7 @@ final class EchoClientRuntimeServices {
 
     private EchoClientHazardCatalog runtimeHazardCatalog() {
         ArrayList<Map<String, Object>> rows = new ArrayList<>(runtimeContentRegistrations.registrations(""));
-        rows.addAll(dataWorldCoreHazards.rows());
+        rows.addAll(activePackResourceRows(dataWorldCoreHazards.rows()));
         return EchoClientRuntimeHazardCatalogBridge.merge(
                 baseHazardCatalog,
                 rows
@@ -802,11 +906,105 @@ final class EchoClientRuntimeServices {
 
     private EchoClientRuntimeWorldgenCatalog runtimeWorldgenCatalog() {
         ArrayList<Map<String, Object>> rows = new ArrayList<>(runtimeContentRegistrations.registrations(""));
-        rows.addAll(dataWorldCoreRegions.rows());
-        rows.addAll(dataWorldgenStructures.rows());
-        rows.addAll(dataWorldgenBiomes.rows());
-        rows.addAll(dataWorldgenFeatures.rows());
+        rows.addAll(activePackResourceRows(dataWorldCoreRegions.rows()));
+        rows.addAll(activePackResourceRows(dataWorldgenStructures.rows()));
+        rows.addAll(activePackResourceRows(dataWorldgenBiomes.rows()));
+        rows.addAll(activePackResourceRows(dataWorldgenFeatures.rows()));
         return EchoClientRuntimeWorldgenCatalog.fromRows(rows);
+    }
+
+    private List<Map<String, Object>> activePackResourceRows(List<Map<String, Object>> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        String activePackId = worldSessions.template().saveProfile().packId();
+        if (activePackId == null || activePackId.isBlank()) {
+            return rows;
+        }
+        ArrayList<Map<String, Object>> filtered = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            String targetPackId = explicitTargetPackId(row);
+            if (targetPackId.isBlank() || targetPackId.equals(activePackId)) {
+                String rowProfilePackId = rowProfilePackId(row);
+                if (rowProfilePackId.isBlank() || rowProfilePackId.equals(activePackId)) {
+                    filtered.add(row);
+                }
+            }
+        }
+        return filtered;
+    }
+
+    private static String rowProfilePackId(Map<String, Object> row) {
+        String moduleId = rowModuleId(row);
+        return isStandaloneProfilePackId(moduleId) ? moduleId : "";
+    }
+
+    private static boolean isStandaloneProfilePackId(String value) {
+        String normalized = text(value);
+        return normalized.equals(EchoClientWorldTemplates.ashfallCrashSite().saveProfile().packId())
+                || normalized.equals(EchoClientWorldTemplates.openlandsFirstHour().saveProfile().packId());
+    }
+
+    private static String rowModuleId(Map<String, Object> row) {
+        if (row == null || row.isEmpty()) {
+            return "";
+        }
+        String moduleId = text(row.get("moduleId"));
+        if (!moduleId.isBlank()) {
+            return moduleId;
+        }
+        Object metadataValue = row.get("metadata");
+        if (metadataValue instanceof Map<?, ?> metadata) {
+            String metadataModule = text(metadata.get("moduleId"));
+            if (!metadataModule.isBlank()) {
+                return metadataModule;
+            }
+        }
+        String contentId = text(row.get("contentId"));
+        int separator = contentId.indexOf(':');
+        return separator > 0 ? contentId.substring(0, separator) : "";
+    }
+
+    private static String explicitTargetPackId(Map<String, Object> row) {
+        if (row == null || row.isEmpty()) {
+            return "";
+        }
+        String targetPackId = firstText(
+                row.get("packId"),
+                row.get("targetPackId"),
+                row.get("savePackId"),
+                row.get("profilePackId")
+        );
+        if (!targetPackId.isBlank()) {
+            return targetPackId;
+        }
+        Object metadataValue = row.get("metadata");
+        if (metadataValue instanceof Map<?, ?> metadata) {
+            return firstText(
+                    metadata.get("packId"),
+                    metadata.get("targetPackId"),
+                    metadata.get("savePackId"),
+                    metadata.get("profilePackId")
+            );
+        }
+        return "";
+    }
+
+    private static String firstText(Object... values) {
+        if (values == null) {
+            return "";
+        }
+        for (Object value : values) {
+            String text = text(value);
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        return "";
+    }
+
+    private static String text(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private List<EchoRecipeDefinition> combinedWorkbenchRecipes(

@@ -32,6 +32,10 @@ public final class EchoClientSettingsControllerSmokeHarness {
                 "Settings controller should apply default subtitle preference to the host");
         require(host.worldRefreshes == 1,
                 "Settings controller should request one initial chunk streaming refresh");
+        require(controller.appliedSettingsCount() == 1,
+                "Settings controller should count the initial host settings apply");
+        require(controller.skippedUnchangedApplyCount() == 0,
+                "Settings controller should not skip the initial host settings apply");
         require(!Files.exists(store.path()),
                 "Settings controller should not persist settings until ScreenCore marks them dirty");
 
@@ -54,6 +58,10 @@ public final class EchoClientSettingsControllerSmokeHarness {
         controller.applyAndPersist();
         require(host.worldRefreshes == 2,
                 "Reapplying unchanged chunk view distance should not request another streaming refresh");
+        require(controller.appliedSettingsCount() == 2,
+                "Reapplying unchanged settings should not walk host apply hooks again");
+        require(controller.skippedUnchangedApplyCount() == 1,
+                "Reapplying unchanged settings should be counted as a skipped apply");
 
         require(screens.executeNavigationCommand(EchoClientScreenCommand.OPEN_CONTROLS, false),
                 "Controls should open for controller smoke");

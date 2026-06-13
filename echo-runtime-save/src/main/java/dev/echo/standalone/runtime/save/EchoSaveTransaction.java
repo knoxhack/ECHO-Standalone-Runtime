@@ -150,10 +150,10 @@ public final class EchoSaveTransaction {
         boolean publishedDataMoved = false;
         try {
             if (Files.exists(slot.dataRoot())) {
-                Files.move(slot.dataRoot(), previousDataRoot);
+                replaceDirectory(slot.dataRoot(), previousDataRoot);
                 previousDataMoved = true;
             }
-            Files.move(publishDataRoot, slot.dataRoot());
+            replaceDirectory(publishDataRoot, slot.dataRoot());
             publishedDataMoved = true;
             Files.move(tempManifest, slot.manifestPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException exception) {
@@ -166,6 +166,16 @@ public final class EchoSaveTransaction {
         }
     }
 
+    private static void replaceDirectory(Path source, Path target) throws IOException {
+        EchoSaveFiles.deleteRecursive(target);
+        try {
+            Files.move(source, target);
+        } catch (IOException moveException) {
+            EchoSaveFiles.copyRecursive(source, target);
+            EchoSaveFiles.deleteRecursive(source);
+        }
+    }
+
     private void restorePreviousData(
             Path previousDataRoot,
             boolean previousDataMoved,
@@ -173,7 +183,7 @@ public final class EchoSaveTransaction {
     ) throws IOException {
         if (previousDataMoved) {
             EchoSaveFiles.deleteRecursive(slot.dataRoot());
-            Files.move(previousDataRoot, slot.dataRoot());
+            replaceDirectory(previousDataRoot, slot.dataRoot());
         } else if (publishedDataMoved) {
             EchoSaveFiles.deleteRecursive(slot.dataRoot());
         }

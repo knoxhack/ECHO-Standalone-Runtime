@@ -11,13 +11,17 @@ public final class EchoClientDebugOverlaySmokeHarness {
         EchoClientGameSession session = EchoClientWorldSessionFactory.defaultFactory().newWorld("42").gameSession();
         EchoClientGameplay gameplay = new EchoClientGameplay();
         gameplay.init(session.world(), session.player(), session.hotbar());
+        EchoClientFramePacingMonitor framePacing = new EchoClientFramePacingMonitor();
+        framePacing.record(1.0D / 60.0D, 0.018D, 1, 0.001D, 0.0D);
 
         String text = EchoClientDebugOverlay.text(
                 60,
                 EchoClientGameState.IN_GAME,
                 EchoClientScreenKind.MAIN_MENU,
                 session,
-                gameplay
+                gameplay,
+                null,
+                framePacing.snapshot()
         );
         require(text.contains("ECHO ASHFALL DEBUG"), "Debug overlay should identify the runtime");
         require(text.contains("FPS 60 STATE IN_GAME"), "Debug overlay should include FPS and state");
@@ -35,6 +39,8 @@ public final class EchoClientDebugOverlaySmokeHarness {
         require(text.contains("BREAK 0%"), "Debug overlay should include break progress");
         require(text.contains("MACHINE BE 7 GRAPH CONNECTED"),
                 "Debug overlay should include machine block entity diagnostics");
+        require(text.contains("FRAME MS 18.0 AVG 18.0 MAX 18.0 UPD 1 SLEEP 1.0 SLOW 0 STREAK 0"),
+                "Debug overlay should include frame pacing counters");
         require(text.contains("RENDER CHUNK FULL 0 DIRTY 0 UP 0/0 PEND 0 MESH H 0 B 0 E 0 PROJ 0"),
                 "Debug overlay should include renderer chunk upload diagnostics");
         require(text.contains("ATLAS REBUILD 0 REUSE 0 RES 0 TILE 0 DEC 0 DUP 0"),

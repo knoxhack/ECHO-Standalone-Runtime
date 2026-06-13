@@ -13,6 +13,8 @@ This is still a runtime foundation, not a full save browser. The flow proves the
 - `EchoSaveProfileRestoreResult` proves a corrupted slot can be restored from a known backup.
 - `EchoSaveProfileMigrationPrompt` exposes plan-only format migration requirements without executing migration.
 - `EchoSaveModSetCompatibilityChecker` compares saved module ids with the current module set and blocks unsafe slot loading until backup restore or migration approval.
+- The OpenGL client save path can attach a 160x90 framebuffer-sourced thumbnail to `client/thumbnail.png`; headless/runtime smokes keep the generated saved-world camera thumbnail fallback.
+- `reports/echo/standalone/client-save-continue.json` is the durable client evidence for this path: it proves captured OpenGL framebuffer thumbnail persistence, manifest metadata, World Select texture eligibility, corrupt-thumbnail deterministic fallback, disk Continue restore, incompatible content blocking, backup/migration readiness, and delete-world Continue disabling.
 
 ## User Flow
 
@@ -49,6 +51,7 @@ The UI surface is an `EchoStaticScreen` rendered through `EchoUiRuntime`, so it 
 - save profile flow, save runtime, and UI runtime are service-bound.
 - new game writes three files.
 - autosave and manual save create backups.
+- manual client saves persist a readable save-slot thumbnail PNG, expose source metadata, validate World Select texture eligibility, and validate corrupt thumbnail fallback.
 - continue selects the latest healthy primary slot.
 - corrupted slot detection reports `CHECKSUM_MISMATCH`.
 - backup restore returns the corrupted slot to a healthy state.
@@ -58,4 +61,4 @@ The UI surface is an `EchoStaticScreen` rendered through `EchoUiRuntime`, so it 
 
 ## Out Of Scope
 
-Phase 15.8 does not add cloud saves, thumbnails, delete/rename slot management, arbitrary user profile browsing, automatic migration execution, Minecraft save import, or full campaign progression.
+Phase 15.8 does not add cloud saves, arbitrary user profile browsing, automatic migration execution, Minecraft save import, or full campaign progression.

@@ -78,6 +78,8 @@ The Phase 14.15 smoke harness proves:
 - the client receives acknowledgement, entity sync, and inventory sync packets.
 - diagnostics include four sends and one handshake result, with no errors.
 
+The harness also writes concrete non-placeholder evidence to the Phase 14.15 network reports under `reports/echo/standalone`. `verifyStandaloneNetworkRuntime` regenerates those reports, rejects bootstrap schemas, and requires PASS evidence for service binding, protocol compatibility, packet registry and ordering, accepted handshake, socketless local transport, entity sync, inventory sync, diagnostics, and networking boundary checks.
+
 ## Out Of Scope
 
 Phase 14.15 does not:

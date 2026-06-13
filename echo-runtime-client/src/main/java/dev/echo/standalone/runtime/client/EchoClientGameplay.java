@@ -9,6 +9,7 @@ import dev.echo.standalone.runtime.world.EchoVoxelBlock;
 import dev.echo.standalone.runtime.world.EchoVoxelBlockState;
 import dev.echo.standalone.runtime.world.EchoVoxelBlockBreakResult;
 import dev.echo.standalone.runtime.world.EchoVoxelChunkId;
+import dev.echo.standalone.runtime.world.EchoVoxelFluidRuntime;
 import dev.echo.standalone.runtime.world.EchoVoxelHit;
 import dev.echo.standalone.runtime.world.EchoVoxelWorld;
 
@@ -34,6 +35,8 @@ final class EchoClientGameplay {
     private EchoVoxelPlayerController player;
     private EchoVoxelPlayerHotbar hotbar;
     private EchoClientAudio audio;
+    private final EchoVoxelFluidRuntime fluids = new EchoVoxelFluidRuntime();
+    private long fluidGameTick;
 
     // Break state
     private EchoVoxelHit currentTarget;
@@ -59,6 +62,7 @@ final class EchoClientGameplay {
         currentTarget = null;
         breakAccumulatedSeconds = 0.0;
         wasBreaking = false;
+        fluidGameTick = 0L;
         worldDirty = false;
         dirtyChunkIds.clear();
         resetFootstepAudio();
@@ -136,6 +140,7 @@ final class EchoClientGameplay {
         // Update player physics
         EchoVoxelPlayerStep playerStep = player.tick(world, input, dt);
         updateFootstepAudio(playerStep, dt);
+        tickScheduledFluids();
 
         // Raycast for target block
         EchoVoxelPlayerState state = player.state();
@@ -242,35 +247,58 @@ final class EchoClientGameplay {
                     pendingScreenRoute = interactionRoute;
                     if (audio != null) audio.playPlace();
                 } else {
-                    int px = currentTarget.x() + currentTarget.normalX();
-                    int py = currentTarget.y() + currentTarget.normalY();
-                    int pz = currentTarget.z() + currentTarget.normalZ();
-                    boolean canPlace = session == null || session.gameMode().allowsBlockPlacing();
-                    if (canPlace
-                            && !placed.air()
-                            && world.blockAt(px, py, pz).air()
-                            && !state.intersectsBlock(px, py, pz)) {
-                        EchoVoxelBlockState placedState = session == null
-                                ? EchoVoxelBlockState.of(placed)
-                                : session.defaultBlockStateFor(placed);
-                        if (world.setBlockStateAt(px, py, pz, placedState)) {
-                            if (session != null) {
-                                session.recordBlockPlaced(placedState);
-                            }
-                            if (session == null || session.gameMode().consumesPlacedItems()) {
-                                hotbar.consumeSelected();
-                            }
-                            markWorldDirtyAt(px, py, pz);
+                    EchoClientFluidBucketUse bucketUse = session == null
+                            ? EchoClientFluidBucketUse.none("missing_session")
+                            : session.useSelectedFluidBucket(currentTarget);
+                    if (bucketUse.used()) {
+                        selectedItemUse = EchoClientSelectedItemUse.bucketed(bucketUse.label());
+                        usedSelectedItem = true;
+                        markWorldDirtyAt(bucketUse.x(), bucketUse.y(), bucketUse.z());
+                        if (bucketUse.action().equals("collect")) {
+                            emitFeedback(EchoClientWorldFeedbackEvent.blockBreak(currentTarget));
+                        } else {
                             emitFeedback(EchoClientWorldFeedbackEvent.blockPlace(
-                                    placedState,
-                                    px,
-                                    py,
-                                    pz,
+                                    bucketUse.state(),
+                                    bucketUse.x(),
+                                    bucketUse.y(),
+                                    bucketUse.z(),
                                     currentTarget.normalX(),
                                     currentTarget.normalY(),
                                     currentTarget.normalZ()
                             ));
-                            if (audio != null) audio.playPlace();
+                        }
+                        if (audio != null) audio.playPlace();
+                    } else {
+                        int px = currentTarget.x() + currentTarget.normalX();
+                        int py = currentTarget.y() + currentTarget.normalY();
+                        int pz = currentTarget.z() + currentTarget.normalZ();
+                        boolean canPlace = session == null || session.gameMode().allowsBlockPlacing();
+                        if (canPlace
+                                && !placed.air()
+                                && world.blockAt(px, py, pz).air()
+                                && !state.intersectsBlock(px, py, pz)) {
+                            EchoVoxelBlockState placedState = session == null
+                                    ? EchoVoxelBlockState.of(placed)
+                                    : session.defaultBlockStateFor(placed);
+                            if (world.setBlockStateAt(px, py, pz, placedState)) {
+                                if (session != null) {
+                                    session.recordBlockPlaced(placedState);
+                                }
+                                if (session == null || session.gameMode().consumesPlacedItems()) {
+                                    hotbar.consumeSelected();
+                                }
+                                markWorldDirtyAt(px, py, pz);
+                                emitFeedback(EchoClientWorldFeedbackEvent.blockPlace(
+                                        placedState,
+                                        px,
+                                        py,
+                                        pz,
+                                        currentTarget.normalX(),
+                                        currentTarget.normalY(),
+                                        currentTarget.normalZ()
+                                ));
+                                if (audio != null) audio.playPlace();
+                            }
                         }
                     }
                 }
@@ -284,6 +312,7 @@ final class EchoClientGameplay {
         pendingScreenRoute = EchoClientScreenRouteRequest.NONE;
         EchoVoxelPlayerStep playerStep = player.tick(world, EchoVoxelPlayerInput.idle(), dt);
         updateFootstepAudio(playerStep, dt);
+        tickScheduledFluids();
         EchoVoxelPlayerState state = player.state();
         currentTarget = world.raycast(
                 state.x(), state.eyeY(), state.z(),
@@ -385,6 +414,37 @@ final class EchoClientGameplay {
             dirtyChunkIds.add(EchoVoxelChunkId.fromBlock(x, y, z - 1, chunkSize));
         } else if (localZ == chunkSize - 1) {
             dirtyChunkIds.add(EchoVoxelChunkId.fromBlock(x, y, z + 1, chunkSize));
+        }
+    }
+
+    private void tickScheduledFluids() {
+        if (world == null) {
+            return;
+        }
+        EchoVoxelFluidRuntime.EchoVoxelFluidTickResult result = fluids.tickScheduled(world, ++fluidGameTick);
+        if (result.totalWrites() <= 0) {
+            return;
+        }
+        for (String changedCell : result.changedCells()) {
+            markWorldDirtyCell(changedCell);
+        }
+    }
+
+    private void markWorldDirtyCell(String changedCell) {
+        if (changedCell == null || changedCell.isBlank()) {
+            return;
+        }
+        String[] parts = changedCell.split(",", -1);
+        if (parts.length != 3) {
+            return;
+        }
+        try {
+            markWorldDirtyAt(
+                    Integer.parseInt(parts[0]),
+                    Integer.parseInt(parts[1]),
+                    Integer.parseInt(parts[2])
+            );
+        } catch (NumberFormatException ignored) {
         }
     }
 

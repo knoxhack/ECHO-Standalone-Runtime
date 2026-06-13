@@ -29,6 +29,12 @@ public final class EchoClientShellFlowSmokeHarness {
                 "Main menu should plan the Ashfall panorama treatment");
         require(titleVisuals.panoramaLayerCount() >= 6,
                 "Main menu panorama should include sky, horizon, terrain, crash, beacon, and ash layers");
+        require(titleVisuals.panoramaTerrainLayers() == 2,
+                "Main menu panorama should use the lightweight two-layer terrain plan");
+        require(titleVisuals.panoramaAtmosphericStreaks() == 6,
+                "Main menu panorama should cap idle ash streak primitives");
+        require(titleVisuals.panoramaLineBudget() <= 20,
+                "Main menu panorama should keep idle line primitives within the lightweight frame budget");
         require(titleVisuals.screenCoreRouteId().equals("echoscreencore:main_menu"),
                 "Main menu panorama should be tied to the ScreenCore main menu route");
         require(optionEnabled(title, EchoClientScreenCommand.OPEN_CREATE_WORLD),

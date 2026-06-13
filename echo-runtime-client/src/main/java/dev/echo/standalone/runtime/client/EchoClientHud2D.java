@@ -8,6 +8,7 @@ import org.lwjgl.opengl.GL30;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.Arrays;
 
 /**
  * Core-profile compliant 2D HUD renderer.
@@ -22,7 +23,8 @@ final class EchoClientHud2D {
     private static final int FLOATS_PER_VERTEX = 6;
     private static final int VERTICES_PER_QUAD = 6;
     private static final int STRIDE = FLOATS_PER_VERTEX * Float.BYTES;
-    private float[] buffer = new float[1024];
+    private static final int INITIAL_FLOAT_CAPACITY = 32_768;
+    private float[] buffer = new float[INITIAL_FLOAT_CAPACITY];
     private int count = 0;
     private ByteBuffer uploadBytes;
     private FloatBuffer uploadBuffer;
@@ -131,9 +133,7 @@ final class EchoClientHud2D {
     }
 
     private void v(float x, float y, float r, float g, float b, float a) {
-        if (count + FLOATS_PER_VERTEX > buffer.length) {
-            flush();
-        }
+        ensure(FLOATS_PER_VERTEX);
         buffer[count++] = x;
         buffer[count++] = y;
         buffer[count++] = r;
@@ -144,7 +144,12 @@ final class EchoClientHud2D {
 
     private void ensure(int need) {
         if (count + need > buffer.length) {
-            flush();
+            int required = count + need;
+            int next = buffer.length;
+            while (next < required) {
+                next *= 2;
+            }
+            buffer = Arrays.copyOf(buffer, next);
         }
     }
 

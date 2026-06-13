@@ -22,6 +22,8 @@ import dev.echo.standalone.runtime.player.EchoVoxelPlayerInput;
 import dev.echo.standalone.runtime.render.EchoVoxelCamera;
 import dev.echo.standalone.runtime.world.EchoVoxelBlock;
 import dev.echo.standalone.runtime.world.EchoVoxelBlockState;
+import dev.echo.standalone.runtime.world.EchoVoxelFluidRuntime;
+import dev.echo.standalone.runtime.world.EchoVoxelFluidRuntime.EchoVoxelFluidType;
 import dev.echo.standalone.runtime.world.EchoVoxelHit;
 import dev.echo.standalone.runtime.world.EchoVoxelWorld;
 import dev.echo.standalone.runtime.world.EchoVoxelWorldStreamer;
@@ -30,9 +32,13 @@ import dev.echo.standalone.runtime.world.EchoWorldPosition;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 final class EchoClientGameSession {
     private static final int HOSTILE_ATTACK_DAMAGE = 2;
+    private static final String EMPTY_BUCKET_ITEM_ID = "minecraft:bucket";
+    private static final String WATER_BUCKET_ITEM_ID = "minecraft:water_bucket";
+    private static final String LAVA_BUCKET_ITEM_ID = "minecraft:lava_bucket";
     private static final String SCRAP_METAL_ITEM_ID = "echoashfallprotocol:scrap_metal";
     private static final String COMPRESSED_SCRAP_ITEM_ID = "echoashfallprotocol:compressed_scrap";
 
@@ -553,23 +559,47 @@ final class EchoClientGameSession {
         }
 
         damageSelectedTool(1);
-        if (result.killed()) {
-            int lootQuantity = EchoClientGameSimulationRules.entityDeathLootQuantity(result);
-            if (lootQuantity > 0) {
-                droppedItems.drop(
-                        new EchoItemStack(scrapMetalDefinition(), lootQuantity),
-                        result.position().x() + 0.5D,
-                        result.position().y() + 0.25D,
-                        result.position().z() + 0.5D
-                );
-            }
-            int experience = EchoClientGameSimulationRules.entityKillExperience(result);
-            if (experience > 0) {
-                awardExperience(experience, "kill:" + result.definitionId());
-            }
-        }
+        applyEntityKillRewards(result);
         inventory.syncHotbarFromInventory(hotbar);
         return result;
+    }
+
+    EchoClientProjectileResult fireOffhandProjectileAtLookedAtEntity(EchoVoxelHit blockingTarget) {
+        if (!playerRuntime.gameMode().ticksSurvival()) {
+            return EchoClientProjectileResult.miss("game_mode");
+        }
+        EchoItemStack projectile = playerRuntime.combatState().equipment().offhand().orElse(null);
+        if (projectile == null || !EchoClientGameSimulationRules.isProjectileAmmo(projectile.definition())) {
+            return EchoClientProjectileResult.miss("no_projectile");
+        }
+
+        double reach = 18.0D;
+        if (blockingTarget != null && !blockingTarget.block().air()) {
+            reach = Math.min(reach, blockingTarget.distance() + 0.05D);
+        }
+        int damage = EchoClientGameSimulationRules.projectileDamage(projectile.definition());
+        EchoClientDamageSource source =
+                EchoClientDamageSource.projectile(projectile.itemId().value(), "player");
+        EchoClientEntityAttackResult attack = entities.attackNearestProjectile(player.state(), reach, damage);
+        int beforeCount = projectile.quantity();
+        consumeOffhandStack(1);
+        int afterCount = playerRuntime.combatState().equipment().offhand()
+                .map(EchoItemStack::quantity)
+                .orElse(0);
+        if (attack.killed()) {
+            applyEntityKillRewards(attack);
+        }
+        inventory.syncHotbarFromInventory(hotbar);
+        return new EchoClientProjectileResult(
+                true,
+                beforeCount != afterCount,
+                projectile.itemId().value(),
+                beforeCount,
+                afterCount,
+                source.id(),
+                attack,
+                attack.reason()
+        );
     }
 
     EchoClientEntityInteractionResult interactLookedAtEntity(EchoVoxelHit blockingTarget) {
@@ -578,6 +608,25 @@ final class EchoClientGameSession {
             reach = Math.min(reach, blockingTarget.distance() + 0.05D);
         }
         return entities.interactNearest(player.state(), reach);
+    }
+
+    private void applyEntityKillRewards(EchoClientEntityAttackResult result) {
+        if (result == null || !result.killed()) {
+            return;
+        }
+        int lootQuantity = EchoClientGameSimulationRules.entityDeathLootQuantity(result);
+        if (lootQuantity > 0) {
+            droppedItems.drop(
+                    new EchoItemStack(scrapMetalDefinition(), lootQuantity),
+                    result.position().x() + 0.5D,
+                    result.position().y() + 0.25D,
+                    result.position().z() + 0.5D
+            );
+        }
+        int experience = EchoClientGameSimulationRules.entityKillExperience(result);
+        if (experience > 0) {
+            awardExperience(experience, "kill:" + result.definitionId());
+        }
     }
 
     EchoClientHazardState tickBiomeHazards(double deltaSeconds) {
@@ -630,6 +679,24 @@ final class EchoClientGameSession {
             inventory.syncHotbarFromInventory(hotbar);
         }
         return true;
+    }
+
+    EchoClientFluidBucketUse useSelectedFluidBucket(EchoVoxelHit target) {
+        if (target == null || !playerRuntime.gameMode().allowsBlockPlacing()) {
+            return EchoClientFluidBucketUse.none("missing_target");
+        }
+        EchoItemDefinition selectedDefinition = inventory.selectedItemDefinition(hotbar).orElse(null);
+        if (selectedDefinition == null) {
+            return EchoClientFluidBucketUse.none("empty_selected_slot");
+        }
+        if (selectedDefinition.id().value().equals(EMPTY_BUCKET_ITEM_ID)) {
+            return collectFluidWithBucket(target);
+        }
+        Optional<EchoVoxelFluidType> bucketFluid = bucketFluid(selectedDefinition);
+        if (bucketFluid.isPresent()) {
+            return placeFluidFromBucket(target, selectedDefinition, bucketFluid.orElseThrow());
+        }
+        return EchoClientFluidBucketUse.none("not_a_fluid_bucket");
     }
 
     void respawnPlayer() {
@@ -766,6 +833,24 @@ final class EchoClientGameSession {
                 .orElseGet(equipment::withoutOffhand);
         playerRuntime.setEquipment(nextEquipment);
         return dropItemStackNearPlayer(removedStack);
+    }
+
+    private EchoItemStack consumeOffhandStack(int quantity) {
+        if (quantity <= 0) {
+            return null;
+        }
+        EchoClientEquipmentState equipment = playerRuntime.combatState().equipment();
+        EchoItemStack offhand = equipment.offhand().orElse(null);
+        if (offhand == null) {
+            return null;
+        }
+        int removed = Math.min(quantity, offhand.quantity());
+        EchoItemStack removedStack = new EchoItemStack(offhand.definition(), removed);
+        EchoClientEquipmentState nextEquipment = offhand.remove(removed)
+                .map(equipment::withOffhand)
+                .orElseGet(equipment::withoutOffhand);
+        playerRuntime.setEquipment(nextEquipment);
+        return removedStack;
     }
 
     List<EchoClientDroppedItem> dropBlockItems(EchoVoxelBlock block) {
@@ -1002,6 +1087,116 @@ final class EchoClientGameSession {
             return targeted;
         }
         return spawnEggForwardPosition();
+    }
+
+    private EchoClientFluidBucketUse collectFluidWithBucket(EchoVoxelHit target) {
+        EchoVoxelBlockState targetState = world().blockStateAt(target.x(), target.y(), target.z());
+        Optional<EchoVoxelFluidType> fluid = EchoVoxelFluidRuntime.fluidType(targetState);
+        if (fluid.isEmpty() || EchoVoxelFluidRuntime.fluidLevel(targetState) != 0) {
+            return EchoClientFluidBucketUse.none("not_a_source_fluid");
+        }
+        EchoItemDefinition fullBucket = fluidBucketDefinition(fluid.orElseThrow());
+        boolean consumes = playerRuntime.gameMode().consumesPlacedItems();
+        if (consumes && !inventory.canReplaceSelectedItem(hotbar, fullBucket)) {
+            return EchoClientFluidBucketUse.none("inventory_full");
+        }
+        EchoVoxelBlockState drained = EchoVoxelFluidRuntime.drainedState(targetState);
+        if (!world().setBlockStateAt(target.x(), target.y(), target.z(), drained)) {
+            return EchoClientFluidBucketUse.none("outside_loaded_chunk");
+        }
+        if (consumes && !inventory.replaceSelectedItem(hotbar, fullBucket)) {
+            world().setBlockStateAt(target.x(), target.y(), target.z(), targetState);
+            return EchoClientFluidBucketUse.none("inventory_replace_failed");
+        }
+        return EchoClientFluidBucketUse.collected(
+                fullBucket.displayName(),
+                target.x(),
+                target.y(),
+                target.z(),
+                targetState
+        );
+    }
+
+    private EchoClientFluidBucketUse placeFluidFromBucket(
+            EchoVoxelHit target,
+            EchoItemDefinition selectedDefinition,
+            EchoVoxelFluidType fluid
+    ) {
+        EchoVoxelBlockState targetState = world().blockStateAt(target.x(), target.y(), target.z());
+        boolean waterlogTarget = EchoVoxelFluidRuntime.isWaterloggable(targetState)
+                && !EchoVoxelFluidRuntime.isFluid(targetState);
+        int x = waterlogTarget ? target.x() : target.x() + target.normalX();
+        int y = waterlogTarget ? target.y() : target.y() + target.normalY();
+        int z = waterlogTarget ? target.z() : target.z() + target.normalZ();
+        EchoVoxelBlockState previous = world().blockStateAt(x, y, z);
+        if (!previous.air() && !EchoVoxelFluidRuntime.isFluid(previous)
+                && !EchoVoxelFluidRuntime.isWaterloggable(previous)) {
+            return EchoClientFluidBucketUse.none("blocked_by_solid");
+        }
+        EchoItemDefinition emptyBucket = emptyBucketDefinition();
+        boolean consumes = playerRuntime.gameMode().consumesPlacedItems();
+        if (consumes && !inventory.canReplaceSelectedItem(hotbar, emptyBucket)) {
+            return EchoClientFluidBucketUse.none("inventory_full");
+        }
+        EchoVoxelFluidRuntime.EchoVoxelFluidPlacement placement =
+                new EchoVoxelFluidRuntime().placeSource(world(), fluid, x, y, z);
+        if (!placement.placed()) {
+            return EchoClientFluidBucketUse.none(placement.reason());
+        }
+        EchoVoxelBlockState placedState = world().blockStateAt(x, y, z);
+        if (consumes && !inventory.replaceSelectedItem(hotbar, emptyBucket)) {
+            world().setBlockStateAt(x, y, z, previous);
+            return EchoClientFluidBucketUse.none("inventory_replace_failed");
+        }
+        return EchoClientFluidBucketUse.placed(selectedDefinition.displayName(), x, y, z, placedState);
+    }
+
+    private static boolean isBucketItem(EchoItemDefinition definition, String itemId) {
+        return definition != null && definition.id().value().equals(itemId);
+    }
+
+    private static Optional<EchoVoxelFluidType> bucketFluid(EchoItemDefinition definition) {
+        if (isBucketItem(definition, WATER_BUCKET_ITEM_ID)) {
+            return Optional.of(EchoVoxelFluidType.WATER);
+        }
+        if (isBucketItem(definition, LAVA_BUCKET_ITEM_ID)) {
+            return Optional.of(EchoVoxelFluidType.LAVA);
+        }
+        return Optional.empty();
+    }
+
+    static EchoItemDefinition emptyBucketDefinition() {
+        return new EchoItemDefinition(
+                new EchoItemId(EMPTY_BUCKET_ITEM_ID),
+                "Bucket",
+                EchoItemCategory.TOOL,
+                16,
+                1.0D,
+                List.of("bucket", "fluid_container"),
+                List.of("Collects source fluids")
+        );
+    }
+
+    static EchoItemDefinition waterBucketDefinition() {
+        return fluidBucketDefinition(EchoVoxelFluidType.WATER);
+    }
+
+    static EchoItemDefinition lavaBucketDefinition() {
+        return fluidBucketDefinition(EchoVoxelFluidType.LAVA);
+    }
+
+    private static EchoItemDefinition fluidBucketDefinition(EchoVoxelFluidType fluid) {
+        String id = fluid == EchoVoxelFluidType.LAVA ? LAVA_BUCKET_ITEM_ID : WATER_BUCKET_ITEM_ID;
+        String label = fluid == EchoVoxelFluidType.LAVA ? "Lava Bucket" : "Water Bucket";
+        return new EchoItemDefinition(
+                new EchoItemId(id),
+                label,
+                EchoItemCategory.TOOL,
+                1,
+                1.0D,
+                List.of("bucket", "fluid_bucket", fluid.id()),
+                List.of("Places " + fluid.id() + " source blocks")
+        );
     }
 
     private EchoWorldPosition spawnEggTargetPosition(EchoVoxelHit target) {

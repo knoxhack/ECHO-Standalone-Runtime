@@ -63,6 +63,8 @@ The Phase 14.10 smoke harness proves:
 - the resulting save manifest tracks entity files.
 - the save corruption checker reports the entity save as healthy.
 
+It also writes concrete non-placeholder evidence to `runtime-entity.json`, `entity-definitions.json`, `entity-components.json`, `entity-movement.json`, `entity-health.json`, `entity-ai.json`, and `entity-save-hooks.json`. `verifyStandaloneEntityRuntime` regenerates that evidence, rejects bootstrap schemas, and requires concrete `PASS` fields for service binding, player/hostile definitions, component state, world-aware movement, blocked-cell rejection, deterministic health mutation, hostile pursuit AI, and entity save manifest/corruption coverage.
+
 ## Out Of Scope
 
 Phase 14.10 does not:

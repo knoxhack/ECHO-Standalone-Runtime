@@ -30,6 +30,8 @@ public final class EchoGlfwWindow implements AutoCloseable {
     private boolean fullscreen;
     private boolean vSync = true;
     private boolean framebufferResized;
+    private boolean focused = true;
+    private boolean focusLostPending;
 
     public EchoGlfwWindow(String title, int width, int height) {
         this.title = title;
@@ -65,6 +67,12 @@ public final class EchoGlfwWindow implements AutoCloseable {
                 framebufferResized = true;
             }
         });
+        glfwSetWindowFocusCallback(handle, (win, nextFocused) -> {
+            if (focused && !nextFocused) {
+                focusLostPending = true;
+            }
+            focused = nextFocused;
+        });
 
         centerOnPrimaryMonitor();
 
@@ -85,6 +93,7 @@ public final class EchoGlfwWindow implements AutoCloseable {
             width = Math.max(1, w.get(0));
             height = Math.max(1, h.get(0));
         }
+        focused = glfwGetWindowAttrib(handle, GLFW_FOCUSED) == GLFW_TRUE;
     }
 
     private void centerOnPrimaryMonitor() {
@@ -169,6 +178,16 @@ public final class EchoGlfwWindow implements AutoCloseable {
 
     public boolean vSync() {
         return vSync;
+    }
+
+    public boolean focused() {
+        return focused;
+    }
+
+    public boolean consumeFocusLost() {
+        boolean was = focusLostPending;
+        focusLostPending = false;
+        return was;
     }
 
     public long handle() {

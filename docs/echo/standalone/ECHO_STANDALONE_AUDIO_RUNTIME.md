@@ -86,8 +86,9 @@ The Java Sound backend attempts to open a mono 16-bit PCM `SourceDataLine`. If t
 - effective gain is calculated through the volume profile.
 - mute and per-bus volume controls affect submitted gain.
 - forced device failure activates fallback and closes cleanly.
+- non-placeholder audio evidence is written to `runtime-audio.json`, `audio-backend.json`, `audio-buses.json`, `audio-clips.json`, `audio-ambience.json`, `audio-music.json`, `audio-ui-sounds.json`, `audio-mission-stingers.json`, `audio-volume-profiles.json`, and `audio-diagnostics.json`; `verifyStandaloneAudioRuntime` rejects bootstrap schemas for these reports.
 
-`EchoRuntimeAshfallAudioCueSmokeHarness` proves AdapterCore-backed gameplay cue coverage: ash ambience, mining hits, block break, item pickup, water/food use, terminal beep through `echoashfallprotocol:sound/ui.echo_message`, power repair, extraction beacon, and danger alerts.
+`EchoRuntimeAshfallAudioCueSmokeHarness` proves AdapterCore-backed gameplay cue coverage and writes `ashfall-audio-cue-coverage.json`: ash ambience, mining hits, block break, item pickup, water/food use, terminal beep through `echoashfallprotocol:sound/ui.echo_message`, power repair, extraction beacon, and danger alerts.
 
 ## Out Of Scope
 

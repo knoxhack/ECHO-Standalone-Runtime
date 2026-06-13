@@ -48,6 +48,12 @@ Input is routed in this order:
 - Terminal focus captures text and routes it to the Terminal shell.
 - Terminal focus blocks gameplay movement until Escape blurs focus.
 
+It also writes concrete non-placeholder evidence to `runtime-input.json`, `input-devices.json`, `input-bindings.json`, `input-rebinding.json`, `input-focus.json`, and `input-routing.json`. `verifyStandaloneInputRuntime` regenerates that evidence, rejects bootstrap schemas, and requires concrete `PASS` fields for service binding, keyboard/mouse/gamepad/text device coverage, gameplay/UI/terminal bindings, stale-key removal after rebinding, quick-slot routing, UI inventory feedback routing, gamepad movement, mouse interaction, Terminal focus/text handling, focus-blocked movement, and blur back to gameplay.
+
+The player-facing OpenGL client is covered separately by `runStandaloneClientKeyBindingsSmoke`: the ScreenCore Controls route renders selectable keybinding rows, enters a pending "press a key" state, writes the selected key into `EchoClientSettings`, marks settings dirty for persistence, and keeps reset-to-defaults available.
+
+Native window focus is also covered on the OpenGL client path by `runStandaloneClientSessionResilienceSmoke`: GLFW focus loss is consumed before gameplay input runs, active gameplay moves to the ScreenCore Pause menu, cursor lock is released, stale one-shot input is cleared, Resume returns to the same active world, and repeated pause/resume plus save/quit/continue cycles remain stable in `reports/echo/standalone/client-session-resilience.json`.
+
 ## Boundary
 
 This phase does not open real devices, poll OS input queues, implement analog stick dead-zone calibration beyond normalized axis events, or claim the Phase 15.4 playable controller.

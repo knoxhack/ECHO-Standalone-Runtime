@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class EchoClientBlockModelChunkRenderSmokeHarness {
+    private static final Path REPORT_PATH = Path.of("reports/echo/standalone/client-block-model-chunk-render.json");
+
     private EchoClientBlockModelChunkRenderSmokeHarness() {
     }
 
@@ -184,6 +186,34 @@ public final class EchoClientBlockModelChunkRenderSmokeHarness {
                   }
                 }
                 """);
+        write(root.resolve("assets/facetest/blockstates/rotating_bar_no_rescale.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/rotating_bar_no_rescale" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/x_rotating_bar_22_5.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/x_rotating_bar_22_5" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/z_rotating_bar_negative_22_5.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/z_rotating_bar_negative_22_5" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/y_rotated_rotating_culled_bar.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/rotating_culled_bar", "y": 90 }
+                  }
+                }
+                """);
         write(root.resolve("assets/facetest/models/block/rotating_bar.json"), """
                 {
                   "textures": {
@@ -201,6 +231,95 @@ public final class EchoClientBlockModelChunkRenderSmokeHarness {
                         "south": { "texture": "#all" },
                         "east": { "texture": "#all" },
                         "west": { "texture": "#all" }
+                      }
+                    }
+                  ]
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/rotating_bar_no_rescale.json"), """
+                {
+                  "textures": {
+                    "all": "facetest:block/rotating_bar_no_rescale"
+                  },
+                  "elements": [
+                    {
+                      "from": [6, 0, 6],
+                      "to": [10, 16, 10],
+                      "rotation": { "origin": [8, 8, 8], "axis": "y", "angle": 45, "rescale": false },
+                      "faces": {
+                        "up": { "texture": "#all" },
+                        "down": { "texture": "#all" },
+                        "north": { "texture": "#all" },
+                        "south": { "texture": "#all" },
+                        "east": { "texture": "#all" },
+                        "west": { "texture": "#all" }
+                      }
+                    }
+                  ]
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/x_rotating_bar_22_5.json"), """
+                {
+                  "textures": {
+                    "all": "facetest:block/x_rotating_bar_22_5"
+                  },
+                  "elements": [
+                    {
+                      "from": [6, 0, 6],
+                      "to": [10, 16, 10],
+                      "rotation": { "origin": [8, 8, 8], "axis": "x", "angle": 22.5, "rescale": true },
+                      "faces": {
+                        "up": { "texture": "#all" },
+                        "down": { "texture": "#all" },
+                        "north": { "texture": "#all" },
+                        "south": { "texture": "#all" },
+                        "east": { "texture": "#all" },
+                        "west": { "texture": "#all" }
+                      }
+                    }
+                  ]
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/z_rotating_bar_negative_22_5.json"), """
+                {
+                  "textures": {
+                    "all": "facetest:block/z_rotating_bar_negative_22_5"
+                  },
+                  "elements": [
+                    {
+                      "from": [6, 0, 6],
+                      "to": [10, 16, 10],
+                      "rotation": { "origin": [8, 8, 8], "axis": "z", "angle": -22.5, "rescale": true },
+                      "faces": {
+                        "up": { "texture": "#all" },
+                        "down": { "texture": "#all" },
+                        "north": { "texture": "#all" },
+                        "south": { "texture": "#all" },
+                        "east": { "texture": "#all" },
+                        "west": { "texture": "#all" }
+                      }
+                    }
+                  ]
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/rotating_culled_bar.json"), """
+                {
+                  "textures": {
+                    "north": "facetest:block/rotating_culled_bar_north",
+                    "plain": "facetest:block/rotating_culled_bar_plain"
+                  },
+                  "elements": [
+                    {
+                      "from": [6, 0, 6],
+                      "to": [10, 16, 10],
+                      "rotation": { "origin": [8, 8, 8], "axis": "y", "angle": 45, "rescale": true },
+                      "faces": {
+                        "up": { "texture": "#plain", "cullface": "up" },
+                        "down": { "texture": "#plain", "cullface": "down" },
+                        "north": { "texture": "#north", "cullface": "north", "tintindex": 0 },
+                        "south": { "texture": "#plain", "cullface": "south" },
+                        "east": { "texture": "#plain", "cullface": "east" },
+                        "west": { "texture": "#plain", "cullface": "west" }
                       }
                     }
                   ]
@@ -371,6 +490,253 @@ public final class EchoClientBlockModelChunkRenderSmokeHarness {
                   "parent": "minecraft:block/cross",
                   "textures": {
                     "cross": "facetest:block/dead_fern"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_crop.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/service_crop" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_crop.json"), """
+                {
+                  "parent": "minecraft:block/crop",
+                  "textures": {
+                    "crop": "facetest:block/service_crop"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_bush.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/service_bush" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_bush.json"), """
+                {
+                  "parent": "minecraft:block/bush",
+                  "textures": {
+                    "texture": "facetest:block/service_bush"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_leaves.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/service_leaves" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_leaves.json"), """
+                {
+                  "parent": "minecraft:block/leaves",
+                  "textures": {
+                    "all": "facetest:block/service_leaves"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_cactus.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/service_cactus" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_cactus.json"), """
+                {
+                  "parent": "minecraft:block/cactus",
+                  "textures": {
+                    "bottom": "facetest:block/service_cactus_bottom",
+                    "top": "facetest:block/service_cactus_top",
+                    "side": "facetest:block/service_cactus_side"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_campfire.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/service_campfire" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_campfire.json"), """
+                {
+                  "parent": "minecraft:block/template_campfire",
+                  "textures": {
+                    "fire": "facetest:block/service_campfire_fire",
+                    "log": "facetest:block/service_campfire_log",
+                    "lit_log": "facetest:block/service_campfire_lit_log"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_block_parent_element.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/service_block_parent_element" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_block_parent_element.json"), """
+                {
+                  "parent": "minecraft:block/block",
+                  "elements": [
+                    {
+                      "from": [1, 0, 1],
+                      "to": [15, 3, 15],
+                      "faces": {
+                        "up": { "texture": "facetest:block/service_block_parent_top" },
+                        "down": { "texture": "facetest:block/service_block_parent_bottom" },
+                        "north": { "texture": "facetest:block/service_block_parent_side" },
+                        "south": { "texture": "facetest:block/service_block_parent_side" },
+                        "east": { "texture": "facetest:block/service_block_parent_side" },
+                        "west": { "texture": "facetest:block/service_block_parent_side" }
+                      }
+                    },
+                    {
+                      "from": [4, 3, 4],
+                      "to": [12, 8, 12],
+                      "faces": {
+                        "up": { "texture": "facetest:block/service_block_parent_cap" },
+                        "down": { "texture": "facetest:block/service_block_parent_cap" },
+                        "north": { "texture": "facetest:block/service_block_parent_detail" },
+                        "south": { "texture": "facetest:block/service_block_parent_detail" },
+                        "east": { "texture": "facetest:block/service_block_parent_detail" },
+                        "west": { "texture": "facetest:block/service_block_parent_detail" }
+                      }
+                    }
+                  ]
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_thin_block_parent_element.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/service_thin_block_parent_element" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_thin_block_parent_element.json"), """
+                {
+                  "parent": "minecraft:block/thin_block",
+                  "elements": [
+                    {
+                      "from": [0, 0, 0],
+                      "to": [16, 8, 16],
+                      "faces": {
+                        "up": { "texture": "facetest:block/service_thin_block_parent_top" },
+                        "down": { "texture": "facetest:block/service_thin_block_parent_top" },
+                        "north": { "texture": "facetest:block/service_thin_block_parent_side" },
+                        "south": { "texture": "facetest:block/service_thin_block_parent_side" },
+                        "east": { "texture": "facetest:block/service_thin_block_parent_side" },
+                        "west": { "texture": "facetest:block/service_thin_block_parent_side" }
+                      }
+                    }
+                  ]
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_button.json"), """
+                {
+                  "variants": {
+                    "face=wall,facing=north,powered=false": { "model": "facetest:block/service_button" },
+                    "face=wall,facing=south,powered=true": { "model": "facetest:block/service_button_pressed" },
+                    "face=floor,facing=east,powered=false": { "model": "facetest:block/service_button" },
+                    "face=ceiling,facing=west,powered=true": { "model": "facetest:block/service_button_pressed" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_button.json"), """
+                {
+                  "parent": "minecraft:block/button",
+                  "textures": {
+                    "texture": "facetest:block/service_button"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_button_pressed.json"), """
+                {
+                  "parent": "minecraft:block/button_pressed",
+                  "textures": {
+                    "texture": "facetest:block/service_button"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_pressure_plate.json"), """
+                {
+                  "variants": {
+                    "powered=false": { "model": "facetest:block/service_pressure_plate_up" },
+                    "powered=true": { "model": "facetest:block/service_pressure_plate_down" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_pressure_plate_up.json"), """
+                {
+                  "parent": "minecraft:block/pressure_plate_up",
+                  "textures": {
+                    "texture": "facetest:block/service_pressure_plate"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_pressure_plate_down.json"), """
+                {
+                  "parent": "minecraft:block/pressure_plate_down",
+                  "textures": {
+                    "texture": "facetest:block/service_pressure_plate"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_weighted_pressure_plate.json"), """
+                {
+                  "variants": {
+                    "power=0": { "model": "facetest:block/service_weighted_pressure_plate_up" },
+                    "power=15": { "model": "facetest:block/service_weighted_pressure_plate_down" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_weighted_pressure_plate_up.json"), """
+                {
+                  "parent": "minecraft:block/weighted_pressure_plate_up",
+                  "textures": {
+                    "texture": "facetest:block/service_weighted_pressure_plate"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_weighted_pressure_plate_down.json"), """
+                {
+                  "parent": "minecraft:block/weighted_pressure_plate_down",
+                  "textures": {
+                    "texture": "facetest:block/service_weighted_pressure_plate"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_carpet.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/service_carpet" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_carpet.json"), """
+                {
+                  "parent": "minecraft:block/carpet",
+                  "textures": {
+                    "wool": "facetest:block/service_carpet"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/service_moss_carpet.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/service_moss_carpet" }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/service_moss_carpet.json"), """
+                {
+                  "parent": "minecraft:block/moss_carpet",
+                  "textures": {
+                    "texture": "facetest:block/service_moss_carpet"
                   }
                 }
                 """);
@@ -833,13 +1199,137 @@ public final class EchoClientBlockModelChunkRenderSmokeHarness {
                 "Rotated custom element chunk upload should still emit one six-face element");
         require(close(rotatingBarMesh.vertices()[0], 2.5D)
                         && close(rotatingBarMesh.vertices()[1], 1.0D)
-                        && close(rotatingBarMesh.vertices()[2], 0.3232233D),
-                "Rotated custom element chunk upload should rotate element vertices around the JSON origin");
+                        && close(rotatingBarMesh.vertices()[2], 0.25D),
+                "Rotated custom element chunk upload should rotate and rescale element vertices around the JSON origin");
         int rotatedNorthNormalOffset = 4 * 4 * 12 + 5;
         require(close(rotatingBarMesh.vertices()[rotatedNorthNormalOffset], 0.7071068D)
                         && close(rotatingBarMesh.vertices()[rotatedNorthNormalOffset + 1], 0.0D)
                         && close(rotatingBarMesh.vertices()[rotatedNorthNormalOffset + 2], -0.7071068D),
                 "Rotated custom element chunk upload should rotate element face normals with the geometry");
+
+        EchoClientTextureAtlas.BlockRenderPlan rotatingBarNoRescale =
+                atlas.planBlockModel(request("facetest:rotating_bar_no_rescale", Map.of()));
+        require(rotatingBarNoRescale.resolved()
+                        && rotatingBarNoRescale.modelElementDefinitions().get(0).rotation().orElseThrow().axis().equals("y")
+                        && !rotatingBarNoRescale.modelElementDefinitions().get(0).rotation().orElseThrow().rescale(),
+                "Non-rescaled custom element model should preserve JSON rotation without the rescale flag");
+        EchoVoxelMeshMaterial rotatingBarNoRescaleMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:rotating_bar_no_rescale",
+                "facetest/rotating_bar_no_rescale",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoClientChunkMesh.MeshData rotatingBarNoRescaleMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(3, 0, 0, direction, rotatingBarNoRescaleMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        require(close(rotatingBarNoRescaleMesh.vertices()[0], 3.5D)
+                        && close(rotatingBarNoRescaleMesh.vertices()[1], 1.0D)
+                        && close(rotatingBarNoRescaleMesh.vertices()[2], 0.3232233D),
+                "Non-rescaled custom element upload should keep the narrower rotated vertex footprint");
+
+        EchoClientTextureAtlas.BlockRenderPlan xRotatingBar =
+                atlas.planBlockModel(request("facetest:x_rotating_bar_22_5", Map.of()));
+        require(xRotatingBar.resolved()
+                        && xRotatingBar.modelElementDefinitions().get(0).rotation().orElseThrow().axis().equals("x")
+                        && xRotatingBar.modelElementDefinitions().get(0).rotation().orElseThrow().angleDegrees() == 22.5D,
+                "X-axis 22.5 degree custom element model should preserve decimal rotation metadata");
+        EchoVoxelMeshMaterial xRotatingBarMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:x_rotating_bar_22_5",
+                "facetest/x_rotating_bar_22_5",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoClientChunkMesh.MeshData xRotatingBarMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(5, 0, 0, direction, xRotatingBarMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        require(close(xRotatingBarMesh.vertices()[0], 5.375D)
+                        && close(xRotatingBarMesh.vertices()[1], 1.0517767D)
+                        && close(xRotatingBarMesh.vertices()[2], 0.5821068D),
+                "X-axis 22.5 degree rescale should expand the rotated element footprint on Y/Z axes");
+
+        EchoClientTextureAtlas.BlockRenderPlan zRotatingBar =
+                atlas.planBlockModel(request("facetest:z_rotating_bar_negative_22_5", Map.of()));
+        require(zRotatingBar.resolved()
+                        && zRotatingBar.modelElementDefinitions().get(0).rotation().orElseThrow().axis().equals("z")
+                        && zRotatingBar.modelElementDefinitions().get(0).rotation().orElseThrow().angleDegrees() == -22.5D,
+                "Z-axis negative 22.5 degree custom element model should preserve signed decimal rotation metadata");
+        EchoVoxelMeshMaterial zRotatingBarMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:z_rotating_bar_negative_22_5",
+                "facetest/z_rotating_bar_negative_22_5",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoClientChunkMesh.MeshData zRotatingBarMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(6, 0, 0, direction, zRotatingBarMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        require(close(zRotatingBarMesh.vertices()[0], 6.5821068D)
+                        && close(zRotatingBarMesh.vertices()[1], 1.0517767D)
+                        && close(zRotatingBarMesh.vertices()[2], 0.375D),
+                "Z-axis negative 22.5 degree rescale should expand the rotated element footprint on X/Y axes");
+
+        EchoClientTextureAtlas.BlockRenderPlan rotatedCulledBar =
+                atlas.planBlockModel(request("facetest:y_rotated_rotating_culled_bar", Map.of()));
+        require(rotatedCulledBar.resolved()
+                        && rotatedCulledBar.yRotationDegrees() == 90
+                        && rotatedCulledBar.modelElementDefinitions().size() == 1,
+                "Blockstate-rotated arbitrary element model should preserve model rotation and element definition");
+        EchoVoxelMeshMaterial rotatedCulledBarMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:y_rotated_rotating_culled_bar",
+                "facetest/y_rotated_rotating_culled_bar",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "facetest:rotation_cull",
+                0xFF44AA22,
+                true
+        );
+        EchoClientChunkMesh.MeshData rotatedCulledBarMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                List.of(new EchoVoxelMeshFace(4, 0, 0, EchoVoxelMeshDirection.EAST, rotatedCulledBarMaterial)),
+                1
+        ), atlas);
+        require(rotatedCulledBarMesh.vertexCount() == 4 && rotatedCulledBarMesh.indexCount() == 6,
+                "Blockstate rotation should cull arbitrary rotated element faces against rotated cullface directions");
+        require(rotatedCulledBarMesh.vertices()[8] == 0x44 / 255.0f
+                        && rotatedCulledBarMesh.vertices()[9] == 0xAA / 255.0f
+                        && rotatedCulledBarMesh.vertices()[10] == 0x22 / 255.0f,
+                "Blockstate-rotated arbitrary element culling should keep the original north tinted face on world east");
 
         EchoClientTextureAtlas.BlockRenderPlan elementCube =
                 atlas.planBlockModel(request("facetest:element_cube", Map.of()));
@@ -1155,6 +1645,329 @@ public final class EchoClientBlockModelChunkRenderSmokeHarness {
         require(compositeMesh.vertices()[secondElementUpVertex + 3] == 0.5f
                         && compositeMesh.vertices()[secondElementUpVertex + 4] == 0.5f,
                 "Multi-element upload should apply the upper element top-face UV rectangle independently");
+
+        EchoClientTextureAtlas.BlockRenderPlan wallButton =
+                atlas.planBlockModel(request("facetest:service_button", Map.of(
+                        "face", "wall",
+                        "facing", "north",
+                        "powered", "false"
+                )));
+        EchoClientTextureAtlas.BlockRenderPlan pressedWallButton =
+                atlas.planBlockModel(request("facetest:service_button", Map.of(
+                        "face", "wall",
+                        "facing", "south",
+                        "powered", "true"
+                )));
+        EchoClientTextureAtlas.BlockRenderPlan floorButton =
+                atlas.planBlockModel(request("facetest:service_button", Map.of(
+                        "face", "floor",
+                        "facing", "east",
+                        "powered", "false"
+                )));
+        EchoClientTextureAtlas.BlockRenderPlan ceilingButton =
+                atlas.planBlockModel(request("facetest:service_button", Map.of(
+                        "face", "ceiling",
+                        "facing", "west",
+                        "powered", "true"
+                )));
+        require(wallButton.resolved() && wallButton.templateKind().equals("button"),
+                "Wall button render plan should detect the minecraft block/button parent");
+        require(pressedWallButton.resolved() && pressedWallButton.templateKind().equals("button_pressed"),
+                "Pressed button render plan should detect the minecraft block/button_pressed parent");
+        require(floorButton.templateKind().equals("button") && ceilingButton.templateKind().equals("button_pressed"),
+                "Floor and ceiling button render plans should keep their selected button templates");
+        require(wallButton.textureId(EchoVoxelMeshDirection.NORTH).orElse("").equals("facetest:block/service_button"),
+                "Button faces should use the JSON texture key");
+        require(wallButton.modelBounds().fromX() == 5.0D
+                        && wallButton.modelBounds().fromY() == 6.0D
+                        && wallButton.modelBounds().fromZ() == 14.0D
+                        && wallButton.modelBounds().toZ() == 16.0D,
+                "Button render plan should expose the default wall-button bounds");
+        require(pressedWallButton.modelBounds().fromZ() == 15.0D
+                        && pressedWallButton.modelBounds().toZ() == 16.0D,
+                "Pressed button render plan should expose the thinner pressed bounds");
+        EchoVoxelMeshMaterial wallButtonMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_button",
+                "facetest/service_button",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of("face", "wall", "facing", "north", "powered", "false"),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial pressedButtonMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_button",
+                "facetest/service_button",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of("face", "wall", "facing", "south", "powered", "true"),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial floorButtonMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_button",
+                "facetest/service_button",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of("face", "floor", "facing", "east", "powered", "false"),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial ceilingButtonMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_button",
+                "facetest/service_button",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of("face", "ceiling", "facing", "west", "powered", "true"),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoClientChunkMesh.MeshData wallButtonMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(13, 0, 0, direction, wallButtonMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData pressedButtonMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(14, 0, 0, direction, pressedButtonMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData floorButtonMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(15, 0, 0, direction, floorButtonMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData ceilingButtonMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(16, 0, 0, direction, ceilingButtonMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        require(wallButtonMesh.vertexCount() == 24 && wallButtonMesh.indexCount() == 36,
+                "Wall button upload should emit one small attached box");
+        require(pressedButtonMesh.vertexCount() == 24 && pressedButtonMesh.indexCount() == 36,
+                "Pressed wall button upload should emit one smaller attached box");
+        require(floorButtonMesh.vertexCount() == 24 && floorButtonMesh.indexCount() == 36,
+                "Floor button upload should emit one floor-attached box");
+        require(ceilingButtonMesh.vertexCount() == 24 && ceilingButtonMesh.indexCount() == 36,
+                "Ceiling button upload should emit one ceiling-attached box");
+        require(wallButtonMesh.vertices()[0] == 13.3125f
+                        && wallButtonMesh.vertices()[1] == 0.625f
+                        && wallButtonMesh.vertices()[2] == 0.0f,
+                "North-facing wall button upload should center the button on the north edge");
+        require(pressedButtonMesh.vertices()[0] == 14.3125f
+                        && pressedButtonMesh.vertices()[1] == 0.625f
+                        && pressedButtonMesh.vertices()[2] == 0.9375f,
+                "Pressed south-facing wall button upload should use the thinner pressed depth");
+        require(floorButtonMesh.vertices()[0] == 15.375f
+                        && floorButtonMesh.vertices()[1] == 0.125f
+                        && floorButtonMesh.vertices()[2] == 0.3125f,
+                "Floor east-facing button upload should lie flat on the floor and rotate its footprint");
+        require(ceilingButtonMesh.vertices()[0] == 16.375f
+                        && ceilingButtonMesh.vertices()[1] == 1.0f
+                        && ceilingButtonMesh.vertices()[2] == 0.3125f,
+                "Ceiling west-facing pressed button upload should attach to the ceiling with pressed thickness");
+
+        EchoClientTextureAtlas.BlockRenderPlan pressurePlateUp =
+                atlas.planBlockModel(request("facetest:service_pressure_plate", Map.of("powered", "false")));
+        EchoClientTextureAtlas.BlockRenderPlan pressurePlateDown =
+                atlas.planBlockModel(request("facetest:service_pressure_plate", Map.of("powered", "true")));
+        EchoClientTextureAtlas.BlockRenderPlan weightedPressurePlateUp =
+                atlas.planBlockModel(request("facetest:service_weighted_pressure_plate", Map.of("power", "0")));
+        EchoClientTextureAtlas.BlockRenderPlan weightedPressurePlateDown =
+                atlas.planBlockModel(request("facetest:service_weighted_pressure_plate", Map.of("power", "15")));
+        require(pressurePlateUp.resolved() && pressurePlateUp.templateKind().equals("pressure_plate_up"),
+                "Unpressed pressure plate render plan should detect the minecraft pressure_plate_up parent");
+        require(pressurePlateDown.resolved() && pressurePlateDown.templateKind().equals("pressure_plate_down"),
+                "Pressed pressure plate render plan should detect the minecraft pressure_plate_down parent");
+        require(weightedPressurePlateUp.resolved()
+                        && weightedPressurePlateUp.templateKind().equals("weighted_pressure_plate_up"),
+                "Unpressed weighted pressure plate render plan should detect the minecraft weighted parent");
+        require(weightedPressurePlateDown.resolved()
+                        && weightedPressurePlateDown.templateKind().equals("weighted_pressure_plate_down"),
+                "Pressed weighted pressure plate render plan should detect the minecraft weighted pressed parent");
+        require(pressurePlateUp.textureId(EchoVoxelMeshDirection.UP).orElse("").equals("facetest:block/service_pressure_plate"),
+                "Pressure plate faces should use the JSON texture key");
+        require(weightedPressurePlateDown.textureId(EchoVoxelMeshDirection.UP).orElse("")
+                        .equals("facetest:block/service_weighted_pressure_plate"),
+                "Weighted pressure plate faces should use their JSON texture key");
+        require(pressurePlateUp.modelBounds().fromX() == 1.0D
+                        && pressurePlateUp.modelBounds().toX() == 15.0D
+                        && pressurePlateUp.modelBounds().toY() == 1.0D,
+                "Unpressed pressure plate render plan should expose the one-pixel vanilla plate height");
+        require(pressurePlateDown.modelBounds().toY() == 0.5D
+                        && weightedPressurePlateDown.modelBounds().toY() == 0.5D,
+                "Pressed regular and weighted pressure plates should expose half-pixel pressed heights");
+        EchoVoxelMeshMaterial pressurePlateMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_pressure_plate",
+                "facetest/service_pressure_plate",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of("powered", "false"),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial pressedPressurePlateMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_pressure_plate",
+                "facetest/service_pressure_plate",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of("powered", "true"),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial weightedPressurePlateMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_weighted_pressure_plate",
+                "facetest/service_weighted_pressure_plate",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of("power", "15"),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoClientChunkMesh.MeshData pressurePlateMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(17, 0, 0, direction, pressurePlateMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData pressedPressurePlateMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(18, 0, 0, direction, pressedPressurePlateMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData weightedPressurePlateMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(19, 0, 0, direction, weightedPressurePlateMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        require(pressurePlateMesh.vertexCount() == 24 && pressurePlateMesh.indexCount() == 36,
+                "Unpressed pressure plate upload should emit one thin floor box");
+        require(pressedPressurePlateMesh.vertexCount() == 24 && pressedPressurePlateMesh.indexCount() == 36,
+                "Pressed pressure plate upload should emit one thinner floor box");
+        require(weightedPressurePlateMesh.vertexCount() == 24 && weightedPressurePlateMesh.indexCount() == 36,
+                "Weighted pressure plate upload should emit one weighted thin floor box");
+        require(pressurePlateMesh.vertices()[0] == 17.0625f
+                        && pressurePlateMesh.vertices()[1] == 0.0625f
+                        && pressurePlateMesh.vertices()[2] == 0.0625f,
+                "Unpressed pressure plate upload should keep the top face one pixel above the floor");
+        require(pressedPressurePlateMesh.vertices()[0] == 18.0625f
+                        && pressedPressurePlateMesh.vertices()[1] == 0.03125f
+                        && pressedPressurePlateMesh.vertices()[2] == 0.0625f,
+                "Pressed pressure plate upload should lower the top face to half-pixel height");
+        require(weightedPressurePlateMesh.vertices()[0] == 19.0625f
+                        && weightedPressurePlateMesh.vertices()[1] == 0.03125f
+                        && weightedPressurePlateMesh.vertices()[2] == 0.0625f,
+                "Weighted pressure plate upload should use the pressed half-pixel height when powered");
+
+        EchoClientTextureAtlas.BlockRenderPlan carpet =
+                atlas.planBlockModel(request("facetest:service_carpet", Map.of()));
+        EchoClientTextureAtlas.BlockRenderPlan mossCarpet =
+                atlas.planBlockModel(request("facetest:service_moss_carpet", Map.of()));
+        require(carpet.resolved() && carpet.templateKind().equals("carpet"),
+                "Carpet render plan should detect the minecraft block/carpet parent");
+        require(mossCarpet.resolved() && mossCarpet.templateKind().equals("carpet"),
+                "Moss carpet render plan should detect the minecraft block/moss_carpet parent");
+        require(carpet.textureId(EchoVoxelMeshDirection.UP).orElse("").equals("facetest:block/service_carpet"),
+                "Carpet faces should resolve the vanilla wool texture key");
+        require(mossCarpet.textureId(EchoVoxelMeshDirection.NORTH).orElse("").equals("facetest:block/service_moss_carpet"),
+                "Moss carpet faces should resolve the addon-style texture key");
+        require(carpet.modelBounds().fromY() == 0.0D
+                        && carpet.modelBounds().toY() == 1.0D
+                        && mossCarpet.modelBounds().toY() == 1.0D,
+                "Carpet and moss carpet render plans should expose one-pixel vanilla heights");
+        EchoVoxelMeshMaterial carpetMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_carpet",
+                "facetest/service_carpet",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial mossCarpetMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_moss_carpet",
+                "facetest/service_moss_carpet",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoClientChunkMesh.MeshData carpetMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(20, 0, 0, direction, carpetMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData mossCarpetMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(21, 0, 0, direction, mossCarpetMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        require(carpetMesh.vertexCount() == 24 && carpetMesh.indexCount() == 36,
+                "Carpet upload should emit one thin full-footprint floor box");
+        require(mossCarpetMesh.vertexCount() == 24 && mossCarpetMesh.indexCount() == 36,
+                "Moss carpet upload should emit one thin full-footprint floor box");
+        require(carpetMesh.vertices()[0] == 20.0f
+                        && carpetMesh.vertices()[1] == 0.0625f
+                        && carpetMesh.vertices()[2] == 0.0f,
+                "Carpet upload should keep the top face one pixel above the floor");
+        require(mossCarpetMesh.vertices()[0] == 21.0f
+                        && mossCarpetMesh.vertices()[1] == 0.0625f
+                        && mossCarpetMesh.vertices()[2] == 0.0f,
+                "Moss carpet upload should keep the top face one pixel above the floor");
 
         EchoClientTextureAtlas.BlockRenderPlan bottomSlab =
                 atlas.planBlockModel(request("facetest:service_slab", Map.of("type", "bottom")));
@@ -1790,6 +2603,270 @@ public final class EchoClientBlockModelChunkRenderSmokeHarness {
                         && crossMesh.vertices()[26] == 1.0f,
                 "Cross chunk upload should emit a diagonal vertical plane through the block");
 
+        EchoClientTextureAtlas.BlockRenderPlan crop =
+                atlas.planBlockModel(request("facetest:service_crop", Map.of()));
+        EchoClientTextureAtlas.BlockRenderPlan bush =
+                atlas.planBlockModel(request("facetest:service_bush", Map.of()));
+        EchoClientTextureAtlas.BlockRenderPlan leaves =
+                atlas.planBlockModel(request("facetest:service_leaves", Map.of()));
+        EchoClientTextureAtlas.BlockRenderPlan cactus =
+                atlas.planBlockModel(request("facetest:service_cactus", Map.of()));
+        require(crop.resolved() && crop.templateKind().equals("crop"),
+                "Crop render plan should detect the minecraft block/crop parent");
+        require(bush.resolved() && bush.templateKind().equals("bush"),
+                "Bush render plan should detect the minecraft block/bush parent");
+        require(leaves.resolved() && leaves.templateKind().equals("leaves"),
+                "Leaves render plan should detect the minecraft block/leaves parent");
+        require(cactus.resolved() && cactus.templateKind().equals("cactus"),
+                "Cactus render plan should detect the minecraft block/cactus parent");
+        require(crop.textureId(EchoVoxelMeshDirection.NORTH).orElse("").equals("facetest:block/service_crop"),
+                "Crop faces should resolve the vanilla crop texture key");
+        require(bush.textureId(EchoVoxelMeshDirection.NORTH).orElse("").equals("facetest:block/service_bush"),
+                "Bush faces should resolve the vanilla texture key");
+        require(leaves.textureId(EchoVoxelMeshDirection.UP).orElse("").equals("facetest:block/service_leaves"),
+                "Leaves faces should resolve the vanilla all texture key");
+        require(cactus.textureId(EchoVoxelMeshDirection.UP).orElse("").equals("facetest:block/service_cactus_top")
+                        && cactus.textureId(EchoVoxelMeshDirection.DOWN).orElse("")
+                        .equals("facetest:block/service_cactus_bottom")
+                        && cactus.textureId(EchoVoxelMeshDirection.NORTH).orElse("")
+                        .equals("facetest:block/service_cactus_side"),
+                "Cactus faces should resolve top, bottom, and side texture keys");
+        require(cactus.modelBounds().fromX() == 1.0D
+                        && cactus.modelBounds().fromZ() == 1.0D
+                        && cactus.modelBounds().toX() == 15.0D
+                        && cactus.modelBounds().toZ() == 15.0D,
+                "Cactus render plan should expose the inset vanilla cactus footprint");
+        EchoVoxelMeshMaterial cropMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_crop",
+                "facetest/service_crop",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                false,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial bushMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_bush",
+                "facetest/service_bush",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                false,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial leavesMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_leaves",
+                "facetest/service_leaves",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial cactusMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_cactus",
+                "facetest/service_cactus",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoClientChunkMesh.MeshData cropMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(22, 0, 0, direction, cropMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData bushMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(23, 0, 0, direction, bushMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData leavesMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(24, 0, 0, direction, leavesMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData cactusMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(25, 0, 0, direction, cactusMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        require(cropMesh.vertexCount() == 16 && cropMesh.indexCount() == 24,
+                "Crop upload should emit crossed plant quads");
+        require(bushMesh.vertexCount() == 16 && bushMesh.indexCount() == 24,
+                "Bush upload should emit crossed plant quads");
+        require(leavesMesh.vertexCount() == 24 && leavesMesh.indexCount() == 36,
+                "Leaves upload should emit a full cube");
+        require(cactusMesh.vertexCount() == 24 && cactusMesh.indexCount() == 36,
+                "Cactus upload should emit one inset cube");
+        require(cropMesh.vertices()[0] == 22.0f && cropMesh.vertices()[12] == 23.0f,
+                "Crop upload should place the crossed plant at the block footprint");
+        require(bushMesh.vertices()[0] == 23.0f && bushMesh.vertices()[12] == 24.0f,
+                "Bush upload should place the crossed plant at the block footprint");
+        require(leavesMesh.vertices()[0] == 24.0f
+                        && leavesMesh.vertices()[1] == 1.0f
+                        && leavesMesh.vertices()[2] == 0.0f,
+                "Leaves upload should keep full-cube bounds");
+        require(cactusMesh.vertices()[0] == 25.0625f
+                        && cactusMesh.vertices()[1] == 1.0f
+                        && cactusMesh.vertices()[2] == 0.0625f,
+                "Cactus upload should inset the top face by one pixel on X/Z");
+
+        EchoClientTextureAtlas.BlockRenderPlan campfire =
+                atlas.planBlockModel(request("facetest:service_campfire", Map.of()));
+        require(campfire.resolved() && campfire.templateKind().equals("campfire"),
+                "Campfire render plan should detect the minecraft block/template_campfire parent");
+        require(campfire.textureId(EchoVoxelMeshDirection.NORTH).orElse("")
+                        .equals("facetest:block/service_campfire_fire"),
+                "Campfire base face resolution should expose the fire texture key");
+        require(campfire.modelElementDefinitions().size() == 6,
+                "Campfire template should generate four log boxes and two crossed flame slabs");
+        require(campfire.modelElementDefinitions().get(0).textureIdForFace("up").orElse("")
+                        .equals("facetest:block/service_campfire_log"),
+                "Campfire log elements should resolve the log texture key");
+        require(campfire.modelElementDefinitions().get(4).textureIdForFace("north").orElse("")
+                        .equals("facetest:block/service_campfire_fire"),
+                "Campfire flame elements should resolve the fire texture key");
+        EchoVoxelMeshMaterial campfireMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_campfire",
+                "facetest/service_campfire",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoClientChunkMesh.MeshData campfireMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(26, 0, 0, direction, campfireMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        require(campfireMesh.vertexCount() == 144 && campfireMesh.indexCount() == 216,
+                "Campfire upload should emit six generated template boxes");
+        require(campfireMesh.vertices()[0] == 26.0625f
+                        && campfireMesh.vertices()[1] == 0.25f
+                        && campfireMesh.vertices()[2] == 0.0625f,
+                "Campfire upload should start with the north log top face bounds");
+        require(campfireMesh.vertices()[96 * 12] == 26.4375f
+                        && campfireMesh.vertices()[96 * 12 + 1] == 1.0f
+                        && campfireMesh.vertices()[96 * 12 + 2] == 0.1875f,
+                "Campfire upload should include the first vertical flame slab after four log boxes");
+
+        EchoClientTextureAtlas.BlockRenderPlan blockParentElement =
+                atlas.planBlockModel(request("facetest:service_block_parent_element", Map.of()));
+        EchoClientTextureAtlas.BlockRenderPlan thinBlockParentElement =
+                atlas.planBlockModel(request("facetest:service_thin_block_parent_element", Map.of()));
+        require(blockParentElement.resolved() && blockParentElement.templateKind().equals("block"),
+                "Element-backed model should resolve through the minecraft block/block parent");
+        require(thinBlockParentElement.resolved() && thinBlockParentElement.templateKind().equals("thin_block"),
+                "Element-backed layer model should resolve through the minecraft block/thin_block parent");
+        require(blockParentElement.modelElementDefinitions().size() == 2,
+                "Block parent element model should preserve both explicit JSON element boxes");
+        require(thinBlockParentElement.modelElementDefinitions().size() == 1,
+                "Thin block parent element model should preserve the explicit JSON layer box");
+        require(blockParentElement.modelElementDefinitions().get(0).textureIdForFace("up").orElse("")
+                        .equals("facetest:block/service_block_parent_top"),
+                "Block parent element faces should resolve direct element-owned texture ids");
+        require(thinBlockParentElement.modelElementDefinitions().get(0).textureIdForFace("north").orElse("")
+                        .equals("facetest:block/service_thin_block_parent_side"),
+                "Thin block parent side faces should resolve direct element-owned texture ids");
+        require(thinBlockParentElement.modelBounds().toY() == 8.0D,
+                "Thin block parent explicit element bounds should drive the render plan height");
+        EchoVoxelMeshMaterial blockParentElementMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_block_parent_element",
+                "facetest/service_block_parent_element",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoVoxelMeshMaterial thinBlockParentElementMaterial = new EchoVoxelMeshMaterial(
+                "voxel:block/facetest:service_thin_block_parent_element",
+                "facetest/service_thin_block_parent_element",
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                EchoVoxelMaterialPattern.FLAT,
+                true,
+                Map.of(),
+                "",
+                0xFFFFFFFF,
+                false
+        );
+        EchoClientChunkMesh.MeshData blockParentElementMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(27, 0, 0, direction, blockParentElementMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        EchoClientChunkMesh.MeshData thinBlockParentElementMesh = EchoClientChunkMesh.meshData(new EchoVoxelChunkMesh(
+                new EchoVoxelChunkId(0, 0, 0),
+                EchoVoxelRenderBackendTarget.OPENGL,
+                java.util.Arrays.stream(EchoVoxelMeshDirection.values())
+                        .map(direction -> new EchoVoxelMeshFace(28, 0, 0, direction, thinBlockParentElementMaterial))
+                        .toList(),
+                1
+        ), atlas);
+        require(blockParentElementMesh.vertexCount() == 48 && blockParentElementMesh.indexCount() == 72,
+                "Block parent element upload should emit both explicit six-face boxes");
+        require(thinBlockParentElementMesh.vertexCount() == 24 && thinBlockParentElementMesh.indexCount() == 36,
+                "Thin block parent element upload should emit one explicit six-face layer box");
+        require(blockParentElementMesh.vertices()[0] == 27.0625f
+                        && blockParentElementMesh.vertices()[1] == 0.1875f
+                        && blockParentElementMesh.vertices()[2] == 0.0625f,
+                "Block parent element upload should start with the explicit lower box top face");
+        require(thinBlockParentElementMesh.vertices()[0] == 28.0f
+                        && thinBlockParentElementMesh.vertices()[1] == 0.5f
+                        && thinBlockParentElementMesh.vertices()[2] == 0.0f,
+                "Thin block parent element upload should use the explicit half-block layer height");
+
+        writeReport(
+                trimmed,
+                bounds,
+                campfire,
+                campfireMesh,
+                blockParentElement,
+                blockParentElementMesh,
+                thinBlockParentElement,
+                thinBlockParentElementMesh
+        );
+
         System.out.println("client block model chunk render smoke PASS model=" + trimmed.modelId()
                 + " bounds=" + bounds.fromX() + "," + bounds.fromY() + "," + bounds.fromZ()
                 + "->" + bounds.toX() + "," + bounds.toY() + "," + bounds.toZ());
@@ -1808,6 +2885,118 @@ public final class EchoClientBlockModelChunkRenderSmokeHarness {
         Files.writeString(path, text);
     }
 
+    private static void writeReport(
+            EchoClientTextureAtlas.BlockRenderPlan trimmed,
+            EchoBlockModelBounds bounds,
+            EchoClientTextureAtlas.BlockRenderPlan campfire,
+            EchoClientChunkMesh.MeshData campfireMesh,
+            EchoClientTextureAtlas.BlockRenderPlan blockParentElement,
+            EchoClientChunkMesh.MeshData blockParentElementMesh,
+            EchoClientTextureAtlas.BlockRenderPlan thinBlockParentElement,
+            EchoClientChunkMesh.MeshData thinBlockParentElementMesh
+    ) throws IOException {
+        String json = """
+                {
+                  "schema": "echo.standalone.client_block_model_chunk_render.v1",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoClientBlockModelChunkRenderSmokeHarness",
+                  "status": "PASS",
+                  "summary": "Mounted Minecraft blockstate/model JSON reached standalone OpenGL chunk-render planning and mesh upload for variants, multipart models, vanilla templates, JSON elements, rotated elements, uvlock, cullface/tint metadata, and abstract element-backed parents.",
+                  "coverage": {
+                    "blockstateVariantSelection": true,
+                    "multipartModelSelection": true,
+                    "atlasKeyResolution": true,
+                    "parentTemplateFaceTextures": true,
+                    "jsonElementBounds": true,
+                    "multiElementMeshUpload": true,
+                    "arbitraryElementRotation": true,
+                    "uvlockTextureOrientation": true,
+                    "blockstateRotatedCullfaceTint": true,
+                    "abstractElementBackedParents": true
+                  },
+                  "vanillaTemplates": [
+                    "slab",
+                    "stair",
+                    "wall",
+                    "fence",
+                    "pane",
+                    "trapdoor",
+                    "door",
+                    "cross",
+                    "crop",
+                    "bush",
+                    "leaves",
+                    "cactus",
+                    "template_campfire",
+                    "button",
+                    "pressure_plate",
+                    "weighted_pressure_plate",
+                    "carpet",
+                    "moss_carpet",
+                    "block",
+                    "thin_block"
+                  ],
+                  "trimmedPost": {
+                    "modelId": "%s",
+                    "bounds": {
+                      "fromX": %s,
+                      "fromY": %s,
+                      "fromZ": %s,
+                      "toX": %s,
+                      "toY": %s,
+                      "toZ": %s
+                    }
+                  },
+                  "generatedTemplateMeshes": {
+                    "campfire": {
+                      "templateKind": "%s",
+                      "elements": %d,
+                      "vertices": %d,
+                      "indices": %d
+                    }
+                  },
+                  "abstractParentMeshes": {
+                    "block": {
+                      "templateKind": "%s",
+                      "elements": %d,
+                      "vertices": %d,
+                      "indices": %d
+                    },
+                    "thinBlock": {
+                      "templateKind": "%s",
+                      "elements": %d,
+                      "height": %s,
+                      "vertices": %d,
+                      "indices": %d
+                    }
+                  },
+                  "nativeModLoaderCommandUsed": false
+                }
+                """.formatted(
+                escape(trimmed.modelId()),
+                Double.toString(bounds.fromX()),
+                Double.toString(bounds.fromY()),
+                Double.toString(bounds.fromZ()),
+                Double.toString(bounds.toX()),
+                Double.toString(bounds.toY()),
+                Double.toString(bounds.toZ()),
+                escape(campfire.templateKind()),
+                campfire.modelElementDefinitions().size(),
+                campfireMesh.vertexCount(),
+                campfireMesh.indexCount(),
+                escape(blockParentElement.templateKind()),
+                blockParentElement.modelElementDefinitions().size(),
+                blockParentElementMesh.vertexCount(),
+                blockParentElementMesh.indexCount(),
+                escape(thinBlockParentElement.templateKind()),
+                thinBlockParentElement.modelElementDefinitions().size(),
+                Double.toString(thinBlockParentElement.modelBounds().toY()),
+                thinBlockParentElementMesh.vertexCount(),
+                thinBlockParentElementMesh.indexCount()
+        );
+        write(REPORT_PATH, json);
+    }
+
     private static void deleteRecursively(Path root) throws IOException {
         if (!Files.exists(root)) {
             return;
@@ -1821,6 +3010,13 @@ public final class EchoClientBlockModelChunkRenderSmokeHarness {
 
     private static boolean close(float value, double expected) {
         return Math.abs(value - expected) < 0.0002D;
+    }
+
+    private static String escape(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static void require(boolean condition, String message) {

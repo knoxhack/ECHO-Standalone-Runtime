@@ -13,14 +13,20 @@ public final class EchoRuntimeVoxelMaterialAtlasSmokeHarness {
                 EchoAdapterCoreStandaloneContentBridge.ashfallLive()
         );
 
-        require(result.ready(), "AdapterCore voxel material atlas should be ready");
         require(result.adapterCoreMultiRuntimeReady(),
                 "material atlas should keep NeoForge, ECHO Native Loader, and standalone AdapterCore bindings");
-        require(result.atlasKeyCount() >= 7, "Ashfall block materials should expose distinct atlas keys");
-        require(result.materialPatternCount() >= 7, "Ashfall block materials should expose distinct render patterns");
-        require(result.patternedFaceCount() > 400, "voxel meshing should preserve patterned material faces");
+        require(result.atlasKeyCount() >= 7,
+                "Ashfall block materials should expose distinct atlas keys: " + result.summary());
+        require(result.materialPatternCount() >= 7,
+                "Ashfall block materials should expose distinct render patterns: " + result.summary());
+        require(result.patternedFaceCount() > 400,
+                "voxel meshing should preserve patterned material faces: " + result.summary());
         require(result.uniqueFramebufferColors() > 48,
-                "software framebuffer should show material pattern color variation before OpenGL upload");
+                "software framebuffer should show material pattern color variation before OpenGL upload: "
+                        + result.summary());
+        require(result.framebufferChecksum() != 0L,
+                "software framebuffer checksum should be non-zero: " + result.summary());
+        require(result.ready(), "AdapterCore voxel material atlas should be ready: " + result.summary());
 
         System.out.println("phase15.material atlas smoke PASS " + result.summary());
     }

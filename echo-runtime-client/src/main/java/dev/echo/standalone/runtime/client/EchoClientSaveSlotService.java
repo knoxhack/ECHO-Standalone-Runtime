@@ -257,6 +257,22 @@ final class EchoClientSaveSlotService {
             List<Map<String, Object>> runtimeContentRows,
             Map<String, String> environmentMetadata
     ) {
+        recordSessionSummary(
+                worldSession,
+                reason,
+                runtimeContentRows,
+                environmentMetadata,
+                EchoClientSaveSlotThumbnailCapture.EMPTY
+        );
+    }
+
+    void recordSessionSummary(
+            EchoClientWorldSession worldSession,
+            String reason,
+            List<Map<String, Object>> runtimeContentRows,
+            Map<String, String> environmentMetadata,
+            EchoClientSaveSlotThumbnailCapture thumbnailCapture
+    ) {
         if (worldSession == null) {
             return;
         }
@@ -268,12 +284,14 @@ final class EchoClientSaveSlotService {
                     transactionId,
                     reason,
                     runtimeContentRows,
-                    environmentMetadata
+                    environmentMetadata,
+                    thumbnailCapture
             );
             lastError = "";
         } catch (IOException e) {
             lastError = e.getMessage();
             System.out.println("[echo-client] save slot write failed: " + e.getMessage());
+            throw new IllegalStateException("Client save slot write failed: " + lastError, e);
         }
     }
 
@@ -423,6 +441,10 @@ final class EchoClientSaveSlotService {
 
     String lastError() {
         return lastError;
+    }
+
+    Path saveRoot() {
+        return saves.profile().root();
     }
 
     private EchoClientRuntimeContentCompatibility runtimeContentCompatibility(

@@ -16,4 +16,16 @@ public final class EchoVoxelHotbarProfiles {
                 0
         );
     }
+
+    public static EchoVoxelPlayerHotbar openlandsStarter(EchoVoxelBlock planks, EchoVoxelBlock campfire) {
+        Objects.requireNonNull(planks, "planks");
+        Objects.requireNonNull(campfire, "campfire");
+        return new EchoVoxelPlayerHotbar(
+                List.of(
+                        new EchoVoxelHotbarSlot(0, planks, 16),
+                        new EchoVoxelHotbarSlot(1, campfire, 1)
+                ),
+                0
+        );
+    }
 }

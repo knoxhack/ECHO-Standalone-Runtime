@@ -63,6 +63,8 @@ The Phase 14.7 smoke harness proves:
 - a deliberately corrupted file produces a checksum mismatch.
 - the recovery journal records transaction, migration, backup, and corruption events.
 
+The smoke writes concrete non-placeholder evidence to `runtime-save.json`, `save-manifest.json`, `save-transaction.json`, `save-backup.json`, `save-corruption.json`, `save-migration.json`, and `save-recovery-journal.json`. `verifyStandaloneSaveRuntime` regenerates the smoke evidence, rejects bootstrap schemas, and requires concrete `PASS` fields for service binding, staged commits, partial-save merging, backup capture, migration planning, checksum mismatch detection, and recovery journal coverage.
+
 ## Out Of Scope
 
 Phase 14.7 does not:

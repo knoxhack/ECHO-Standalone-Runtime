@@ -1,11 +1,18 @@
 package dev.echo.standalone.runtime.client;
 
 final class EchoClientScreenRuntimeController {
+    static final int PASSIVE_SURFACE_REFRESH_INTERVAL_TICKS = 120;
+
     private final EchoClientRuntimeServices runtimeServices;
     private final EchoClientScreenController screens;
     private final EchoClientSettingsController settingsController;
     private final EchoClientRenderRuntimeController renderRuntime;
     private EchoClientAudio audio;
+    private EchoClientGameState lastSurfaceRefreshState;
+    private EchoClientScreenKind lastSurfaceRefreshKind;
+    private int ticksUntilPassiveSurfaceRefresh;
+    private int surfaceRefreshCount;
+    private int lightweightTitleRefreshCount;
 
     EchoClientScreenRuntimeController(
             EchoClientRuntimeServices runtimeServices,
@@ -43,6 +50,7 @@ final class EchoClientScreenRuntimeController {
     void showInitialMainMenu() {
         refreshRuntimeSurfaces();
         screens.showMainMenu(runtimeServices.hasContinuableSession());
+        rememberSurfaceRefreshRoute();
     }
 
     void refreshRuntimeSurfaces() {
@@ -54,12 +62,42 @@ final class EchoClientScreenRuntimeController {
         screens.updateScreenCatalog(runtimeServices.screenCatalog());
         screens.updateRuntimeDiagnostics(EchoClientRuntimeDiagnosticsSnapshot.from(
                 runtimeServices.worldSession(),
-                renderRuntime == null ? null : renderRuntime.renderer()
+                renderRuntime == null ? null : renderRuntime.renderer(),
+                renderRuntime == null ? EchoClientFramePacingSnapshot.EMPTY : renderRuntime.framePacingSnapshot(),
+                audio == null ? EchoClientAudioDiagnosticsSnapshot.EMPTY : audio.diagnosticsSnapshot()
         ));
+        screens.updateSupportBundleResult(runtimeServices.lastSupportBundleResult());
         screens.updateWorkbenchRecipes(
                 runtimeServices.workbenchRecipeSummaries(),
                 runtimeServices.workbenchRecipeError()
         );
+        surfaceRefreshCount++;
+        ticksUntilPassiveSurfaceRefresh = PASSIVE_SURFACE_REFRESH_INTERVAL_TICKS;
+        rememberSurfaceRefreshRoute();
+    }
+
+    boolean refreshRuntimeSurfacesIfNeeded() {
+        if (lastSurfaceRefreshState == null
+                || lastSurfaceRefreshKind == null
+                || lastSurfaceRefreshState != screens.state()
+                || lastSurfaceRefreshKind != screens.screenKind()) {
+            refreshCurrentRouteSurfaces();
+            return true;
+        }
+        if (ticksUntilPassiveSurfaceRefresh > 0) {
+            ticksUntilPassiveSurfaceRefresh--;
+            return false;
+        }
+        refreshCurrentRouteSurfaces();
+        return true;
+    }
+
+    int surfaceRefreshCount() {
+        return surfaceRefreshCount;
+    }
+
+    int lightweightTitleRefreshCount() {
+        return lightweightTitleRefreshCount;
     }
 
     EchoClientScreenCommand updateScreen(EchoClientInput input, EchoClientUiViewport viewport) {
@@ -67,7 +105,9 @@ final class EchoClientScreenRuntimeController {
             return EchoClientScreenCommand.NONE;
         }
         input.setCursorLocked(false);
-        refreshRuntimeSurfaces();
+        if (screens.state() != EchoClientGameState.FATAL_ERROR) {
+            refreshRuntimeSurfacesIfNeeded();
+        }
         EchoClientScreenCommand command = screens.handleInput(
                 input,
                 runtimeServices.hasContinuableSession(),
@@ -76,7 +116,6 @@ final class EchoClientScreenRuntimeController {
                 viewport.scale()
         );
         playPendingUiFeedback();
-        settingsController.applyAndPersist();
         input.clearGameplayTriggers();
         return command;
     }
@@ -89,5 +128,29 @@ final class EchoClientScreenRuntimeController {
             audio.playUiClick();
         }
         return true;
+    }
+
+    private void rememberSurfaceRefreshRoute() {
+        lastSurfaceRefreshState = screens.state();
+        lastSurfaceRefreshKind = screens.screenKind();
+    }
+
+    private void refreshCurrentRouteSurfaces() {
+        if (isTitleMenuRoute()) {
+            refreshLightweightTitleSurfaces();
+        } else {
+            refreshRuntimeSurfaces();
+        }
+    }
+
+    private boolean isTitleMenuRoute() {
+        return screens.state() == EchoClientGameState.MAIN_MENU
+                && screens.screenKind() == EchoClientScreenKind.MAIN_MENU;
+    }
+
+    private void refreshLightweightTitleSurfaces() {
+        lightweightTitleRefreshCount++;
+        ticksUntilPassiveSurfaceRefresh = PASSIVE_SURFACE_REFRESH_INTERVAL_TICKS;
+        rememberSurfaceRefreshRoute();
     }
 }

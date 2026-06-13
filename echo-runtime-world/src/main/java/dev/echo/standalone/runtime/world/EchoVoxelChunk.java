@@ -1,9 +1,11 @@
 package dev.echo.standalone.runtime.world;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 
 public final class EchoVoxelChunk {
     private final EchoVoxelChunkId id;
@@ -129,6 +131,56 @@ public final class EchoVoxelChunk {
                     biomeIds[stateIndex] = biomeId(next);
                 }
             }
+        }
+        return new TickSummary(tickedBlocks, hazardBlocks, metadataWrites);
+    }
+
+    TickSummary randomTickLoadedBlocks(long gameTick, long randomSeed, int samples) {
+        if (gameTick < 0L) {
+            throw new IllegalArgumentException("gameTick must not be negative");
+        }
+        if (samples < 0) {
+            throw new IllegalArgumentException("samples must not be negative");
+        }
+        if (samples == 0) {
+            return new TickSummary(0, 0, 0);
+        }
+        ArrayList<Integer> nonAir = new ArrayList<>();
+        for (int index = 0; index < states.length; index++) {
+            if (!states[index].air()) {
+                nonAir.add(index);
+            }
+        }
+        if (nonAir.isEmpty()) {
+            return new TickSummary(0, 0, 0);
+        }
+
+        Collections.shuffle(nonAir, new Random(randomSeed ^ id.hashCode()));
+        int limit = Math.min(samples, nonAir.size());
+        int tickedBlocks = 0;
+        int hazardBlocks = 0;
+        int metadataWrites = 0;
+        for (int sample = 0; sample < limit; sample++) {
+            int stateIndex = nonAir.get(sample);
+            EchoVoxelBlockState state = states[stateIndex];
+            if (state.air()) {
+                continue;
+            }
+            tickedBlocks++;
+            EchoVoxelBlockState next = state.ticked()
+                    .withProperty("lastRandomTick", Long.toString(gameTick))
+                    .withProperty("randomTickSample", Integer.toString(sample));
+            metadataWrites += 2;
+            if (isHazard(state.block())) {
+                hazardBlocks++;
+                next = next.withProperty("randomHazardActive", "true");
+                metadataWrites++;
+            }
+            if (!next.equals(states[stateIndex])) {
+                version++;
+            }
+            states[stateIndex] = next;
+            biomeIds[stateIndex] = biomeId(next);
         }
         return new TickSummary(tickedBlocks, hazardBlocks, metadataWrites);
     }

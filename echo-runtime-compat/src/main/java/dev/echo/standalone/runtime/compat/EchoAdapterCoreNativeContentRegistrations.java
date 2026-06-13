@@ -516,16 +516,16 @@ public final class EchoAdapterCoreNativeContentRegistrations {
         return switch (domain(domain, EchoAdapterCoreContentKind.DIAGNOSTIC)) {
             case BLOCKS -> EchoAdapterCoreContentKind.BLOCK;
             case ITEMS, INVENTORY -> EchoAdapterCoreContentKind.ITEM;
-            case ENTITIES -> EchoAdapterCoreContentKind.ENTITY;
+            case ENTITIES, CREATURES -> EchoAdapterCoreContentKind.ENTITY;
             case RECIPES -> EchoAdapterCoreContentKind.RECIPE;
             case LOOT -> EchoAdapterCoreContentKind.LOOT_TABLE;
             case STRUCTURES -> EchoAdapterCoreContentKind.STRUCTURE;
             case UI_SCREENS, UI_OVERLAYS -> EchoAdapterCoreContentKind.UI_SCREEN;
             case SOUNDS -> EchoAdapterCoreContentKind.SOUND_EVENT;
-            case MISSIONS, STORY -> EchoAdapterCoreContentKind.MISSION;
+            case MISSIONS, PROGRESSION, PLAYTESTS, TUTORIALS, STORY -> EchoAdapterCoreContentKind.MISSION;
             case SAVES -> EchoAdapterCoreContentKind.SAVE_RECORD;
             case WEATHER, HAZARDS -> EchoAdapterCoreContentKind.WORLD_HAZARD;
-            case WORLDGEN, MAPS -> EchoAdapterCoreContentKind.WORLDGEN_DEFINITION;
+            case BIOMES, WORLDGEN, WAYSTONES, MAPS -> EchoAdapterCoreContentKind.WORLDGEN_DEFINITION;
             case NETWORKING -> EchoAdapterCoreContentKind.NETWORK_HOOK;
             case COMMANDS -> EchoAdapterCoreContentKind.COMMAND;
             default -> EchoAdapterCoreContentKind.DIAGNOSTIC;

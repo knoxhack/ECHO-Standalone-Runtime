@@ -13,5 +13,6 @@ enum EchoClientGameState {
     SCREEN_OPEN,
     SAVING,
     QUITTING_TO_TITLE,
+    FATAL_ERROR,
     SHUTDOWN
 }

@@ -92,6 +92,29 @@ public final class EchoClientKeyBindingsSmokeHarness {
                 "Controls should render the custom fullscreen toggle binding");
         require(controls.options().stream().anyMatch(option -> option.label().startsWith("Hotbar: Z 2 3")),
                 "Controls should render the custom hotbar binding summary");
+        require(controls.options().stream().anyMatch(option ->
+                        option.command() == EchoClientScreenCommand.START_KEY_REBIND
+                                && option.targetId().equals(EchoClientKeyAction.MOVE_FORWARD.id())
+                                && option.enabled()),
+                "Controls should expose Move Forward as a selectable rebind row");
+
+        selectTarget(screens, EchoClientScreenCommand.START_KEY_REBIND, EchoClientKeyAction.MOVE_FORWARD.id());
+        require(screens.activateSelection(false) == EchoClientScreenCommand.NONE,
+                "Starting a key rebind should be handled inside the controls screen");
+        require(screens.keyRebindActive(),
+                "Controls should enter a pending key rebind state");
+        require(screens.snapshot(false).options().stream()
+                        .anyMatch(option -> option.label().equals("Move Forward: Press a key")),
+                "Controls should render a player-facing pending rebind row");
+        int keyT = EchoClientKeyBindings.decode("move_forward=T").key(EchoClientKeyAction.MOVE_FORWARD);
+        require(screens.finishKeyRebind(keyT, false),
+                "Controls should accept a supported key for rebinding");
+        require(screens.clientSettings().keyBindings().label(EchoClientKeyAction.MOVE_FORWARD).equals("T"),
+                "Controls rebind should update the selected action");
+        require(screens.consumeClientSettingsDirty(),
+                "Controls rebind should mark client settings dirty for persistence");
+        require(screens.snapshot(false).toast().message().equals("Move Forward set to T"),
+                "Controls rebind should publish a player-facing toast");
 
         selectCommand(screens, EchoClientScreenCommand.RESET_KEY_BINDINGS);
         require(screens.activateSelection(false) == EchoClientScreenCommand.NONE,
@@ -162,6 +185,24 @@ public final class EchoClientKeyBindingsSmokeHarness {
             }
         }
         throw new AssertionError("Command not found: " + command);
+    }
+
+    private static void selectTarget(
+            EchoClientScreenController screens,
+            EchoClientScreenCommand command,
+            String targetId
+    ) {
+        EchoClientScreenSnapshot snapshot = screens.snapshot(false);
+        for (int index = 0; index < snapshot.options().size(); index++) {
+            EchoClientScreenOption option = snapshot.options().get(index);
+            if (option.command() == command && option.targetId().equals(targetId)) {
+                while (screens.snapshot(false).selectedIndex() != index) {
+                    screens.moveSelection(1, false, 720);
+                }
+                return;
+            }
+        }
+        throw new AssertionError("Command target not found: " + command + " " + targetId);
     }
 
     private static void require(boolean condition, String message) {

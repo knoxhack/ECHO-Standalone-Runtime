@@ -48,7 +48,7 @@ final class EchoClientCommandController {
                 if (!runtimeServices.hasActiveWorld()) {
                     return false;
                 }
-                gameplayRuntime.captureMemorySave();
+                gameplayRuntime.captureMemorySave(host.captureSaveThumbnail());
                 host.beginSaving();
                 screens.showSaving();
                 return true;
@@ -77,6 +77,16 @@ final class EchoClientCommandController {
                 host.reloadMinecraftAssets(runtimeServices.session() != null);
                 screens.showToast("Texture atlas reloaded");
                 return true;
+            }
+            case EXPORT_SUPPORT_BUNDLE -> {
+                EchoClientSupportBundleResult result = runtimeServices.exportSupportBundle(
+                        screens.snapshot(runtimeServices.hasContinuableSession()),
+                        screens.clientSettings(),
+                        screens.runtimeDiagnosticsSnapshot()
+                );
+                screens.updateSupportBundleResult(result);
+                screens.showToast(result.toastLabel());
+                return result.exported();
             }
             case BACKUP_SELECTED_WORLD -> {
                 String slotId = screens.selectedManageSaveSlotId();
@@ -186,5 +196,9 @@ final class EchoClientCommandController {
         void requestClose();
 
         void reloadMinecraftAssets(boolean rebuildAtlas);
+
+        default EchoClientSaveSlotThumbnailCapture captureSaveThumbnail() {
+            return EchoClientSaveSlotThumbnailCapture.EMPTY;
+        }
     }
 }

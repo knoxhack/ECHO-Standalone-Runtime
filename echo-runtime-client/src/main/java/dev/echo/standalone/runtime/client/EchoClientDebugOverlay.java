@@ -27,6 +27,18 @@ final class EchoClientDebugOverlay {
             EchoClientGameplay gameplay,
             EchoClientRenderer renderer
     ) {
+        return text(fps, state, screenKind, session, gameplay, renderer, EchoClientFramePacingSnapshot.EMPTY);
+    }
+
+    static String text(
+            int fps,
+            EchoClientGameState state,
+            EchoClientScreenKind screenKind,
+            EchoClientGameSession session,
+            EchoClientGameplay gameplay,
+            EchoClientRenderer renderer,
+            EchoClientFramePacingSnapshot framePacing
+    ) {
         EchoVoxelPlayerState player = session.player().state();
         int chunkSize = session.world().chunkSize();
         int chunkX = Math.floorDiv((int) Math.floor(player.x()), chunkSize);
@@ -81,6 +93,7 @@ final class EchoClientDebugOverlay {
                         + " WORK " + session.droppedItemPhysicsDropWorkCount()
                         + " LOOK " + session.droppedItemPhysicsBlockLookupCount()
                         + " IDX " + session.droppedItemPhysicsChunkIndexBuildCount(),
+                framePacingLine(framePacing),
                 renderText(renderer),
                 atlasText(renderer),
                 "SPAWN " + compact(spawn.definitionId(), 36)
@@ -149,6 +162,13 @@ final class EchoClientDebugOverlay {
                 + " TILE " + atlas.cachedResourcePackTileCount()
                 + " DEC " + atlas.resourcePackTileDecodeCount()
                 + " DUP " + atlas.lastRemovedBaseAtlasRequestCount();
+    }
+
+    private static String framePacingLine(EchoClientFramePacingSnapshot framePacing) {
+        EchoClientFramePacingSnapshot safe = framePacing == null
+                ? EchoClientFramePacingSnapshot.EMPTY
+                : framePacing;
+        return safe.overlayLine();
     }
 
     private static String compact(String text, int maxLength) {

@@ -15,6 +15,7 @@ final class EchoClientAudio {
 
     private final EchoClientAudioProfile audioProfile;
     private EchoAudioMixer mixer;
+    private EchoAudioBackend backend;
     private final EchoAudioClipRegistry registry = new EchoAudioClipRegistry();
     private final ArrayList<TrackedSubtitle> subtitles = new ArrayList<>();
     private EchoClientSettings settings = EchoClientSettings.defaults();
@@ -39,6 +40,8 @@ final class EchoClientAudio {
     }
 
     void init(EchoAudioBackend backend) {
+        closeBackend();
+        this.backend = backend;
         mixer = new EchoAudioMixer(backend, volumeProfile(this.settings, audioProfile));
         registerClientClips();
     }
@@ -164,9 +167,7 @@ final class EchoClientAudio {
 
     void close() {
         stopCurrentMusic(0L, "client=close");
-        if (mixer != null) {
-            mixer = null;
-        }
+        closeBackend();
     }
 
     String currentAmbienceClipId() {
@@ -196,6 +197,52 @@ final class EchoClientAudio {
             ));
         }
         return List.copyOf(lines);
+    }
+
+    EchoClientAudioDiagnosticsSnapshot diagnosticsSnapshot() {
+        EchoAudioBackend currentBackend = backend;
+        if (currentBackend == null || mixer == null) {
+            return new EchoClientAudioDiagnosticsSnapshot(
+                    false,
+                    "",
+                    false,
+                    false,
+                    0,
+                    0,
+                    0,
+                    0,
+                    settings.masterVolumePercent(),
+                    settings.musicVolumePercent(),
+                    settings.ambienceVolumePercent(),
+                    settings.subtitles(),
+                    subtitleLines().size(),
+                    currentAmbienceClipId,
+                    currentMusicClipId,
+                    ""
+            );
+        }
+        List<EchoAudioDiagnostic> diagnostics = currentBackend.diagnostics();
+        String latestDiagnostic = diagnostics.isEmpty()
+                ? ""
+                : diagnostics.get(diagnostics.size() - 1).message();
+        return new EchoClientAudioDiagnosticsSnapshot(
+                true,
+                currentBackend.backendId(),
+                currentBackend.deviceOpen(),
+                currentBackend instanceof EchoJavaSoundAudioBackend javaSound && javaSound.fallbackActive(),
+                currentBackend.events().size(),
+                diagnostics.size(),
+                diagnosticCount(diagnostics, EchoAudioDiagnosticSeverity.WARNING),
+                diagnosticCount(diagnostics, EchoAudioDiagnosticSeverity.ERROR),
+                settings.masterVolumePercent(),
+                settings.musicVolumePercent(),
+                settings.ambienceVolumePercent(),
+                settings.subtitles(),
+                subtitleLines().size(),
+                currentAmbienceClipId,
+                currentMusicClipId,
+                latestDiagnostic
+        );
     }
 
     static EchoAudioVolumeProfile volumeProfile(EchoClientSettings settings) {
@@ -282,6 +329,27 @@ final class EchoClientAudio {
 
     private static boolean subtitleEligible(EchoAudioClip clip) {
         return clip.type() == EchoAudioClipType.GAMEPLAY_FX && !clip.looping();
+    }
+
+    private static int diagnosticCount(
+            List<EchoAudioDiagnostic> diagnostics,
+            EchoAudioDiagnosticSeverity severity
+    ) {
+        int count = 0;
+        for (EchoAudioDiagnostic diagnostic : diagnostics) {
+            if (diagnostic != null && diagnostic.severity() == severity) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void closeBackend() {
+        if (backend != null) {
+            backend.close();
+        }
+        mixer = null;
+        backend = null;
     }
 
     private void registerAmbienceClip(String clipId, String displayName, String assetKey, double gain) {

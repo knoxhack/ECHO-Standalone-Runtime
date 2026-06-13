@@ -71,6 +71,7 @@ public final class EchoRuntimeAshfallAdapterCoreParitySmokeHarness {
         requireAshfallStructuresLoadAsSharedData(repoRoot, inventory);
         requireAshfallSoundsLoadAsSharedData(repoRoot, inventory);
         writeAshfallEvidenceReports(standaloneRoot, inventory);
+        refreshAshfallParityMatrixAppendix(standaloneRoot, inventory);
         requireArtifacts(standaloneRoot, inventory);
 
         EchoStandalonePlayableVoxelSaveResult save = new EchoStandalonePlayableVoxelSaveRuntime().run(
@@ -714,14 +715,83 @@ public final class EchoRuntimeAshfallAdapterCoreParitySmokeHarness {
                 ashfallInventoryJson(inventory));
     }
 
+    private static void refreshAshfallParityMatrixAppendix(
+            Path standaloneRoot,
+            NeoForgeFeatureInventory inventory
+    ) throws IOException {
+        Path matrix = standaloneRoot.resolve("docs/echo/standalone/ASHFALL_PARITY_MATRIX.md");
+        require(Files.isRegularFile(matrix), "ASHFALL_PARITY_MATRIX.md is required");
+        String startMarker = "<!-- ASHFALL_FULL_INVENTORY:START -->";
+        String endMarker = "<!-- ASHFALL_FULL_INVENTORY:END -->";
+        String text = Files.readString(matrix);
+        int start = text.indexOf(startMarker);
+        int end = text.indexOf(endMarker);
+        require(start >= 0 && end > start,
+                "ASHFALL_PARITY_MATRIX.md must include generated inventory markers");
+        String replacement = startMarker + "\n" + ashfallMatrixAppendix(inventory) + endMarker;
+        Files.writeString(matrix, text.substring(0, start) + replacement + text.substring(end + endMarker.length()));
+    }
+
+    private static String ashfallMatrixAppendix(NeoForgeFeatureInventory inventory) {
+        int dataDrivenRows = dataDrivenRows(inventory);
+        int adapterBackedRows = inventory.totalScannedFeatures() - dataDrivenRows;
+        StringBuilder markdown = new StringBuilder();
+        markdown.append("## Full NeoForge Inventory Rows\n\n");
+        markdown.append("Current scan records ")
+                .append(inventory.totalScannedFeatures())
+                .append(" row-level NeoForge features. It is intentionally blunt: `0` rows remain `NEOFORGE_ONLY`, `")
+                .append(adapterBackedRows)
+                .append("` rows are AdapterCore-backed runtime targets, and `")
+                .append(dataDrivenRows)
+                .append("` rows are documented shared-data definitions. The `NEOFORGE_ONLY` rows are now classified as `0` beta-critical, `0` beta-visible non-blocking, `0` full-game future scope, and `0` pure decorative/content-only rows.\n\n");
+        markdown.append("| NeoForge feature | Status | AdapterCore domain | Binding/source | Beta classification | Canonical ID lock | Standalone behavior |\n");
+        markdown.append("| --- | --- | --- | --- | --- | --- | --- |\n");
+        appendMatrixRows(markdown, "blocks", inventory.blocks(), "ADAPTERCORE_BACKED", "blocks");
+        appendMatrixRows(markdown, "blockItems", inventory.blockItems(), "ADAPTERCORE_BACKED", "items");
+        appendMatrixRows(markdown, "items", inventory.items(), "ADAPTERCORE_BACKED", "items");
+        appendMatrixRows(markdown, "entities", inventory.entities(), "ADAPTERCORE_BACKED", "entities");
+        appendMatrixRows(markdown, "sounds", inventory.sounds(), "ADAPTERCORE_BACKED", "sounds");
+        appendMatrixRows(markdown, "menus", inventory.menus(), "ADAPTERCORE_BACKED", "ui_screens");
+        appendMatrixRows(markdown, "blockEntities", inventory.blockEntities(), "ADAPTERCORE_BACKED", "blocks");
+        appendMatrixRows(markdown, "effects", inventory.effects(), "ADAPTERCORE_BACKED", "gameplay");
+        appendMatrixRows(markdown, "components", inventory.components(), "ADAPTERCORE_BACKED", "data");
+        appendMatrixRows(markdown, "recipes", inventory.recipes(), "DATA_DRIVEN_SHARED", "recipes");
+        appendMatrixRows(markdown, "lootTables", inventory.lootTables(), "DATA_DRIVEN_SHARED", "loot");
+        appendMatrixRows(markdown, "lootModifiers", inventory.lootModifiers(), "DATA_DRIVEN_SHARED", "loot");
+        appendMatrixRows(markdown, "missions", inventory.missions(), "DATA_DRIVEN_SHARED", "missions");
+        appendMatrixRows(markdown, "structures", inventory.structures(), "DATA_DRIVEN_SHARED", "structures");
+        appendMatrixRows(markdown, "worldRegions", inventory.worldRegions(), "DATA_DRIVEN_SHARED", "worldgen");
+        appendMatrixRows(markdown, "worldHazards", inventory.worldHazards(), "DATA_DRIVEN_SHARED", "worldgen");
+        markdown.append("\n");
+        return markdown.toString();
+    }
+
+    private static void appendMatrixRows(
+            StringBuilder markdown,
+            String category,
+            Set<String> ids,
+            String status,
+            String domain
+    ) {
+        for (String id : ids.stream().sorted().toList()) {
+            markdown.append("| `")
+                    .append(category)
+                    .append(":")
+                    .append(id)
+                    .append("` | `")
+                    .append(status)
+                    .append("` | `")
+                    .append(domain)
+                    .append("` | generated from current Ashfall source inventory | implemented/shared |  | ")
+                    .append(status.equals("DATA_DRIVEN_SHARED")
+                            ? "Loaded through shared standalone data runtime."
+                            : "AdapterCore implementation target.")
+                    .append(" |\n");
+        }
+    }
+
     private static String ashfallInventoryJson(NeoForgeFeatureInventory inventory) {
-        int dataDrivenRows = inventory.recipes().size()
-                + inventory.lootTables().size()
-                + inventory.lootModifiers().size()
-                + inventory.missions().size()
-                + inventory.structures().size()
-                + inventory.worldRegions().size()
-                + inventory.worldHazards().size();
+        int dataDrivenRows = dataDrivenRows(inventory);
         int adapterBackedRows = inventory.totalScannedFeatures() - dataDrivenRows;
         StringBuilder json = new StringBuilder();
         json.append("{\n");
@@ -758,6 +828,16 @@ public final class EchoRuntimeAshfallAdapterCoreParitySmokeHarness {
         json.append("\n  ]\n");
         json.append("}\n");
         return json.toString();
+    }
+
+    private static int dataDrivenRows(NeoForgeFeatureInventory inventory) {
+        return inventory.recipes().size()
+                + inventory.lootTables().size()
+                + inventory.lootModifiers().size()
+                + inventory.missions().size()
+                + inventory.structures().size()
+                + inventory.worldRegions().size()
+                + inventory.worldHazards().size();
     }
 
     private static void appendInventoryRows(

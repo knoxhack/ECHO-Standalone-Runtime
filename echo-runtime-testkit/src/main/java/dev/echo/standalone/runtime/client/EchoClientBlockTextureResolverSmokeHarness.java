@@ -9,6 +9,7 @@ import dev.echo.standalone.runtime.assets.EchoItemTextureResolver;
 import dev.echo.standalone.runtime.assets.EchoMissingTexture;
 import dev.echo.standalone.runtime.assets.EchoMinecraftAssetResolver;
 import dev.echo.standalone.runtime.core.EchoDefaultRuntimeServiceRegistry;
+import dev.echo.standalone.runtime.render.EchoVoxelMeshDirection;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -104,6 +105,42 @@ public final class EchoClientBlockTextureResolverSmokeHarness {
                   "parent": "minecraft:block/cube_all",
                   "textures": {
                     "all": "facetest:block/stateful_panel_on"
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/uv_unlocked_y90.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/uv_marker", "y": 90 }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/uv_locked_y90.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/uv_marker", "y": 90, "uvlock": true }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/uv_unlocked_x90.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/uv_marker", "x": 90 }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/blockstates/uv_locked_x90.json"), """
+                {
+                  "variants": {
+                    "": { "model": "facetest:block/uv_marker", "x": 90, "uvlock": true }
+                  }
+                }
+                """);
+        write(root.resolve("assets/facetest/models/block/uv_marker.json"), """
+                {
+                  "parent": "minecraft:block/cube_all",
+                  "textures": {
+                    "all": "facetest:block/uv_marker"
                   }
                 }
                 """);
@@ -252,6 +289,7 @@ public final class EchoClientBlockTextureResolverSmokeHarness {
                 """);
         write(root.resolve("assets/facetest/textures/block/copper_pillar_side.png"), "fake-side-texture");
         write(root.resolve("assets/facetest/textures/block/copper_pillar_end.png"), "fake-end-texture");
+        write(root.resolve("assets/facetest/textures/block/uv_marker.png"), "fake-uv-marker-texture");
         writeAnimatedStrip(
                 root.resolve("assets/facetest/textures/block/animated_panel.png"),
                 16,
@@ -325,6 +363,14 @@ public final class EchoClientBlockTextureResolverSmokeHarness {
                 "Blockstate variants should select the model matching powered=true");
         require(poweredOnResolution.textureId().orElse("").equals("facetest:block/stateful_panel_on"),
                 "State-aware blockstate resolution should drive active-state texture selection");
+        EchoBlockTextureResolver.EchoBlockTextureResolution uvUnlockedYResolution =
+                resolver.resolve("facetest:uv_unlocked_y90");
+        EchoBlockTextureResolver.EchoBlockTextureResolution uvLockedYResolution =
+                resolver.resolve("facetest:uv_locked_y90");
+        require(uvUnlockedYResolution.yRotationDegrees() == 90 && !uvUnlockedYResolution.uvLock(),
+                "Blockstate variants should preserve unlocked Y rotation metadata");
+        require(uvLockedYResolution.yRotationDegrees() == 90 && uvLockedYResolution.uvLock(),
+                "Blockstate variants should preserve locked Y rotation metadata");
 
         EchoBlockTextureResolver.EchoBlockTextureResolution multipartResolution = resolver.resolve("facetest:pipe_post");
         require(multipartResolution.resolved(),
@@ -416,6 +462,7 @@ public final class EchoClientBlockTextureResolverSmokeHarness {
         require(atlas.blockTextureResolutionCacheHitCount() > modelResolutionHits
                         && atlas.cachedBlockTextureResolutionCount() > 0,
                 "Repeated model-resolved block textures should reuse the block texture resolution cache");
+        requireUvLockPlans(atlas);
         int plannedModelTileCount = atlas.plannedAtlasTileCount(
                 Map.of("facetest/animated_panel_block", 0xFFFFFFFF),
                 Map.of("voxel:block/facetest:animated_panel_block", "facetest/animated_panel_block"),
@@ -525,6 +572,59 @@ public final class EchoClientBlockTextureResolverSmokeHarness {
 
         System.out.println("client block texture resolver smoke PASS block=facetest:copper_pillar template="
                 + resolution.templateKind().orElse("<missing>"));
+    }
+
+    private static void requireUvLockPlans(EchoClientTextureAtlas atlas) {
+        EchoClientTextureAtlas.BlockRenderPlan unlockedY = atlas.planBlockModel(
+                new EchoClientTextureAtlas.BlockModelRequest(
+                        "facetest:uv_unlocked_y90",
+                        Map.of(),
+                        "facetest/uv_unlocked_y90"
+                )
+        );
+        EchoClientTextureAtlas.BlockRenderPlan lockedY = atlas.planBlockModel(
+                new EchoClientTextureAtlas.BlockModelRequest(
+                        "facetest:uv_locked_y90",
+                        Map.of(),
+                        "facetest/uv_locked_y90"
+                )
+        );
+        require(unlockedY.resolved() && lockedY.resolved(),
+                "UV lock fixture block models should resolve before atlas planning assertions");
+        require(unlockedY.yRotationDegrees() == 90 && !unlockedY.uvLock(),
+                "Unlocked Y-rotated block render plan should retain model rotation metadata");
+        require(lockedY.yRotationDegrees() == 90 && lockedY.uvLock(),
+                "UV-locked Y-rotated block render plan should retain uvlock metadata");
+        require(unlockedY.uvRotationDegrees(EchoVoxelMeshDirection.UP) == 270,
+                "Unlocked Y-rotated top faces should rotate UVs with the model");
+        require(lockedY.uvRotationDegrees(EchoVoxelMeshDirection.UP) == 0,
+                "UV-locked Y-rotated top faces should keep world-locked UV orientation");
+        require(unlockedY.uvRotationDegrees(EchoVoxelMeshDirection.NORTH) == 0
+                        && lockedY.uvRotationDegrees(EchoVoxelMeshDirection.NORTH) == 0,
+                "Y-rotated side faces should remain upright with or without uvlock");
+
+        EchoClientTextureAtlas.BlockRenderPlan unlockedX = atlas.planBlockModel(
+                new EchoClientTextureAtlas.BlockModelRequest(
+                        "facetest:uv_unlocked_x90",
+                        Map.of(),
+                        "facetest/uv_unlocked_x90"
+                )
+        );
+        EchoClientTextureAtlas.BlockRenderPlan lockedX = atlas.planBlockModel(
+                new EchoClientTextureAtlas.BlockModelRequest(
+                        "facetest:uv_locked_x90",
+                        Map.of(),
+                        "facetest/uv_locked_x90"
+                )
+        );
+        require(unlockedX.xRotationDegrees() == 90 && !unlockedX.uvLock(),
+                "Unlocked X-rotated block render plan should retain model rotation metadata");
+        require(lockedX.xRotationDegrees() == 90 && lockedX.uvLock(),
+                "UV-locked X-rotated block render plan should retain uvlock metadata");
+        require(unlockedX.uvRotationDegrees(EchoVoxelMeshDirection.NORTH) == 180,
+                "Unlocked X-rotated side faces should rotate UVs with the model");
+        require(lockedX.uvRotationDegrees(EchoVoxelMeshDirection.NORTH) == 0,
+                "UV-locked X-rotated side faces should keep world-locked UV orientation");
     }
 
     private static void requireSlotIconQueue(EchoClientSlotIconCache iconCache) {

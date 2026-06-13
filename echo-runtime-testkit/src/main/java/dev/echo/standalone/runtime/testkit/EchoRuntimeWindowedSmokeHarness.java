@@ -216,15 +216,16 @@ public final class EchoRuntimeWindowedSmokeHarness {
             EchoRuntimeBootResult deterministicLiveBoot
     ) throws IOException {
         Path standaloneRoot = standaloneRoot(workspaceRoot);
-        Path report = standaloneRoot.resolve("reports/echo/standalone/runtime-windowed.json");
-        Files.createDirectories(report.getParent());
-        Files.writeString(report, "{\n"
+        Path reportDir = standaloneRoot.resolve("reports/echo/standalone");
+        Files.createDirectories(reportDir);
+        Files.writeString(reportDir.resolve("runtime-windowed.json"), "{\n"
                 + "  \"schema\": \"echo.standalone.windowed_runtime.v2\",\n"
                 + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
                 + "  \"generator\": \"phase15.2-windowed-runtime\",\n"
                 + "  \"phase\": \"15.2\",\n"
                 + "  \"status\": \"PASS\",\n"
-                + "  \"summary\": \"Windowed and live-smoke runtime boot paths create the renderer lifecycle, execute the AdapterCore-backed Ashfall playable loop, close cleanly, and fail closed after a simulated window crash.\",\n"
+                + "  \"summary\": \"Headless-safe windowed and live-smoke runtime boot paths create the renderer lifecycle, execute the AdapterCore-backed Ashfall playable loop, close cleanly, and fail closed after a simulated window crash.\",\n"
+                + "  \"headlessSmoke\": " + Boolean.getBoolean("java.awt.headless") + ",\n"
                 + "  \"windowedExitCode\": " + windowedBoot.exitCode().code() + ",\n"
                 + "  \"windowedLifecycle\": \"" + windowedBoot.finalLifecycle().id() + "\",\n"
                 + "  \"windowedAdapterCoreRuntimeBridgeActive\": "
@@ -255,6 +256,90 @@ public final class EchoRuntimeWindowedSmokeHarness {
                 + "    \"controller\": \"dev.echo.standalone.runtime.render.EchoRenderWindowLifecycleController\"\n"
                 + "  }\n"
                 + "}\n");
+        Files.writeString(reportDir.resolve("window-lifecycle.json"), windowLifecycleReport(normal));
+        Files.writeString(reportDir.resolve("window-resize.json"), windowResizeReport(normal));
+        Files.writeString(reportDir.resolve("window-mode-switch.json"), windowModeSwitchReport(normal));
+        Files.writeString(reportDir.resolve("window-close.json"), windowCloseReport(normal));
+        Files.writeString(reportDir.resolve("window-crash-shutdown.json"), windowCrashShutdownReport(crashedWindow, crashedBoot));
+    }
+
+    private static String windowLifecycleReport(EchoRenderWindowLifecycleResult normal) {
+        return "{\n"
+                + "  \"schema\": \"echo.standalone.window_lifecycle.v2\",\n"
+                + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
+                + "  \"generator\": \"phase15.2-windowed-runtime\",\n"
+                + "  \"status\": \"PASS\",\n"
+                + "  \"headlessSmoke\": " + Boolean.getBoolean("java.awt.headless") + ",\n"
+                + "  \"created\": " + hasEvent(normal, EchoRenderWindowEventType.CREATED) + ",\n"
+                + "  \"resized\": " + hasEvent(normal, EchoRenderWindowEventType.RESIZED) + ",\n"
+                + "  \"fullscreenEntered\": " + hasEvent(normal, EchoRenderWindowEventType.FULLSCREEN_ENTERED) + ",\n"
+                + "  \"windowedEntered\": " + hasEvent(normal, EchoRenderWindowEventType.WINDOWED_ENTERED) + ",\n"
+                + "  \"eventCount\": " + normal.events().size() + ",\n"
+                + "  \"finalOpen\": " + normal.finalState().open() + ",\n"
+                + "  \"closedSafely\": " + normal.closedSafely() + "\n"
+                + "}\n";
+    }
+
+    private static String windowResizeReport(EchoRenderWindowLifecycleResult normal) {
+        return "{\n"
+                + "  \"schema\": \"echo.standalone.window_resize.v2\",\n"
+                + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
+                + "  \"generator\": \"phase15.2-windowed-runtime\",\n"
+                + "  \"status\": \"PASS\",\n"
+                + "  \"headlessSmoke\": " + Boolean.getBoolean("java.awt.headless") + ",\n"
+                + "  \"resizeEventRecorded\": " + hasEvent(normal, EchoRenderWindowEventType.RESIZED) + ",\n"
+                + "  \"resizedWidth\": 1600,\n"
+                + "  \"resizedHeight\": 900,\n"
+                + "  \"finalWidth\": " + normal.finalState().viewport().width() + ",\n"
+                + "  \"finalHeight\": " + normal.finalState().viewport().height() + "\n"
+                + "}\n";
+    }
+
+    private static String windowModeSwitchReport(EchoRenderWindowLifecycleResult normal) {
+        return "{\n"
+                + "  \"schema\": \"echo.standalone.window_mode_switch.v2\",\n"
+                + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
+                + "  \"generator\": \"phase15.2-windowed-runtime\",\n"
+                + "  \"status\": \"PASS\",\n"
+                + "  \"headlessSmoke\": " + Boolean.getBoolean("java.awt.headless") + ",\n"
+                + "  \"fullscreenEntered\": " + hasEvent(normal, EchoRenderWindowEventType.FULLSCREEN_ENTERED) + ",\n"
+                + "  \"windowedEntered\": " + hasEvent(normal, EchoRenderWindowEventType.WINDOWED_ENTERED) + ",\n"
+                + "  \"finalMode\": \"" + normal.finalState().mode().name().toLowerCase() + "\"\n"
+                + "}\n";
+    }
+
+    private static String windowCloseReport(EchoRenderWindowLifecycleResult normal) {
+        return "{\n"
+                + "  \"schema\": \"echo.standalone.window_close.v2\",\n"
+                + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
+                + "  \"generator\": \"phase15.2-windowed-runtime\",\n"
+                + "  \"status\": \"PASS\",\n"
+                + "  \"headlessSmoke\": " + Boolean.getBoolean("java.awt.headless") + ",\n"
+                + "  \"closeRequested\": " + hasEvent(normal, EchoRenderWindowEventType.CLOSE_REQUESTED) + ",\n"
+                + "  \"closed\": " + hasEvent(normal, EchoRenderWindowEventType.CLOSED) + ",\n"
+                + "  \"closedSafely\": " + normal.closedSafely() + ",\n"
+                + "  \"finalOpen\": " + normal.finalState().open() + ",\n"
+                + "  \"finalCloseRequested\": " + normal.finalState().closeRequested() + "\n"
+                + "}\n";
+    }
+
+    private static String windowCrashShutdownReport(
+            EchoRenderWindowLifecycleResult crashedWindow,
+            EchoRuntimeBootResult crashedBoot
+    ) {
+        return "{\n"
+                + "  \"schema\": \"echo.standalone.window_crash_shutdown.v2\",\n"
+                + "  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n"
+                + "  \"generator\": \"phase15.2-windowed-runtime\",\n"
+                + "  \"status\": \"PASS\",\n"
+                + "  \"headlessSmoke\": " + Boolean.getBoolean("java.awt.headless") + ",\n"
+                + "  \"crashHandled\": " + crashedWindow.crashHandled() + ",\n"
+                + "  \"closedSafely\": " + crashedWindow.closedSafely() + ",\n"
+                + "  \"crashSafeClosed\": " + hasEvent(crashedWindow, EchoRenderWindowEventType.CRASH_SAFE_CLOSED) + ",\n"
+                + "  \"crashBootExitCode\": " + crashedBoot.exitCode().code() + ",\n"
+                + "  \"crashBootLifecycle\": \"" + crashedBoot.finalLifecycle().id() + "\",\n"
+                + "  \"crashBootHandled\": " + crashedBoot.crashHandled() + "\n"
+                + "}\n";
     }
 
     private static String escape(String value) {
@@ -267,7 +352,11 @@ public final class EchoRuntimeWindowedSmokeHarness {
 
     private static Path standaloneRoot(Path workspaceRoot) {
         if (workspaceRoot.getFileName() != null
-                && workspaceRoot.getFileName().toString().equals("echo-standalone-runtime")) {
+                && workspaceRoot.getFileName().toString().equalsIgnoreCase("echo-standalone-runtime")) {
+            return workspaceRoot;
+        }
+        if (Files.isDirectory(workspaceRoot.resolve("echo-runtime-app"))
+                && Files.isRegularFile(workspaceRoot.resolve("settings.gradle"))) {
             return workspaceRoot;
         }
         Path nested = workspaceRoot.resolve("echo-standalone-runtime");

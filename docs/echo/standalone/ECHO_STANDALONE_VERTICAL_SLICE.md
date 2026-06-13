@@ -77,6 +77,7 @@ The manifest reloads with three files and the corruption check is healthy.
 - scripting and compatibility results remain available during the slice.
 - save/load round trip is healthy.
 - render and audio backends close cleanly.
+- non-placeholder evidence is written to `runtime-vertical-slice.json` plus the `vertical-slice-*` boot, world, player, terminal, inventory, hazard, objective, render/audio, network, save/load, and clean-exit reports; `verifyStandaloneVerticalSliceRuntime` rejects bootstrap schemas for these reports.
 
 ## Out Of Scope
 

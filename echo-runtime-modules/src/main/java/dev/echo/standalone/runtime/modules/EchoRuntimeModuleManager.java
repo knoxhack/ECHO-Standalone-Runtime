@@ -93,6 +93,7 @@ public final class EchoRuntimeModuleManager {
         );
         services.register(EchoRuntimeModuleContentActivationRegistry.class, new EchoRuntimeModuleContentActivationRegistry());
         services.register(EchoRuntimeModuleServiceExportRegistry.class, new EchoRuntimeModuleServiceExportRegistry());
+        services.register(EchoRuntimeModuleDataRegistry.class, new EchoRuntimeModuleDataRegistry());
         classifyRuntimeStatuses(registry, graph);
         loader.load(registry, graph, services);
         serviceBinder.bind(services, registry, graph, featureGraph);
@@ -162,6 +163,12 @@ public final class EchoRuntimeModuleManager {
                         descriptor.id(),
                         EchoRuntimeModuleStatus.RUNTIME_DISABLED_WITH_REASON,
                         "descriptor standalone=false"
+                );
+            } else if (forceStandaloneExecution(descriptor)) {
+                registry.setRuntimeStatus(
+                        descriptor.id(),
+                        EchoRuntimeModuleStatus.RUNTIME_ACTIVE,
+                        "descriptor access.forceStandaloneExecution=true"
                 );
             } else if (isDevOnly(descriptor)) {
                 registry.setRuntimeStatus(
@@ -233,6 +240,11 @@ public final class EchoRuntimeModuleManager {
                 || role.contains("metadata")
                 || role.contains("module_graph")
                 || role.contains("asset_tooling");
+    }
+
+    private static boolean forceStandaloneExecution(EchoRuntimeModuleDescriptor descriptor) {
+        Object value = descriptor.access().get("forceStandaloneExecution");
+        return Boolean.TRUE.equals(value) || "true".equalsIgnoreCase(String.valueOf(value));
     }
 
     @SafeVarargs

@@ -145,10 +145,25 @@ final class EchoClientEntityRuntime {
         if (player == null || damage <= 0) {
             return EchoClientEntityAttackResult.miss("invalid_attack");
         }
-        TargetCandidate target = nearestAttackTarget(player, maxDistance);
+        TargetCandidate target = nearestAttackTarget(player, maxDistance, true);
         if (target == null) {
             return EchoClientEntityAttackResult.miss("no_target");
         }
+        return applyAttack(target, damage);
+    }
+
+    EchoClientEntityAttackResult attackNearestProjectile(EchoVoxelPlayerState player, double maxDistance, int damage) {
+        if (player == null || damage <= 0) {
+            return EchoClientEntityAttackResult.miss("invalid_projectile");
+        }
+        TargetCandidate target = nearestAttackTarget(player, maxDistance, false);
+        if (target == null) {
+            return EchoClientEntityAttackResult.miss("no_target");
+        }
+        return applyAttack(target, damage);
+    }
+
+    private EchoClientEntityAttackResult applyAttack(TargetCandidate target, int damage) {
         EchoEntityState before = target.entity();
         EchoEntityState after = before.withHealth(before.health().damage(damage));
         if (after.alive()) {
@@ -350,10 +365,9 @@ final class EchoClientEntityRuntime {
         return Double.doubleToLongBits(left) == Double.doubleToLongBits(right);
     }
 
-    private TargetCandidate nearestAttackTarget(EchoVoxelPlayerState player, double maxDistance) {
-        double reach = Double.isFinite(maxDistance)
-                ? Math.max(0.0D, Math.min(player.reach(), maxDistance))
-                : player.reach();
+    private TargetCandidate nearestAttackTarget(EchoVoxelPlayerState player, double maxDistance, boolean clampToPlayerReach) {
+        double requestedReach = Double.isFinite(maxDistance) ? Math.max(0.0D, maxDistance) : player.reach();
+        double reach = clampToPlayerReach ? Math.min(player.reach(), requestedReach) : requestedReach;
         if (reach <= 0.0D) {
             return null;
         }

@@ -1,6 +1,15 @@
 package dev.echo.standalone.runtime.client;
 
 final class EchoClientUiRenderer {
+    private static final int MAIN_MENU_TERRAIN_LAYERS = 2;
+    private static final int MAIN_MENU_TERRAIN_STEPS = 6;
+    private static final int MAIN_MENU_ATMOSPHERIC_STREAKS = 6;
+    private static final int MAIN_MENU_PANORAMA_SEMANTIC_LAYERS = 6;
+    private static final int MAIN_MENU_PANORAMA_LINE_BUDGET =
+            MAIN_MENU_TERRAIN_LAYERS * MAIN_MENU_TERRAIN_STEPS
+                    + MAIN_MENU_ATMOSPHERIC_STREAKS
+                    + 1;
+
     private final EchoClientFontRenderer font = new EchoClientFontRenderer();
     private final EchoClientNineSliceRenderer panels = new EchoClientNineSliceRenderer();
     private final EchoClientSaveSlotThumbnailTextureCache saveSlotThumbnails =
@@ -46,7 +55,11 @@ final class EchoClientUiRenderer {
         String loadingTip = loadingTip(screen);
         return new EchoClientUiVisualPlan(
                 mainMenuPanorama,
-                mainMenuPanorama ? 6 : 0,
+                mainMenuPanorama ? MAIN_MENU_PANORAMA_SEMANTIC_LAYERS : 0,
+                mainMenuPanorama ? MAIN_MENU_TERRAIN_LAYERS : 0,
+                mainMenuPanorama ? MAIN_MENU_TERRAIN_STEPS : 0,
+                mainMenuPanorama ? MAIN_MENU_ATMOSPHERIC_STREAKS : 0,
+                mainMenuPanorama ? MAIN_MENU_PANORAMA_LINE_BUDGET : 0,
                 seed,
                 loadingTipKey(screen),
                 loadingTip,
@@ -80,15 +93,15 @@ final class EchoClientUiRenderer {
         hud2d.rect(0, horizon + 28, w, h - horizon - 28, 0.090f, 0.075f, 0.058f, 0.96f);
         hud2d.rect(0, horizon + 76, w, Math.max(40, h - horizon - 76), 0.045f, 0.060f, 0.052f, 0.78f);
 
-        for (int layer = 0; layer < 3; layer++) {
+        for (int layer = 0; layer < plan.panoramaTerrainLayers(); layer++) {
             float yBase = horizon - 64 + layer * 28;
             float r = 0.075f + layer * 0.025f;
             float g = 0.120f + layer * 0.030f;
             float b = 0.120f + layer * 0.018f;
             float previousX = 0.0f;
             float previousY = yBase + terrainOffset(plan.panoramaSeed(), layer, 0);
-            for (int step = 1; step <= 9; step++) {
-                float x = w * (step / 9.0f);
+            for (int step = 1; step <= plan.panoramaTerrainSteps(); step++) {
+                float x = w * (step / (float) plan.panoramaTerrainSteps());
                 float y = yBase + terrainOffset(plan.panoramaSeed(), layer, step);
                 hud2d.line(previousX, previousY, x, y, r, g, b, 0.72f - layer * 0.12f, 10.0f - layer * 2.0f);
                 previousX = x;
@@ -110,7 +123,7 @@ final class EchoClientUiRenderer {
         hud2d.rect(beaconX - 10, crashY - 24, 32, 8, 0.26f, 0.74f, 0.66f, 0.62f);
         hud2d.line(beaconX + 6, crashY - 40, beaconX + 6, 52, 0.22f, 0.82f, 0.74f, 0.20f, 3.0f);
 
-        for (int i = 0; i < 18; i++) {
+        for (int i = 0; i < plan.panoramaAtmosphericStreaks(); i++) {
             float x = (float) Math.floorMod(plan.panoramaSeed() + i * 89, Math.max(1, w));
             float y = 68 + (i % 7) * 31;
             hud2d.line(x, y, x + 24, y + 9, 0.62f, 0.68f, 0.62f, 0.22f, 2.0f);

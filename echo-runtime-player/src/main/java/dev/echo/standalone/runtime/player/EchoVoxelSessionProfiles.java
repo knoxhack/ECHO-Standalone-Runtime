@@ -20,4 +20,19 @@ public final class EchoVoxelSessionProfiles {
                 EchoVoxelHotbarProfiles.ashfallStarter(Objects.requireNonNull(buildBlock, "buildBlock"))
         );
     }
+
+    public static EchoVoxelSessionRuntimeProfile openlandsFirstHour(
+            Function<String, EchoVoxelBlock> blockLookup,
+            EchoVoxelBlock planks,
+            EchoVoxelBlock campfire,
+            int streamRadius
+    ) {
+        return new EchoVoxelSessionRuntimeProfile(
+                EchoVoxelWorldProfiles.openlandsFirstHour(Objects.requireNonNull(blockLookup, "blockLookup"), streamRadius),
+                EchoVoxelHotbarProfiles.openlandsStarter(
+                        Objects.requireNonNull(planks, "planks"),
+                        Objects.requireNonNull(campfire, "campfire")
+                )
+        );
+    }
 }

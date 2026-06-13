@@ -68,6 +68,8 @@ The software backend is still display-free. It opens a logical window, rasterize
 - framebuffer checksum is deterministic and non-zero.
 - the recording backend compatibility path still records one frame.
 
+The harness also writes concrete non-placeholder evidence to the Phase 15.5 render reports under `reports/echo/standalone`. `verifyStandaloneRenderRuntime` regenerates those reports, rejects bootstrap schemas, and requires PASS evidence for service binding, the software backend, logical headless window state, scene command composition, camera samples, layer counts, world/entity/particle/UI rendering, framebuffer diagnostics, lighting coverage, checksum output, and display-free renderer boundaries.
+
 ## Out Of Scope
 
 Phase 15.5 does not create an OS window or GPU context. Native device-backed rendering, texture atlases, shader pipelines, font shaping, animation blending, and presentation timing remain future renderer work.

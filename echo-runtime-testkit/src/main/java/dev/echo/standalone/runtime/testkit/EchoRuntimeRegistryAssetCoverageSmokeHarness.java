@@ -272,6 +272,7 @@ public final class EchoRuntimeRegistryAssetCoverageSmokeHarness {
         addIfDirectory(roots, echoRoot.resolve("src/main/resources"));
         addModuleResourceRoots(roots, echoRoot.resolve("core"));
         addModuleResourceRoots(roots, echoRoot.resolve("addons"));
+        addConfiguredModuleResourceRoots(roots, standaloneRoot);
         addChildren(roots, standaloneRoot.resolve("resourcepacks"));
         addChildren(roots, standaloneRoot.resolve("packs"));
         addChildren(roots, Path.of("resourcepacks"));
@@ -283,6 +284,30 @@ public final class EchoRuntimeRegistryAssetCoverageSmokeHarness {
             mounts.add(new EchoAssetMount(order++, "registry-asset-coverage", root, mountId(standaloneRoot, root)));
         }
         return List.copyOf(mounts);
+    }
+
+    private static void addConfiguredModuleResourceRoots(LinkedHashSet<Path> result, Path standaloneRoot)
+            throws IOException {
+        addModuleResourceRoots(result, configuredModulesRoot());
+        Path parent = standaloneRoot.getParent();
+        if (parent != null) {
+            addModuleResourceRoots(result, parent.resolve("ECHO-Modules/addons"));
+            addModuleResourceRoots(result, parent.resolve("ECHO-Modules/core"));
+            addModuleResourceRoots(result, parent.resolve("addons"));
+            addModuleResourceRoots(result, parent.resolve("core"));
+        }
+    }
+
+    private static Path configuredModulesRoot() {
+        String property = System.getProperty("echo.modules.root", "");
+        if (property != null && !property.isBlank()) {
+            return Path.of(property);
+        }
+        String environment = System.getenv("ECHO_MODULES_ROOT");
+        if (environment != null && !environment.isBlank()) {
+            return Path.of(environment);
+        }
+        return Path.of("");
     }
 
     private static void addModuleResourceRoots(LinkedHashSet<Path> result, Path modulesRoot) throws IOException {
@@ -773,9 +798,12 @@ public final class EchoRuntimeRegistryAssetCoverageSmokeHarness {
             json.append("  \"generatedAt\": \"1970-01-01T00:00:00Z\",\n");
             json.append("  \"generator\": \"runStandaloneRegistryAssetCoverageAudit\",\n");
             json.append("  \"phase\": \"3/4\",\n");
-            json.append("  \"status\": \"PASS\",\n");
+            json.append("  \"status\": \"").append(incompleteEntries() == 0 ? "PASS" : "PASS_WITH_GAPS").append("\",\n");
             json.append("  \"coverageComplete\": ").append(incompleteEntries() == 0).append(",\n");
-            json.append("  \"summary\": \"Registry-backed block/item asset coverage is audited through the mounted Minecraft resource-pack resolver; incomplete rows remain listed as actionable Phase 3/4 gaps.\",\n");
+            String summary = incompleteEntries() == 0
+                    ? "Registry-backed block/item asset coverage is audited through the mounted Minecraft resource-pack resolver; all live AdapterCore registry rows resolve blockstates, models, textures, and lang keys."
+                    : "Registry-backed block/item asset coverage is audited through the mounted Minecraft resource-pack resolver; incomplete rows remain listed as actionable Phase 3/4 gaps instead of passing as bootstrap evidence.";
+            json.append("  \"summary\": \"").append(summary).append("\",\n");
             json.append("  \"workspace\": {\n");
             json.append("    \"standaloneRoot\": \"").append(escape(standaloneRoot.toString().replace('\\', '/'))).append("\",\n");
             json.append("    \"echoRoot\": \"").append(escape(echoRoot.toString().replace('\\', '/'))).append("\"\n");

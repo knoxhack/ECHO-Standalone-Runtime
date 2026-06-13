@@ -236,9 +236,11 @@ public final class EchoDataRuntime {
         ArrayList<EchoDataDocument> documents = new ArrayList<>();
         for (String logicalId : logicalIds.stream().sorted().toList()) {
             EchoAssetEntry entry = assets.index().resolve(logicalId).orElseThrow();
-            boolean supportedCategory = List.of("schemas", "registries", "tags", "recipes", "recipe", "loot_tables",
+            boolean supportedCategory = List.of("schemas", "tags", "recipes", "recipe", "loot_tables",
                             "loot_table", "loot_modifiers", "missioncore")
                     .contains(entry.category())
+                    || "registries".equals(entry.category())
+                    && supportedRegistryPath(entry.relativePath())
                     || "worldgen".equals(entry.category())
                     && supportedWorldgenPath(entry.relativePath())
                     || "echoworldcore".equals(entry.category())
@@ -1320,6 +1322,15 @@ public final class EchoDataRuntime {
                 || relativePath.startsWith("worldgen/biome/")
                 || relativePath.startsWith("worldgen/configured_feature/")
                 || relativePath.startsWith("worldgen/placed_feature/");
+    }
+
+    private static boolean supportedRegistryPath(String relativePath) {
+        if (!relativePath.startsWith("registries/")) {
+            return false;
+        }
+        String tail = relativePath.substring("registries/".length());
+        int slash = tail.indexOf('/');
+        return slash > 0 && slash + 1 < tail.length();
     }
 
     private static boolean supportedWorldCorePath(String relativePath) {

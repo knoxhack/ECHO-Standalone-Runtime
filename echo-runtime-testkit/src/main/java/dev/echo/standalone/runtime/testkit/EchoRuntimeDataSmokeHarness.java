@@ -20,6 +20,7 @@ import dev.echo.standalone.runtime.data.EchoWorldgenFeatureDefinition;
 import dev.echo.standalone.runtime.data.EchoWorldgenFeatureRegistry;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -442,6 +443,7 @@ public final class EchoRuntimeDataSmokeHarness {
             freezeRejected = true;
         }
         require(freezeRejected, "frozen registry should reject late writes");
+        writeReports(Path.of(".").toAbsolutePath().normalize(), data, services, freezeRejected);
 
         System.out.println("phase14.8 data runtime smoke PASS registries="
                 + data.registries().registries().size()
@@ -473,9 +475,264 @@ public final class EchoRuntimeDataSmokeHarness {
                 + data.freezeReport().frozen());
     }
 
+    private static void writeReports(
+            Path standaloneRoot,
+            EchoDataRuntimeResult data,
+            EchoDefaultRuntimeServiceRegistry services,
+            boolean freezeRejected
+    ) throws IOException {
+        Path root = standaloneRoot.resolve("reports/echo/standalone");
+        Files.createDirectories(root);
+        EchoDataRegistry items = data.registries().registry("items").orElseThrow();
+        EchoRecipeDefinition powerCell = data.recipes().find("ashfall:power_cell").orElseThrow();
+        EchoRecipeDefinition cleanGlass = data.recipes().find("ashfall:clean_glass_smelting").orElseThrow();
+
+        write(root.resolve("runtime-data.json"), """
+                {
+                  "schema": "echo.standalone.runtime_data.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "documents": %d,
+                  "schemas": %d,
+                  "registries": %d,
+                  "registryEntries": %d,
+                  "tags": %d,
+                  "recipes": %d,
+                  "lootTables": %d,
+                  "missions": %d,
+                  "worldgenStructures": %d,
+                  "worldgenBiomes": %d,
+                  "worldgenFeatures": %d,
+                  "worldCoreRegions": %d,
+                  "worldCoreHazards": %d,
+                  "sounds": %d,
+                  "validationOk": %s,
+                  "freezePolicy": "%s",
+                  "frozen": %s,
+                  "serviceBound": %s,
+                  "worldgenBiomeRegistryBound": %s,
+                  "worldCoreRegionRegistryBound": %s,
+                  "soundRegistryBound": %s
+                }
+                """.formatted(
+                data.documents().size(),
+                data.schemas().schemas().size(),
+                data.registries().registries().size(),
+                data.registries().totalEntries(),
+                data.tags().tags().size(),
+                data.recipes().recipes().size(),
+                data.loot().lootTables().size(),
+                data.missions().missions().size(),
+                data.worldgenStructures().structures().size(),
+                data.worldgenBiomes().biomes().size(),
+                data.worldgenFeatures().features().size(),
+                data.worldCoreRegions().regions().size(),
+                data.worldCoreHazards().hazards().size(),
+                data.sounds().sounds().size(),
+                data.validationReport().ok(),
+                data.freezeReport().policy().name(),
+                data.freezeReport().frozen(),
+                services.find(EchoDataRuntimeResult.class).isPresent(),
+                services.find(EchoWorldgenBiomeRegistry.class).isPresent(),
+                services.find(EchoWorldCoreRegionRegistry.class).isPresent(),
+                services.find(dev.echo.standalone.runtime.data.EchoSoundRegistry.class).isPresent()
+        ));
+
+        write(root.resolve("data-registries.json"), """
+                {
+                  "schema": "echo.standalone.data_registries.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "registryCount": %d,
+                  "totalEntries": %d,
+                  "registries": %s,
+                  "itemsFrozen": %s,
+                  "ashSteelDisplayName": "%s",
+                  "toxicFilterStackSize": "%s"
+                }
+                """.formatted(
+                data.registries().registries().size(),
+                data.registries().totalEntries(),
+                jsonRegistries(data.registries().registries()),
+                items.frozen(),
+                escape(String.valueOf(items.find("ashfall:ash_steel").orElseThrow().fields().get("displayName"))),
+                escape(String.valueOf(items.find("ashfall:toxic_filter").orElseThrow().fields().get("stackSize")))
+        ));
+
+        write(root.resolve("data-schemas.json"), """
+                {
+                  "schema": "echo.standalone.data_schemas.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "schemaCount": %d,
+                  "schemas": %s,
+                  "validationOk": %s,
+                  "validationIssueCount": %d,
+                  "itemsSchemaRequiredFields": %s,
+                  "frozen": %s
+                }
+                """.formatted(
+                data.schemas().schemas().size(),
+                jsonSchemas(data.schemas().schemas()),
+                data.validationReport().ok(),
+                data.validationReport().issues().size(),
+                jsonArray(data.schemas().schemaFor("items").orElseThrow().requiredFields()),
+                data.schemas().frozen()
+        ));
+
+        write(root.resolve("data-tags.json"), """
+                {
+                  "schema": "echo.standalone.data_tags.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "tagCount": %d,
+                  "tags": %s,
+                  "scrapValues": %s,
+                  "frozen": %s
+                }
+                """.formatted(
+                data.tags().tags().size(),
+                jsonTags(data.tags().tags()),
+                jsonArray(data.tags().find("ashfall:scrap").orElseThrow().values()),
+                data.tags().frozen()
+        ));
+
+        write(root.resolve("data-recipes.json"), """
+                {
+                  "schema": "echo.standalone.data_recipes.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "recipeCount": %d,
+                  "recipeIds": %s,
+                  "shapedPowerCellResult": "%s",
+                  "shapedPowerCellResultCount": %d,
+                  "shapedPowerCellGroup": "%s",
+                  "shapedPowerCellCategory": "%s",
+                  "shapedPowerCellPattern": %s,
+                  "shapedPowerCellIngredientCounts": %s,
+                  "smeltingCleanGlassResult": "%s",
+                  "smeltingCleanGlassResultCount": %d,
+                  "smeltingCleanGlassCategory": "%s",
+                  "smeltingCleanGlassIngredientCounts": %s,
+                  "frozen": %s
+                }
+                """.formatted(
+                data.recipes().recipes().size(),
+                jsonArray(data.recipes().recipes().stream().map(EchoRecipeDefinition::id).toList()),
+                escape(powerCell.result()),
+                powerCell.resultCount(),
+                escape(powerCell.group()),
+                escape(powerCell.category()),
+                jsonArray(powerCell.pattern()),
+                jsonIntegerMap(powerCell.ingredientCounts()),
+                escape(cleanGlass.result()),
+                cleanGlass.resultCount(),
+                escape(cleanGlass.category()),
+                jsonIntegerMap(cleanGlass.ingredientCounts()),
+                data.recipes().frozen()
+        ));
+
+        write(root.resolve("data-loot.json"), """
+                {
+                  "schema": "echo.standalone.data_loot.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "lootTableCount": %d,
+                  "lootIds": %s,
+                  "crashCacheEntries": %s,
+                  "ashCampfireEntries": %s,
+                  "wikiManualTargets": %s,
+                  "frozen": %s
+                }
+                """.formatted(
+                data.loot().lootTables().size(),
+                jsonArray(data.loot().lootTables().stream().map(dev.echo.standalone.runtime.data.EchoLootDefinition::id).toList()),
+                jsonArray(data.loot().find("ashfall:crash_cache").orElseThrow().entries()),
+                jsonArray(data.loot().find("ashfall:blocks/ash_campfire").orElseThrow().entries()),
+                jsonArray(data.loot().find("ashfall:wiki_manual_radio_tower_cache").orElseThrow().entries()),
+                data.loot().frozen()
+        ));
+
+        write(root.resolve("data-freeze-policy.json"), """
+                {
+                  "schema": "echo.standalone.data_freeze_policy.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "policy": "%s",
+                  "frozen": %s,
+                  "frozenRegistries": %d,
+                  "frozenSupportingRegistries": %d,
+                  "lateRegistryWriteRejected": %s,
+                  "registriesFrozen": %s,
+                  "schemasFrozen": %s,
+                  "tagsFrozen": %s,
+                  "recipesFrozen": %s,
+                  "lootFrozen": %s,
+                  "worldgenFrozen": %s
+                }
+                """.formatted(
+                data.freezeReport().policy().name(),
+                data.freezeReport().frozen(),
+                data.freezeReport().frozenRegistries(),
+                data.freezeReport().frozenSupportingRegistries(),
+                freezeRejected,
+                data.registries().frozen(),
+                data.schemas().frozen(),
+                data.tags().frozen(),
+                data.recipes().frozen(),
+                data.loot().frozen(),
+                data.worldgenStructures().frozen()
+                        && data.worldgenBiomes().frozen()
+                        && data.worldgenFeatures().frozen()
+        ));
+    }
+
+    private static String jsonRegistries(List<EchoDataRegistry> registries) {
+        return registries.stream()
+                .map(registry -> "{\"registryId\": \"" + escape(registry.registryId())
+                        + "\", \"size\": " + registry.size()
+                        + ", \"entryIds\": " + jsonArray(registry.ids()) + "}")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static String jsonSchemas(List<dev.echo.standalone.runtime.data.EchoDataSchema> schemas) {
+        return schemas.stream()
+                .map(schema -> "{\"schemaId\": \"" + escape(schema.schemaId())
+                        + "\", \"registryId\": \"" + escape(schema.registryId())
+                        + "\", \"requiredFields\": " + jsonArray(schema.requiredFields())
+                        + ", \"sourceLogicalId\": \"" + escape(schema.sourceLogicalId()) + "\"}")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static String jsonTags(List<dev.echo.standalone.runtime.data.EchoDataTag> tags) {
+        return tags.stream()
+                .map(tag -> "{\"id\": \"" + escape(tag.id())
+                        + "\", \"registryId\": \"" + escape(tag.registryId())
+                        + "\", \"values\": " + jsonArray(tag.values())
+                        + ", \"sourceLogicalId\": \"" + escape(tag.sourceLogicalId()) + "\"}")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static String jsonIntegerMap(Map<String, Integer> values) {
+        return values.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> "\"" + escape(entry.getKey()) + "\": " + entry.getValue())
+                .collect(java.util.stream.Collectors.joining(", ", "{", "}"));
+    }
+
+    private static String jsonArray(List<String> values) {
+        return values.stream()
+                .map(value -> "\"" + escape(value) + "\"")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
     private static void write(Path path, String content) throws IOException {
         Files.createDirectories(path.getParent());
-        Files.writeString(path, content);
+        Files.writeString(path, content, StandardCharsets.UTF_8);
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static void require(boolean condition, String message) {

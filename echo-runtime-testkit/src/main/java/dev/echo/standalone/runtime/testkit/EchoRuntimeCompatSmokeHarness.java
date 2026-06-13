@@ -7,16 +7,21 @@ import dev.echo.standalone.runtime.compat.EchoAdapterCoreRuntimeKind;
 import dev.echo.standalone.runtime.compat.EchoAdapterCoreStandaloneContentBridge;
 import dev.echo.standalone.runtime.compat.EchoAdapterCoreStandaloneRegistry;
 import dev.echo.standalone.runtime.compat.EchoAdapterCoreDomain;
+import dev.echo.standalone.runtime.compat.EchoCompatContentMapping;
+import dev.echo.standalone.runtime.compat.EchoCompatDiagnostic;
 import dev.echo.standalone.runtime.compat.EchoCompatDiagnostics;
 import dev.echo.standalone.runtime.compat.EchoCompatMappingRegistry;
 import dev.echo.standalone.runtime.compat.EchoCompatMigrationActionKind;
 import dev.echo.standalone.runtime.compat.EchoCompatMigrationPlan;
 import dev.echo.standalone.runtime.compat.EchoCompatMigrationPlanner;
 import dev.echo.standalone.runtime.compat.EchoCompatMigrationPolicy;
+import dev.echo.standalone.runtime.compat.EchoCompatMigrationStep;
 import dev.echo.standalone.runtime.compat.EchoCompatRecipeItemBridge;
 import dev.echo.standalone.runtime.compat.EchoCompatRuntime;
 import dev.echo.standalone.runtime.compat.EchoCompatRuntimeResult;
+import dev.echo.standalone.runtime.compat.EchoCompatSourceRecord;
 import dev.echo.standalone.runtime.compat.EchoCompatTargetValidator;
+import dev.echo.standalone.runtime.compat.EchoCompatValidationIssue;
 import dev.echo.standalone.runtime.compat.EchoCompatValidationResult;
 import dev.echo.standalone.runtime.compat.EchoNeoForgeMetadataScanResult;
 import dev.echo.standalone.runtime.compat.EchoNeoForgeMetadataScanner;
@@ -311,6 +316,13 @@ public final class EchoRuntimeCompatSmokeHarness {
         require(compat.diagnostics().errorCount() == 0,
                 "compat diagnostics should not contain errors");
 
+        writeReports(
+                Path.of(".").toAbsolutePath().normalize(),
+                compat,
+                metadataScan,
+                ashfallCandidate
+        );
+
         System.out.println("phase14.17 compat runtime smoke PASS mappings="
                 + compat.mappingRegistry().count()
                 + " supported="
@@ -408,5 +420,391 @@ public final class EchoRuntimeCompatSmokeHarness {
                         .requireLiveVoxelBlock("echoruntimehost:native_runtime_glass")
                         .materialPattern() == EchoVoxelMaterialPattern.CACHE_PANEL,
                 "native block registration should be retrievable as a live voxel block after bridge import");
+    }
+
+    private static void writeReports(
+            Path workspaceRoot,
+            EchoCompatRuntimeResult compat,
+            EchoNeoForgeMetadataScanResult metadataScan,
+            EchoNeoForgeModCandidate ashfallCandidate
+    ) throws IOException {
+        Path reportDir = standaloneRoot(workspaceRoot).resolve("reports/echo/standalone");
+        Files.createDirectories(reportDir);
+
+        EchoAdapterCoreStandaloneContentBridge bridge = compat.adapterCoreBridge();
+        EchoAdapterCoreStandaloneRegistry adapterCoreRegistry = compat.adapterCoreRegistry();
+        EchoCompatMigrationPlan plan = compat.migrationPlan();
+        EchoCompatMigrationPolicy policy = compat.migrationPolicy();
+        EchoCompatValidationResult validation = compat.targetValidation();
+        EchoCompatDiagnostics diagnostics = compat.diagnostics();
+
+        Files.writeString(reportDir.resolve("runtime-compatibility.json"), """
+                {
+                  "schema": "echo.standalone.runtime_compatibility.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeCompatSmokeHarness",
+                  "status": "PASS",
+                  "phase": "14.17",
+                  "summary": "Compatibility runtime created service-bound AdapterCore, mapping, validation, migration, and diagnostics services while keeping NeoForge candidates diagnostics-only.",
+                  "runtimeResultServiceBound": true,
+                  "boundaryServiceBound": true,
+                  "adapterCoreBridgeServiceBound": true,
+                  "adapterCoreRegistryServiceBound": true,
+                  "mappingRegistryServiceBound": true,
+                  "migrationPolicyServiceBound": true,
+                  "targetValidatorServiceBound": true,
+                  "targetValidationServiceBound": true,
+                  "migrationPlannerServiceBound": true,
+                  "migrationPlanServiceBound": true,
+                  "diagnosticsServiceBound": true,
+                  "mappingCount": %d,
+                  "supportedMappingCount": %d,
+                  "manualReviewMappingCount": %d,
+                  "blockedMappingCount": %d,
+                  "sourceRecordCount": %d,
+                  "targetValidationValid": %s,
+                  "targetValidationWarnings": %d,
+                  "targetValidationErrors": %d,
+                  "migrationPlanBlocked": %s,
+                  "migrationStepCount": %d,
+                  "migrationMutationStepCount": %d,
+                  "migrationManualReviewStepCount": %d,
+                  "diagnosticCount": %d,
+                  "diagnosticWarnings": %d,
+                  "diagnosticErrors": %d,
+                  "adapterCoreBindingCount": %d,
+                  "adapterCoreReadyBindingCount": %d,
+                  "adapterCoreRegistryCount": %d,
+                  "adapterCoreSupportsAllRuntimes": %s,
+                  "rendererTarget": "%s",
+                  "neoforgeFixtureCandidates": %d,
+                  "neoforgeCandidateRuntimeStatus": "%s",
+                  "neoforgeClassloaderCreated": false,
+                  "neoforgeModuleCodeExecuted": false
+                }
+                """.formatted(
+                compat.mappingRegistry().count(),
+                compat.mappingRegistry().supportedCount(),
+                compat.mappingRegistry().manualReviewCount(),
+                compat.mappingRegistry().blockedCount(),
+                compat.sourceRecords().size(),
+                validation.valid(),
+                validation.warningCount(),
+                validation.errorCount(),
+                plan.blocked(),
+                plan.steps().size(),
+                plan.mutationStepCount(),
+                plan.manualReviewStepCount(),
+                diagnostics.count(),
+                diagnostics.warningCount(),
+                diagnostics.errorCount(),
+                bridge.bindingCount(),
+                bridge.readyBindingCount(),
+                adapterCoreRegistry.size(),
+                adapterCoreRegistry.supportsAllAdapterCoreRuntimes() && bridge.supportsAllAdapterCoreRuntimes(),
+                escape(bridge.renderTarget().adapterId()),
+                metadataScan.candidateCount(),
+                escape(ashfallCandidate.runtimeStatus())
+        ));
+
+        Files.writeString(reportDir.resolve("compatibility-boundary.json"), """
+                {
+                  "schema": "echo.standalone.compatibility_boundary.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeCompatSmokeHarness",
+                  "status": "PASS",
+                  "adapterRuleCount": %d,
+                  "adapterRules": %s,
+                  "contractsStayAdapterFree": %s,
+                  "minecraftNeoForgeBridgesStayOutOfContracts": %s,
+                  "adapterCoreIdsCanonicalAcrossRuntimes": %s,
+                  "liveClientRendererTarget": "%s",
+                  "migrationPlansBeforeMutation": %s
+                }
+                """.formatted(
+                EchoRuntimeCompatibilityAdapterBoundary.adapterRules().size(),
+                jsonArray(EchoRuntimeCompatibilityAdapterBoundary.adapterRules()),
+                EchoRuntimeCompatibilityAdapterBoundary.adapterRules().contains("standalone contracts do not depend on adapters"),
+                EchoRuntimeCompatibilityAdapterBoundary.adapterRules().contains("Minecraft and NeoForge bridges stay out of runtime contracts"),
+                EchoRuntimeCompatibilityAdapterBoundary.adapterRules()
+                        .contains("AdapterCore content ids remain canonical across NeoForge, ECHO Native Loader, and Standalone"),
+                escape(bridge.renderTarget().adapterId()),
+                EchoRuntimeCompatibilityAdapterBoundary.adapterRules()
+                        .contains("migration tooling plans before it mutates player data")
+        ));
+
+        Files.writeString(reportDir.resolve("compatibility-mappings.json"), """
+                {
+                  "schema": "echo.standalone.compatibility_mappings.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeCompatSmokeHarness",
+                  "status": "PASS",
+                  "mappingCount": %d,
+                  "supportedCount": %d,
+                  "manualReviewCount": %d,
+                  "blockedCount": %d,
+                  "cleanWaterBottleTarget": "%s",
+                  "secureCrashSiteTarget": "%s",
+                  "mappings": %s
+                }
+                """.formatted(
+                compat.mappingRegistry().count(),
+                compat.mappingRegistry().supportedCount(),
+                compat.mappingRegistry().manualReviewCount(),
+                compat.mappingRegistry().blockedCount(),
+                escape(compat.mappingRegistry()
+                        .requireSource("echoashfallprotocol:item/clean_water_bottle")
+                        .targetId()),
+                escape(compat.mappingRegistry()
+                        .requireSource("echoashfallprotocol:mission/secure_crash_site")
+                        .targetId()),
+                mappingArray(compat.mappingRegistry().all())
+        ));
+
+        Files.writeString(reportDir.resolve("compatibility-source-records.json"), """
+                {
+                  "schema": "echo.standalone.compatibility_source_records.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeCompatSmokeHarness",
+                  "status": "PASS",
+                  "sourceRecordCount": %d,
+                  "sourceRecords": %s
+                }
+                """.formatted(
+                compat.sourceRecords().size(),
+                sourceRecordArray(compat.sourceRecords())
+        ));
+
+        Files.writeString(reportDir.resolve("compatibility-target-validation.json"), """
+                {
+                  "schema": "echo.standalone.compatibility_target_validation.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeCompatSmokeHarness",
+                  "status": "PASS",
+                  "valid": %s,
+                  "warningCount": %d,
+                  "errorCount": %d,
+                  "issues": %s
+                }
+                """.formatted(
+                validation.valid(),
+                validation.warningCount(),
+                validation.errorCount(),
+                validationIssueArray(validation.issues())
+        ));
+
+        Files.writeString(reportDir.resolve("compatibility-migration-policy.json"), """
+                {
+                  "schema": "echo.standalone.compatibility_migration_policy.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeCompatSmokeHarness",
+                  "status": "PASS",
+                  "policyId": "%s",
+                  "manualOnly": %s,
+                  "executeAutomatically": %s,
+                  "mutateSourceAllowed": %s,
+                  "backupRequired": %s
+                }
+                """.formatted(
+                escape(policy.policyId()),
+                policy.manualOnly(),
+                policy.executeAutomatically(),
+                policy.mutateSourceAllowed(),
+                policy.backupRequired()
+        ));
+
+        Files.writeString(reportDir.resolve("compatibility-migration-plan.json"), """
+                {
+                  "schema": "echo.standalone.compatibility_migration_plan.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeCompatSmokeHarness",
+                  "status": "PASS",
+                  "planId": "%s",
+                  "sourceProfileId": "%s",
+                  "targetProfileId": "%s",
+                  "blocked": %s,
+                  "stepCount": %d,
+                  "firstAction": "%s",
+                  "manualReviewStepCount": %d,
+                  "mutationStepCount": %d,
+                  "requiresBackup": %s,
+                  "steps": %s
+                }
+                """.formatted(
+                escape(plan.planId()),
+                escape(plan.sourceProfileId()),
+                escape(plan.targetProfileId()),
+                plan.blocked(),
+                plan.steps().size(),
+                escape(plan.steps().getFirst().actionKind().name()),
+                plan.manualReviewStepCount(),
+                plan.mutationStepCount(),
+                policy.backupRequired(),
+                migrationStepArray(plan.steps())
+        ));
+
+        Files.writeString(reportDir.resolve("compatibility-manual-review.json"), """
+                {
+                  "schema": "echo.standalone.compatibility_manual_review.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeCompatSmokeHarness",
+                  "status": "PASS",
+                  "manualReviewMappingCount": %d,
+                  "manualReviewStepCount": %d,
+                  "automaticExecutionAllowed": %s,
+                  "sourceMutationAllowed": %s,
+                  "backupRequired": %s,
+                  "manualReviewTargetId": "%s"
+                }
+                """.formatted(
+                compat.mappingRegistry().manualReviewCount(),
+                plan.manualReviewStepCount(),
+                policy.executeAutomatically(),
+                policy.mutateSourceAllowed(),
+                policy.backupRequired(),
+                escape(compat.mappingRegistry()
+                        .requireSource("echoashfallprotocol:save/player_progress_v1")
+                        .targetId())
+        ));
+
+        Files.writeString(reportDir.resolve("compatibility-diagnostics.json"), """
+                {
+                  "schema": "echo.standalone.compatibility_diagnostics.v2",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "generator": "EchoRuntimeCompatSmokeHarness",
+                  "status": "PASS",
+                  "diagnosticCount": %d,
+                  "warningCount": %d,
+                  "errorCount": %d,
+                  "metadataFixtureWarningCount": %d,
+                  "metadataFixtureErrorCount": %d,
+                  "diagnostics": %s
+                }
+                """.formatted(
+                diagnostics.count(),
+                diagnostics.warningCount(),
+                diagnostics.errorCount(),
+                metadataScan.warningCount(),
+                metadataScan.errorCount(),
+                diagnosticArray(diagnostics.all())
+        ));
+    }
+
+    private static Path standaloneRoot(Path workspaceRoot) {
+        if (workspaceRoot.getFileName() != null
+                && workspaceRoot.getFileName().toString().equalsIgnoreCase("echo-standalone-runtime")) {
+            return workspaceRoot;
+        }
+        if (Files.isDirectory(workspaceRoot.resolve("echo-runtime-app"))
+                && Files.isRegularFile(workspaceRoot.resolve("settings.gradle"))) {
+            return workspaceRoot;
+        }
+        Path nested = workspaceRoot.resolve("echo-standalone-runtime");
+        if (Files.isDirectory(nested)) {
+            return nested;
+        }
+        return workspaceRoot;
+    }
+
+    private static String mappingArray(List<EchoCompatContentMapping> mappings) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < mappings.size(); i++) {
+            EchoCompatContentMapping mapping = mappings.get(i);
+            json.append("{\"mappingId\":\"").append(escape(mapping.mappingId()))
+                    .append("\",\"sourceId\":\"").append(escape(mapping.sourceId()))
+                    .append("\",\"sourceKind\":\"").append(mapping.sourceKind().name())
+                    .append("\",\"targetId\":\"").append(escape(mapping.targetId()))
+                    .append("\",\"targetKind\":\"").append(mapping.targetKind().name())
+                    .append("\",\"status\":\"").append(mapping.status().name())
+                    .append("\"}");
+            if (i + 1 < mappings.size()) {
+                json.append(", ");
+            }
+        }
+        return json.append(']').toString();
+    }
+
+    private static String sourceRecordArray(List<EchoCompatSourceRecord> records) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < records.size(); i++) {
+            EchoCompatSourceRecord record = records.get(i);
+            json.append("{\"recordId\":\"").append(escape(record.recordId()))
+                    .append("\",\"sourceId\":\"").append(escape(record.sourceId()))
+                    .append("\",\"sourceKind\":\"").append(record.sourceKind().name())
+                    .append("\",\"recordType\":\"").append(escape(record.recordType()))
+                    .append("\",\"fingerprint\":\"").append(escape(record.fingerprint()))
+                    .append("\"}");
+            if (i + 1 < records.size()) {
+                json.append(", ");
+            }
+        }
+        return json.append(']').toString();
+    }
+
+    private static String validationIssueArray(List<EchoCompatValidationIssue> issues) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < issues.size(); i++) {
+            EchoCompatValidationIssue issue = issues.get(i);
+            json.append("{\"severity\":\"").append(issue.severity().name())
+                    .append("\",\"mappingId\":\"").append(escape(issue.mappingId()))
+                    .append("\",\"message\":\"").append(escape(issue.message()))
+                    .append("\"}");
+            if (i + 1 < issues.size()) {
+                json.append(", ");
+            }
+        }
+        return json.append(']').toString();
+    }
+
+    private static String migrationStepArray(List<EchoCompatMigrationStep> steps) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < steps.size(); i++) {
+            EchoCompatMigrationStep step = steps.get(i);
+            json.append("{\"stepId\":\"").append(escape(step.stepId()))
+                    .append("\",\"actionKind\":\"").append(step.actionKind().name())
+                    .append("\",\"sourceId\":\"").append(escape(step.sourceId()))
+                    .append("\",\"targetId\":\"").append(escape(step.targetId()))
+                    .append("\",\"requiresBackup\":").append(step.requiresBackup())
+                    .append(",\"mutatesSource\":").append(step.mutatesSource())
+                    .append("}");
+            if (i + 1 < steps.size()) {
+                json.append(", ");
+            }
+        }
+        return json.append(']').toString();
+    }
+
+    private static String diagnosticArray(List<EchoCompatDiagnostic> diagnostics) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < diagnostics.size(); i++) {
+            EchoCompatDiagnostic diagnostic = diagnostics.get(i);
+            json.append("{\"severity\":\"").append(diagnostic.severity().name())
+                    .append("\",\"subject\":\"").append(escape(diagnostic.subject()))
+                    .append("\",\"message\":\"").append(escape(diagnostic.message()))
+                    .append("\"}");
+            if (i + 1 < diagnostics.size()) {
+                json.append(", ");
+            }
+        }
+        return json.append(']').toString();
+    }
+
+    private static String jsonArray(List<String> values) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < values.size(); i++) {
+            json.append('"').append(escape(values.get(i))).append('"');
+            if (i + 1 < values.size()) {
+                json.append(", ");
+            }
+        }
+        return json.append(']').toString();
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }

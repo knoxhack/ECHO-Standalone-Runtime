@@ -3,11 +3,16 @@ package dev.echo.standalone.runtime.client;
 import dev.echo.standalone.runtime.compat.EchoAdapterCoreStandaloneContentBridge;
 import dev.echo.standalone.runtime.world.EchoVoxelBlock;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 public final class EchoClientWorldInteractionSmokeHarness {
     private EchoClientWorldInteractionSmokeHarness() {
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         EchoAdapterCoreStandaloneContentBridge bridge = EchoAdapterCoreStandaloneContentBridge.ashfallLive();
         EchoVoxelBlock cache = bridge.registry().requireLiveVoxelBlock("echoashfallprotocol:echo_cache");
         EchoVoxelBlock terminalBlock = bridge.registry().requireLiveVoxelBlock("echoterminal:echo_terminal");
@@ -133,7 +138,39 @@ public final class EchoClientWorldInteractionSmokeHarness {
         require(screens.state() == EchoClientGameState.IN_GAME,
                 "Gameplay terminal Back should return directly to gameplay");
 
+        writeSmokeReport();
         System.out.println("client world interaction smoke PASS cache=container terminal=registered machine=power workbench=runtime_marker");
+    }
+
+    private static void writeSmokeReport() throws IOException {
+        Path report = Path.of("reports", "echo", "standalone", "client-world-interaction-smoke.json").toAbsolutePath();
+        Files.createDirectories(report.getParent());
+        String json = """
+                {
+                  "schema": "echo.standalone.client_smoke.client-world-interaction-smoke.v1",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "runtime": "standalone",
+                  "moduleIds": ["echoashfallprotocol", "echoterminal", "echoscreencore", "echoruntimehost"],
+                  "featureBuckets": ["gui", "screen", "terminal", "blocks", "block_actions", "machines"],
+                  "trustedMutations": [
+                    "worldInteractionCommandFor:container",
+                    "worldInteractionCommandFor:machine",
+                    "worldInteractionCommandFor:workbench",
+                    "openRegisteredScreen:echoterminal:ui/field_terminal"
+                  ],
+                  "visibleRoutes": [
+                    "echoscreencore:container",
+                    "echoscreencore:machine",
+                    "echoscreencore:workbench",
+                    "echoterminal:ui/field_terminal"
+                  ],
+                  "saveEvidence": [],
+                  "networkEvidence": [],
+                  "blockers": []
+                }
+                """;
+        Files.writeString(report, json, StandardCharsets.UTF_8);
     }
 
     private static void require(boolean condition, String message) {

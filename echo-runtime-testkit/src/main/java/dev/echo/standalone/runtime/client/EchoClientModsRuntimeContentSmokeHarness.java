@@ -1,6 +1,7 @@
 package dev.echo.standalone.runtime.client;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -80,10 +81,40 @@ public final class EchoClientModsRuntimeContentSmokeHarness {
         require(optionLabelPrefix(mods, "Runtime UI Screen: Native Runtime Mods"),
                 "Mods route should expose imported native UI screen rows");
 
+        writeSmokeReport(summary);
         System.out.println("client mods runtime content smoke PASS rows="
                 + summary.rowCount()
                 + " domains=" + summary.domainCount()
                 + " block=echoruntimehost:client_runtime_glass");
+    }
+
+    private static void writeSmokeReport(EchoClientRuntimeContentSummary summary) throws IOException {
+        Path report = Path.of("reports", "echo", "standalone", "client-mods-runtime-content-smoke.json").toAbsolutePath();
+        Files.createDirectories(report.getParent());
+        String json = """
+                {
+                  "schema": "echo.standalone.client_smoke.client-mods-runtime-content-smoke.v1",
+                  "generatedAt": "1970-01-01T00:00:00Z",
+                  "status": "PASS",
+                  "runtime": "standalone",
+                  "moduleIds": ["echoruntimehost", "echoscreencore"],
+                  "featureBuckets": ["gui", "screen", "blocks", "items", "recipes", "loot"],
+                  "trustedMutations": [
+                    "importAdapterCoreContentRegistrations:block",
+                    "importAdapterCoreContentRegistrations:item",
+                    "importAdapterCoreContentRegistrations:recipe",
+                    "importAdapterCoreContentRegistrations:loot",
+                    "importAdapterCoreContentRegistrations:ui_screen"
+                  ],
+                  "visibleRoutes": ["echoscreencore:mods", "echoruntimehost:standalone/native_runtime_mods"],
+                  "saveEvidence": [],
+                  "networkEvidence": [],
+                  "rowCount": %d,
+                  "domainCount": %d,
+                  "blockers": []
+                }
+                """.formatted(summary.rowCount(), summary.domainCount());
+        Files.writeString(report, json, StandardCharsets.UTF_8);
     }
 
     private static List<Map<String, Object>> runtimeRows() {

@@ -18,6 +18,7 @@ import dev.echo.standalone.runtime.world.EchoVoxelBlockState;
 import dev.echo.standalone.runtime.world.EchoVoxelChunk;
 import dev.echo.standalone.runtime.world.EchoVoxelChunkId;
 import dev.echo.standalone.runtime.world.EchoVoxelBiomeSources;
+import dev.echo.standalone.runtime.world.EchoVoxelFluidRuntime;
 import dev.echo.standalone.runtime.world.EchoVoxelWorld;
 
 import java.io.IOException;
@@ -80,6 +81,26 @@ final class EchoClientGameplaySaveCodec {
             List<Map<String, Object>> runtimeContentRows,
             Map<String, String> environmentMetadata
     ) throws IOException {
+        writeSession(
+                saves,
+                worldSession,
+                transactionId,
+                reason,
+                runtimeContentRows,
+                environmentMetadata,
+                EchoClientSaveSlotThumbnailCapture.EMPTY
+        );
+    }
+
+    static void writeSession(
+            EchoSaveRuntimeResult saves,
+            EchoClientWorldSession worldSession,
+            String transactionId,
+            String reason,
+            List<Map<String, Object>> runtimeContentRows,
+            Map<String, String> environmentMetadata,
+            EchoClientSaveSlotThumbnailCapture thumbnailCapture
+    ) throws IOException {
         EchoClientGameSession session = worldSession.gameSession();
         session.reconcileMachineBlockEntitiesFromWorld();
         session.materializeMachineBlockEntities();
@@ -109,7 +130,8 @@ final class EchoClientGameplaySaveCodec {
                 EchoClientSaveSlotThumbnailGenerator.writeThumbnail(
                         transaction,
                         saveWorld,
-                        session.player().state()
+                        session.player().state(),
+                        thumbnailCapture
                 );
         LinkedHashMap<String, String> metadata = new LinkedHashMap<>();
         metadata.put("displayName", worldSession.displayName());
@@ -1140,6 +1162,15 @@ final class EchoClientGameplaySaveCodec {
     private static EchoVoxelBlock block(EchoAdapterCoreStandaloneContentBridge bridge, String id) {
         if (id.equals(EchoVoxelBlock.AIR.id())) {
             return EchoVoxelBlock.AIR;
+        }
+        if (id.equals(EchoVoxelFluidRuntime.WATER.id())) {
+            return EchoVoxelFluidRuntime.WATER;
+        }
+        if (id.equals(EchoVoxelFluidRuntime.LAVA.id())) {
+            return EchoVoxelFluidRuntime.LAVA;
+        }
+        if (id.equals(EchoVoxelFluidRuntime.HARDENED_FLUID_STONE.id())) {
+            return EchoVoxelFluidRuntime.HARDENED_FLUID_STONE;
         }
         return bridge.registry().requireLiveVoxelBlock(id);
     }

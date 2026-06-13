@@ -274,6 +274,37 @@ public record EchoVoxelWorld(
         );
     }
 
+    public EchoVoxelWorldTickResult randomTickLoadedBlocks(long gameTick, long randomSeed, int samplesPerChunk) {
+        if (gameTick < 0L) {
+            throw new IllegalArgumentException("gameTick must not be negative");
+        }
+        if (samplesPerChunk < 0) {
+            throw new IllegalArgumentException("samplesPerChunk must not be negative");
+        }
+        int tickedBlocks = 0;
+        int hazardBlocks = 0;
+        int metadataWrites = 0;
+        int chunkIndex = 0;
+        for (EchoVoxelChunk chunk : chunks) {
+            EchoVoxelChunk.TickSummary summary = chunk.randomTickLoadedBlocks(
+                    gameTick,
+                    randomSeed + chunkIndex,
+                    samplesPerChunk
+            );
+            tickedBlocks += summary.tickedBlocks();
+            hazardBlocks += summary.hazardBlocks();
+            metadataWrites += summary.metadataWrites();
+            chunkIndex++;
+        }
+        return new EchoVoxelWorldTickResult(
+                gameTick,
+                chunks.size(),
+                tickedBlocks,
+                hazardBlocks,
+                metadataWrites
+        );
+    }
+
     public Set<EchoVoxelChunkId> loadedChunkIds() {
         return Map.copyOf(chunkIndex()).keySet();
     }
