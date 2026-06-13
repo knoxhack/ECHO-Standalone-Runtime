@@ -1,5 +1,7 @@
-﻿# Public Alpha Release Status
+# Standalone Runtime Release Status
 
-This brand-new repository is staged for the ECHO Native Platform public alpha.
+ECHO Standalone Runtime is a separate runtime lane for running ECHO content outside Minecraft. It is not the canonical Native Platform `1.0.0-RC1` loader release.
 
-Public release assets are staged through GitHub draft releases first. The official ECHO website is the public download hub.
+Native compatibility work in this repo should be treated as bridge/runtime evidence only until it has clean CI, module execution, launcher install, rollback, and gameplay smoke proof. Do not use Standalone Runtime source-packaged or local development output as player-facing Native release evidence.
+
+Public release assets are staged through GitHub releases and the ECHO website after Release Index approval.
