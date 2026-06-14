@@ -791,6 +791,7 @@ public final class EchoRuntimeModuleLoader {
         @Override
         public void load(EchoRuntimeModuleContext context) throws Exception {
             nativeRegistry = nativeRegistry(context);
+            registerModuleAliases(context.descriptor());
             nativeContext = new EchoNativeModuleLoadContext(
                     nativeDescriptor(context.descriptor()),
                     nativeRegistry,
@@ -844,6 +845,7 @@ public final class EchoRuntimeModuleLoader {
                 return;
             }
             nativeRegistry = nativeRegistry(context);
+            registerModuleAliases(context.descriptor());
             nativeContext = new EchoNativeModuleLoadContext(
                     nativeDescriptor(context.descriptor()),
                     nativeRegistry,
@@ -853,6 +855,12 @@ public final class EchoRuntimeModuleLoader {
 
         private EchoNativeModuleDescriptor nativeDescriptor(EchoRuntimeModuleDescriptor descriptor) {
             return nativeDescriptor(descriptor, classPathEntries);
+        }
+
+        private void registerModuleAliases(EchoRuntimeModuleDescriptor descriptor) {
+            for (String alias : descriptor.aliases()) {
+                nativeRegistry.registerModuleAlias(alias, descriptor.id());
+            }
         }
 
         private void bridgeLegacyBootstrapIfNeeded(String moduleId) throws ReflectiveOperationException {

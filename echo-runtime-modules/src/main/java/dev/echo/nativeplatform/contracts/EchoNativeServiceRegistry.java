@@ -11,6 +11,15 @@ public final class EchoNativeServiceRegistry {
     private final Map<String, Object> servicesById = new LinkedHashMap<>();
     private final Map<String, Object> servicesByModuleAndId = new LinkedHashMap<>();
     private final Map<String, EchoNativeRegisteredService> descriptorsByModuleAndId = new LinkedHashMap<>();
+    private final Map<String, String> moduleAliases = new LinkedHashMap<>();
+
+    public void registerModuleAlias(String aliasModuleId, String canonicalModuleId) {
+        String alias = requireModuleId(aliasModuleId, "aliasModuleId");
+        String canonical = requireModuleId(canonicalModuleId, "canonicalModuleId");
+        if (!alias.equals(canonical)) {
+            moduleAliases.putIfAbsent(alias, canonical);
+        }
+    }
 
     public <T> void registerTyped(String moduleId, String serviceId, T service, Class<T> serviceType, List<String> surfaces) {
         if (serviceType == null) {
@@ -33,9 +42,7 @@ public final class EchoNativeServiceRegistry {
             List<String> surfaces,
             String implementationClass
     ) {
-        if (moduleId == null || moduleId.isBlank()) {
-            throw new IllegalArgumentException("moduleId is required");
-        }
+        moduleId = canonicalModuleId(moduleId);
         if (serviceId == null || serviceId.isBlank()) {
             throw new IllegalArgumentException("serviceId is required");
         }
@@ -66,7 +73,7 @@ public final class EchoNativeServiceRegistry {
     }
 
     public boolean hasService(String moduleId, String serviceId) {
-        return servicesByModuleAndId.containsKey(serviceKey(moduleId, serviceId));
+        return servicesByModuleAndId.containsKey(serviceKey(canonicalModuleId(moduleId), serviceId));
     }
 
     public Optional<Object> service(String serviceId) {
@@ -74,7 +81,7 @@ public final class EchoNativeServiceRegistry {
     }
 
     public Optional<Object> service(String moduleId, String serviceId) {
-        return Optional.ofNullable(servicesByModuleAndId.get(serviceKey(moduleId, serviceId)));
+        return Optional.ofNullable(servicesByModuleAndId.get(serviceKey(canonicalModuleId(moduleId), serviceId)));
     }
 
     public <T> Optional<T> service(String serviceId, Class<T> serviceType) {
@@ -82,7 +89,7 @@ public final class EchoNativeServiceRegistry {
     }
 
     public <T> Optional<T> service(String moduleId, String serviceId, Class<T> serviceType) {
-        return typed(servicesByModuleAndId.get(serviceKey(moduleId, serviceId)), serviceType);
+        return typed(servicesByModuleAndId.get(serviceKey(canonicalModuleId(moduleId), serviceId)), serviceType);
     }
 
     public List<EchoNativeRegisteredService> registeredServices() {
@@ -93,9 +100,10 @@ public final class EchoNativeServiceRegistry {
     }
 
     public List<EchoNativeRegisteredService> servicesForModule(String moduleId) {
+        String canonicalModuleId = canonicalModuleId(moduleId);
         List<EchoNativeRegisteredService> result = new ArrayList<>();
         for (EchoNativeRegisteredService service : registeredServices()) {
-            if (service.moduleId().equals(moduleId)) {
+            if (service.moduleId().equals(canonicalModuleId)) {
                 result.add(service);
             }
         }
@@ -103,7 +111,8 @@ public final class EchoNativeServiceRegistry {
     }
 
     public List<EchoNativeRegisteredService> revokeModule(String moduleId) {
-        List<EchoNativeRegisteredService> revoked = servicesForModule(moduleId);
+        String canonicalModuleId = canonicalModuleId(moduleId);
+        List<EchoNativeRegisteredService> revoked = servicesForModule(canonicalModuleId);
         for (EchoNativeRegisteredService service : revoked) {
             String key = serviceKey(service.moduleId(), service.serviceId());
             servicesByModuleAndId.remove(key);
@@ -111,6 +120,19 @@ public final class EchoNativeServiceRegistry {
             descriptorsByModuleAndId.remove(key);
         }
         return revoked;
+    }
+
+    private String canonicalModuleId(String moduleId) {
+        String id = requireModuleId(moduleId, "moduleId");
+        String canonical = moduleAliases.get(id);
+        return canonical == null ? id : canonical;
+    }
+
+    private static String requireModuleId(String moduleId, String name) {
+        if (moduleId == null || moduleId.isBlank()) {
+            throw new IllegalArgumentException(name + " is required");
+        }
+        return moduleId;
     }
 
     private static String serviceKey(String moduleId, String serviceId) {

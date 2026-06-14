@@ -228,6 +228,10 @@ final class EchoClientGameplay {
                     selectedItemUse = EchoClientSelectedItemUse.consumed(selectedLabel);
                     usedSelectedItem = true;
                     if (audio != null) audio.playEat();
+                } else if (session.activateSelectedCreativeItem()) {
+                    selectedItemUse = EchoClientSelectedItemUse.interacted(selectedLabel);
+                    usedSelectedItem = true;
+                    if (audio != null) audio.playPlace();
                 }
             }
             if (!usedSelectedItem && !input.crouch() && session != null) {

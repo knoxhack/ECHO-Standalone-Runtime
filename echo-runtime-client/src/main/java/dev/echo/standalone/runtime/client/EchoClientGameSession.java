@@ -649,6 +649,15 @@ final class EchoClientGameSession {
         return result.consumed();
     }
 
+    boolean activateSelectedCreativeItem() {
+        EchoItemDefinition selectedDefinition = inventory.selectedItemDefinition(hotbar).orElse(null);
+        if (!EchoClientCreativeInventoryController.isCreativeRuntimeItem(selectedDefinition)) {
+            return false;
+        }
+        awardExperience(1, "creative-use:" + selectedDefinition.id().value());
+        return true;
+    }
+
     boolean equipSelectedArmor() {
         EchoClientInventoryRuntime.ArmorEquipResult result =
                 inventory.equipSelectedArmor(hotbar, playerRuntime.combatState().equipment());

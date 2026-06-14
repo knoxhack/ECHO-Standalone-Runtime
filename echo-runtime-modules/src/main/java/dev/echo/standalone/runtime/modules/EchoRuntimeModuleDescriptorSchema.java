@@ -33,7 +33,9 @@ public final class EchoRuntimeModuleDescriptorSchema {
             "provides",
             "consumes",
             "gameModes",
-            "access"
+            "aliases",
+            "access",
+            "replacements"
     );
     public static final List<String> EXECUTABLE_ABI_V1_FIELDS = List.of(
             "permissions",
@@ -64,6 +66,7 @@ public final class EchoRuntimeModuleDescriptorSchema {
             Map.entry("consumes", "string[]"),
             Map.entry("gameModes", "string[]"),
             Map.entry("permissions", "string[]"),
+            Map.entry("aliases", "string[]"),
             Map.entry("classPath", "string[]"),
             Map.entry("classpath", "string[]"),
             Map.entry("entrypoint", "string"),
@@ -72,7 +75,8 @@ public final class EchoRuntimeModuleDescriptorSchema {
             Map.entry("nativeClasspath", "string[]"),
             Map.entry("requiresVersions", "object<string,string>"),
             Map.entry("optionalVersions", "object<string,string>"),
-            Map.entry("access", "object")
+            Map.entry("access", "object"),
+            Map.entry("replacements", "replacement[]")
     );
 
     private static final Set<String> EXECUTABLE_REQUIRED_FIELDS = Set.of(

@@ -43,7 +43,8 @@ public record EchoAdapterCoreModuleCoverageReport(
     public Optional<EchoAdapterCoreModuleCoverageEntry> find(String moduleId) {
         String normalized = EchoCompatText.requireText(moduleId, "moduleId");
         return entries.stream()
-                .filter(entry -> entry.moduleId().equals(normalized))
+                .filter(entry -> entry.moduleId().equals(normalized)
+                        || entry.aliases().contains(normalized))
                 .findFirst();
     }
 

@@ -22,6 +22,7 @@ public record EchoRuntimeModuleDescriptor(
         List<String> consumes,
         List<String> gameModes,
         List<String> permissions,
+        List<String> aliases,
         List<String> classPath,
         String entrypoint,
         String adapterCoreEntrypoint,
@@ -47,6 +48,7 @@ public record EchoRuntimeModuleDescriptor(
         Objects.requireNonNull(consumes, "consumes");
         Objects.requireNonNull(gameModes, "gameModes");
         Objects.requireNonNull(permissions, "permissions");
+        Objects.requireNonNull(aliases, "aliases");
         Objects.requireNonNull(classPath, "classPath");
         entrypoint = entrypoint == null ? "" : entrypoint;
         adapterCoreEntrypoint = adapterCoreEntrypoint == null ? "" : adapterCoreEntrypoint;
@@ -62,6 +64,10 @@ public record EchoRuntimeModuleDescriptor(
         consumes = sortedCopy(consumes);
         gameModes = sortedCopy(gameModes);
         permissions = sortedCopy(permissions);
+        String canonicalId = id;
+        aliases = sortedCopy(aliases).stream()
+                .filter(alias -> !alias.equals(canonicalId))
+                .toList();
         classPath = sortedCopy(classPath);
         requiresVersions = sortedMapCopy(requiresVersions);
         optionalVersions = sortedMapCopy(optionalVersions);

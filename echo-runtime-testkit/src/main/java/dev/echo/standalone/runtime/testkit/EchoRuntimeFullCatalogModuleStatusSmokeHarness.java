@@ -63,7 +63,7 @@ public final class EchoRuntimeFullCatalogModuleStatusSmokeHarness {
             descriptorIds.add(descriptor.id());
         }
         for (String systemModule : REQUIRED_SYSTEM_MODULES) {
-            require(descriptorIds.contains(systemModule),
+            require(descriptorIds.contains(systemModule) || registry.find(systemModule).isPresent(),
                     "required system module should have a real runtime descriptor: " + systemModule);
         }
 

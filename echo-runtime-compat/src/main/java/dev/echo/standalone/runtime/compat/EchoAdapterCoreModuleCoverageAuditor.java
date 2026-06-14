@@ -126,6 +126,7 @@ public final class EchoAdapterCoreModuleCoverageAuditor {
                     adapterDomains,
                     declaredRuntimes,
                     adapterKeys,
+                    descriptor.aliases(),
                     gaps,
                     descriptor.descriptorPath()
             ));

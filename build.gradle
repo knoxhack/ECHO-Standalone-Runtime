@@ -675,6 +675,30 @@ tasks.register('runStandaloneClientHeldItemOverlaySmoke', JavaExec) {
     workingDir = rootProject.projectDir
 }
 
+tasks.register('runStandaloneClientCreativeInventorySmoke', JavaExec) {
+    group = 'verification'
+    description = 'Verifies catalog-wide Standalone creative tabs are visible, searchable, selectable, and playable through the live client runtime.'
+    dependsOn ':echo-runtime-client:classes'
+    classpath = project(':echo-runtime-client').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.client.EchoClientCreativeInventorySmokeHarness'
+    workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
+}
+
+tasks.register('runStandaloneAllModuleCreativeTabVisibilitySmoke', Exec) {
+    group = 'verification'
+    description = 'Fails unless every first-party content module has registry-backed, visible, searchable, selectable, playable Standalone creative inventory evidence.'
+    dependsOn tasks.named('runStandaloneClientCreativeInventorySmoke')
+    executable = 'node'
+    workingDir = echoModulesRepoRoot.get()
+    args 'scripts/generate-all-module-creative-tab-visibility.mjs',
+            '--runtime', 'standalone',
+            '--modules-root', echoModulesRepoRoot.get(),
+            '--runtime-root', rootProject.projectDir.absolutePath,
+            '--out', 'reports/echo/standalone/all-module-creative-tab-visibility-smoke.json',
+            '--strict'
+}
+
 tasks.register('runStandaloneClientDebugOverlaySmoke', JavaExec) {
     group = 'verification'
     description = 'Verifies live client F3 debug overlay text contract.'
@@ -11237,8 +11261,8 @@ tasks.register('runStandaloneReleaseSigningFailureRehearsal') {
                     missingArtifactCount      : missingLauncherArtifacts.size(),
                     missingArtifacts          : missingLauncherArtifacts
             ])
-            println "Release signing failure rehearsal blocked; missing launcher artifact(s): "
-                    + missingLauncherArtifacts.collect { it.path }.join(', ')
+            println("Release signing failure rehearsal blocked; missing launcher artifact(s): "
+                    + missingLauncherArtifacts.collect { it.path }.join(', '))
             return
         }
 
@@ -12352,8 +12376,8 @@ tasks.register('runStandaloneCleanInstallCaptureRehearsal') {
                     missingArtifactCount      : missingLauncherArtifacts.size(),
                     missingArtifacts          : missingLauncherArtifacts
             ])
-            println "Clean install capture rehearsal blocked; missing launcher artifact(s): "
-                    + missingLauncherArtifacts.collect { it.path }.join(', ')
+            println("Clean install capture rehearsal blocked; missing launcher artifact(s): "
+                    + missingLauncherArtifacts.collect { it.path }.join(', '))
             return
         }
 
@@ -16327,6 +16351,7 @@ tasks.named('check') {
     dependsOn tasks.named('verifyStandaloneUiRuntime')
     dependsOn tasks.named('runStandaloneUiRuntimeSmoke')
     dependsOn tasks.named('runStandaloneAgent5UiParitySmoke')
+    dependsOn tasks.named('runStandaloneAllModuleCreativeTabVisibilitySmoke')
     dependsOn tasks.named('verifyStandaloneSaveRuntime')
     dependsOn tasks.named('runStandaloneSaveRuntimeSmoke')
     dependsOn tasks.named('verifyStandaloneDataRuntime')
@@ -16547,4 +16572,27 @@ tasks.register('packagePublicAlphaRelease') {
                 }
         new File(outDir, 'checksums.txt').text = lines.join(System.lineSeparator()) + System.lineSeparator()
     }
+}
+
+tasks.register('generateStandaloneStrictPlayEvidence', Exec) {
+    group = 'verification'
+    description = 'Aggregates Standalone Runtime strict-play evidence sidecars into the canonical reports consumed by ECHO-Modules --strict-play.'
+    dependsOn tasks.named('runStandaloneFullCatalogModuleStatusSmoke')
+    dependsOn tasks.named('runStandaloneAgent5UiParitySmoke')
+    dependsOn tasks.named('runStandaloneClientScreenCatalogSmoke')
+    dependsOn tasks.named('runStandaloneClientModsRuntimeContentSmoke')
+    dependsOn tasks.named('runStandaloneClientWorldInteractionSmoke')
+    dependsOn tasks.named('runStandaloneClientHeldItemOverlaySmoke')
+    dependsOn tasks.named('runStandaloneClientSaveContinueSmoke')
+    workingDir = rootProject.projectDir
+    executable = 'node'
+    args 'scripts/generate-standalone-strict-play-evidence.mjs'
+}
+
+tasks.register('testGenerateStandaloneStrictPlayEvidence', Exec) {
+    group = 'verification'
+    description = 'Tests the Standalone strict-play evidence aggregation script.'
+    workingDir = rootProject.projectDir
+    executable = 'node'
+    args 'scripts/test-generate-standalone-strict-play-evidence.mjs'
 }

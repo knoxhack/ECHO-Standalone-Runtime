@@ -17,6 +17,7 @@ public record EchoAdapterCoreModuleCoverageEntry(
         List<EchoAdapterCoreDomain> adapterDomains,
         List<EchoAdapterCoreRuntimeKind> adapterRuntimes,
         List<String> adapterKeys,
+        List<String> aliases,
         List<String> gaps,
         Path descriptorPath
 ) {
@@ -28,11 +29,18 @@ public record EchoAdapterCoreModuleCoverageEntry(
         Objects.requireNonNull(adapterDomains, "adapterDomains");
         Objects.requireNonNull(adapterRuntimes, "adapterRuntimes");
         Objects.requireNonNull(adapterKeys, "adapterKeys");
+        Objects.requireNonNull(aliases, "aliases");
         Objects.requireNonNull(gaps, "gaps");
         Objects.requireNonNull(descriptorPath, "descriptorPath");
         adapterDomains = adapterDomains.stream().distinct().sorted().toList();
         adapterRuntimes = adapterRuntimes.stream().distinct().sorted().toList();
         adapterKeys = adapterKeys.stream().sorted().toList();
+        String canonicalModuleId = moduleId;
+        aliases = aliases.stream()
+                .distinct()
+                .filter(alias -> !alias.equals(canonicalModuleId))
+                .sorted()
+                .toList();
         gaps = List.copyOf(gaps);
         descriptorPath = descriptorPath.toAbsolutePath().normalize();
     }

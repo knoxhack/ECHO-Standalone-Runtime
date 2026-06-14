@@ -3,6 +3,7 @@ package dev.echo.standalone.runtime.modules;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,6 +42,7 @@ public final class EchoRuntimeModuleDescriptorParser {
                 stringList(json, "consumes"),
                 stringList(json, "gameModes"),
                 stringList(json, "permissions"),
+                moduleAliases(json),
                 classPath(json),
                 text(json, "entrypoint", ""),
                 adapterCoreEntrypoint(json),
@@ -164,6 +166,31 @@ public final class EchoRuntimeModuleDescriptorParser {
             return classPath;
         }
         return stringList(object(json, "access"), "nativeClasspath");
+    }
+
+    private static List<String> moduleAliases(Map<String, Object> json) {
+        LinkedHashSet<String> aliases = new LinkedHashSet<>(stringList(json, "aliases"));
+        Object replacements = json.get("replacements");
+        if (replacements == null) {
+            return List.copyOf(aliases);
+        }
+        if (!(replacements instanceof List<?> list)) {
+            throw new IllegalArgumentException("Descriptor field 'replacements' must be an array");
+        }
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> replacement)) {
+                throw new IllegalArgumentException("Descriptor field 'replacements' must contain only objects");
+            }
+            Object scope = replacement.get("scope");
+            Object legacyId = replacement.get("legacyId");
+            Object replacementId = replacement.get("replacementId");
+            boolean moduleIdScope = scope == null || "module_id".equals(scope);
+            boolean pointsAtThisDescriptor = replacementId == null || json.get("id").equals(replacementId);
+            if (moduleIdScope && pointsAtThisDescriptor && legacyId instanceof String alias && !alias.isBlank()) {
+                aliases.add(alias);
+            }
+        }
+        return List.copyOf(aliases);
     }
 
     private static Map<String, String> stringObject(Map<String, Object> json, String key) {
