@@ -9,6 +9,7 @@ public final class EchoSaveRuntime {
     private final EchoSaveBackupService backupService;
     private final EchoSaveCorruptionChecker corruptionChecker;
     private final EchoSaveModSetCompatibilityChecker modSetCompatibilityChecker;
+    private final EchoSaveRegistryCompatibilityChecker registryCompatibilityChecker;
     private final EchoSaveMigrationPlanner migrationPlanner;
     private final EchoSaveManifestCodec manifestCodec;
     private final EchoSaveChecksum checksum;
@@ -18,6 +19,7 @@ public final class EchoSaveRuntime {
                 new EchoSaveBackupService(),
                 new EchoSaveCorruptionChecker(),
                 new EchoSaveModSetCompatibilityChecker(),
+                new EchoSaveRegistryCompatibilityChecker(),
                 new EchoSaveMigrationPlanner(),
                 new EchoSaveManifestCodec(),
                 new EchoSaveChecksum()
@@ -28,6 +30,7 @@ public final class EchoSaveRuntime {
             EchoSaveBackupService backupService,
             EchoSaveCorruptionChecker corruptionChecker,
             EchoSaveModSetCompatibilityChecker modSetCompatibilityChecker,
+            EchoSaveRegistryCompatibilityChecker registryCompatibilityChecker,
             EchoSaveMigrationPlanner migrationPlanner,
             EchoSaveManifestCodec manifestCodec,
             EchoSaveChecksum checksum
@@ -37,6 +40,10 @@ public final class EchoSaveRuntime {
         this.modSetCompatibilityChecker = Objects.requireNonNull(
                 modSetCompatibilityChecker,
                 "modSetCompatibilityChecker"
+        );
+        this.registryCompatibilityChecker = Objects.requireNonNull(
+                registryCompatibilityChecker,
+                "registryCompatibilityChecker"
         );
         this.migrationPlanner = Objects.requireNonNull(migrationPlanner, "migrationPlanner");
         this.manifestCodec = Objects.requireNonNull(manifestCodec, "manifestCodec");
@@ -55,6 +62,7 @@ public final class EchoSaveRuntime {
                 backupService,
                 corruptionChecker,
                 modSetCompatibilityChecker,
+                registryCompatibilityChecker,
                 migrationPlanner,
                 manifestCodec,
                 checksum

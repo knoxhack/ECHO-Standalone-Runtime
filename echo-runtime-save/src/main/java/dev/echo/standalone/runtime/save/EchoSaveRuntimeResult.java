@@ -1,6 +1,7 @@
 package dev.echo.standalone.runtime.save;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public record EchoSaveRuntimeResult(
@@ -9,6 +10,7 @@ public record EchoSaveRuntimeResult(
         EchoSaveBackupService backupService,
         EchoSaveCorruptionChecker corruptionChecker,
         EchoSaveModSetCompatibilityChecker modSetCompatibilityChecker,
+        EchoSaveRegistryCompatibilityChecker registryCompatibilityChecker,
         EchoSaveMigrationPlanner migrationPlanner,
         EchoSaveManifestCodec manifestCodec,
         EchoSaveChecksum checksum
@@ -47,5 +49,10 @@ public record EchoSaveRuntimeResult(
 
     public EchoSaveMigrationPlan planMigration(String slotId, int targetFormatVersion) throws IOException {
         return migrationPlanner.plan(readManifest(slotId), targetFormatVersion, journal);
+    }
+
+    public EchoSaveRegistryCompatibilityReport checkRegistryFingerprint(String slotId, List<String> currentOrderedIds)
+            throws IOException {
+        return registryCompatibilityChecker.check(readManifest(slotId), currentOrderedIds, journal);
     }
 }

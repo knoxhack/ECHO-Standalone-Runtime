@@ -12,6 +12,7 @@ def standaloneRuntimeModules = [
         'echo-runtime-assets',
         'echo-runtime-data',
         'echo-runtime-ui',
+        'echo-runtime-nbt',
         'echo-runtime-save',
         'echo-runtime-world',
         'echo-runtime-entity',
@@ -1011,9 +1012,16 @@ project(':echo-runtime-player') {
     }
 }
 
+project(':echo-runtime-nbt') {
+    dependencies {
+        implementation project(':echo-runtime-core')
+    }
+}
+
 project(':echo-runtime-save') {
     dependencies {
         implementation project(':echo-runtime-core')
+        api project(':echo-runtime-nbt')
     }
 }
 
@@ -1021,6 +1029,7 @@ project(':echo-runtime-world') {
     dependencies {
         implementation project(':echo-runtime-core')
         implementation project(':echo-runtime-save')
+        implementation project(':echo-runtime-data')
     }
 }
 
@@ -2946,6 +2955,120 @@ tasks.register('runStandaloneWorldRuntimeSmoke', JavaExec) {
     classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeWorldSmokeHarness'
     workingDir = rootProject.projectDir
+}
+
+tasks.register('runStandaloneMinecraftWorldRoundTripSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Phase A Minecraft-style Anvil region round-trip smoke harness.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoMinecraftWorldRoundTripSmokeHarness'
+    workingDir = rootProject.projectDir
+}
+
+tasks.register('runStandaloneBlockBehaviorDataDrivenSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Phase A data-driven block behavior registry smoke harness.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoBlockBehaviorDataDrivenSmokeHarness'
+    workingDir = rootProject.projectDir
+}
+
+tasks.register('runStandaloneLevelDatRoundTripSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Phase A level.dat read/write round-trip smoke harness.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoLevelDatRoundTripSmokeHarness'
+    workingDir = rootProject.projectDir
+}
+
+tasks.register('runStandaloneOpenlandsContentLoadSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Loads Openlands MVP blocks/biomes from ECHO-Modules and verifies runtime registration.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoOpenlandsContentLoadSmokeHarness'
+    workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
+}
+
+tasks.register('runStandaloneContentGraphLoadSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Loads .ECHO Content Graph outputs from ECHO-Modules and verifies node/edge/feature/export-plan presence.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoContentGraphLoadSmokeHarness'
+    workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
+}
+
+tasks.register('runStandaloneOpenlandsTerrainGenerationSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Generates Openlands terrain with biome-aware surface rules and verifies biome coverage.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoOpenlandsTerrainGenerationSmokeHarness'
+    workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
+}
+
+tasks.register('runStandaloneOpenlandsWorldSaveSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Creates an Openlands world, saves it through the transactional save runtime, loads it back, and verifies round-trip.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoOpenlandsWorldSaveSmokeHarness'
+    workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
+}
+
+tasks.register('runStandaloneOpenlandsBiomeDistributionSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Measures Openlands biome distribution across a deterministic sample grid.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoOpenlandsBiomeDistributionSmokeHarness'
+    workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
+}
+
+tasks.register('runStandaloneOpenlandsBlockBehaviorSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Loads Openlands MVP block behavior JSON and verifies coverage.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoOpenlandsBlockBehaviorSmokeHarness'
+    workingDir = rootProject.projectDir
+}
+
+tasks.register('runStandaloneSaveFingerprintSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Verifies save registry fingerprint storage and incompatible content rejection.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoSaveFingerprintSmokeHarness'
+    workingDir = rootProject.projectDir
+}
+
+tasks.register('runStandaloneNeoForgeDatapackSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Loads a synthetic NeoForge datapack and verifies vanilla→Openlands alias translation.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoNeoForgeDatapackSmokeHarness'
+    workingDir = rootProject.projectDir
+}
+
+tasks.register('runStandaloneOpenlandsGameplayWiringSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Verifies loaded Openlands content drives block breaking, crafting, loot, and creature spawning.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.testkit.EchoOpenlandsGameplayWiringSmokeHarness'
+    workingDir = rootProject.projectDir
+    args echoModulesRepoRoot.get()
 }
 
 tasks.register('runStandaloneAgent7WorldParitySmoke', JavaExec) {
@@ -16595,4 +16718,9 @@ tasks.register('testGenerateStandaloneStrictPlayEvidence', Exec) {
     workingDir = rootProject.projectDir
     executable = 'node'
     args 'scripts/test-generate-standalone-strict-play-evidence.mjs'
+}
+
+tasks.matching { it instanceof JavaExec && it.name.startsWith('runStandaloneClient') }.configureEach {
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
 }

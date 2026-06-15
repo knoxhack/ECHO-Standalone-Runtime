@@ -315,7 +315,7 @@ public final class EchoClientCreativeInventorySmokeHarness {
         for (Map.Entry<String, Boolean> entry : entries.entrySet()) {
             String itemId = entry.getKey().toLowerCase(Locale.ROOT).replace('\\', '/');
             result.add(new EchoClientCreativeInventoryController.CreativeEntry(
-                    itemId.contains(":") ? itemId.substring(0, itemId.indexOf(':')) : moduleId,
+                    moduleId,
                     itemId,
                     "",
                     entry.getValue(),

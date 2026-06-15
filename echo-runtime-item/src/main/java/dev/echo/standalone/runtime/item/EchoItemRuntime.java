@@ -117,6 +117,7 @@ public final class EchoItemRuntime {
                 patchedFilter.id(),
                 1
         );
+        craftingSystem.register(debugRecipe);
         EchoLootTable debugLootTable = new EchoLootTable(
                 "ashfall:crash_cache_salvage",
                 List.of(
@@ -124,6 +125,7 @@ public final class EchoItemRuntime {
                         new EchoLootEntry(salvagedMetal.id(), 2)
                 )
         );
+        lootRuntime.register(debugLootTable);
         EchoItemSaveHook saveHook = new EchoItemSaveHook(registry, inventoryStore);
         EchoItemRuntimeResult result = new EchoItemRuntimeResult(
                 registry,

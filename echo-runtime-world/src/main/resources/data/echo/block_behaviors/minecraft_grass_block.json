@@ -1,0 +1,18 @@
+{
+  "hardness": 0.6,
+  "blastResistance": 0.6,
+  "harvestTool": "shovel",
+  "harvestLevel": 0,
+  "requiresTool": false,
+  "lightEmission": 0,
+  "lightOpacity": 15,
+  "friction": 0.6,
+  "jumpFactor": 1.0,
+  "speedFactor": 1.0,
+  "randomTick": true,
+  "solid": true,
+  "opaque": true,
+  "blocksMotion": true,
+  "flammable": false,
+  "fireSpreadSpeed": 0
+}

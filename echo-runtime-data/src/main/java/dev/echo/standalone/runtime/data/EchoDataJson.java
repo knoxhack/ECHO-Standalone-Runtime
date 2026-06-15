@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-final class EchoDataJson {
+public final class EchoDataJson {
     private final String text;
     private int index;
 
@@ -13,7 +13,7 @@ final class EchoDataJson {
         this.text = text;
     }
 
-    static Object parse(String text) {
+    public static Object parse(String text) {
         EchoDataJson parser = new EchoDataJson(text);
         Object value = parser.readValue();
         parser.skipWhitespace();

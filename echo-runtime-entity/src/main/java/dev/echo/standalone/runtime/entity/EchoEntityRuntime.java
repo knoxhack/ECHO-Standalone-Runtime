@@ -4,12 +4,21 @@ import dev.echo.standalone.runtime.contracts.EchoRuntimeServiceRegistry;
 import dev.echo.standalone.runtime.world.EchoWorldPosition;
 import dev.echo.standalone.runtime.world.EchoWorldRuntimeResult;
 
+import java.util.List;
 import java.util.Objects;
 
 public final class EchoEntityRuntime {
     public EchoEntityRuntimeResult createDebugEntities(
             EchoRuntimeServiceRegistry services,
             EchoWorldRuntimeResult world
+    ) {
+        return createDebugEntities(services, world, List.of());
+    }
+
+    public EchoEntityRuntimeResult createDebugEntities(
+            EchoRuntimeServiceRegistry services,
+            EchoWorldRuntimeResult world,
+            List<EchoEntitySpawnDefinition> spawnDefinitions
     ) {
         Objects.requireNonNull(services, "services");
         Objects.requireNonNull(world, "world");
@@ -51,12 +60,15 @@ public final class EchoEntityRuntime {
 
         EchoEntityMovementSystem movementSystem = new EchoEntityMovementSystem(world.query());
         EchoEntityAiSystem aiSystem = new EchoEntityAiSystem(movementSystem);
+        EchoEntitySpawner spawner = new EchoEntitySpawner(store);
+        spawner.registerAll(spawnDefinitions);
         EchoEntitySaveHook saveHook = new EchoEntitySaveHook(store);
-        EchoEntityRuntimeResult result = new EchoEntityRuntimeResult(store, movementSystem, aiSystem, saveHook);
+        EchoEntityRuntimeResult result = new EchoEntityRuntimeResult(store, movementSystem, aiSystem, saveHook, spawner);
         services.register(EchoEntityRuntimeResult.class, result);
         services.register(EchoEntityStore.class, store);
         services.register(EchoEntityMovementSystem.class, movementSystem);
         services.register(EchoEntityAiSystem.class, aiSystem);
+        services.register(EchoEntitySpawner.class, spawner);
         services.register(EchoEntitySaveHook.class, saveHook);
         return result;
     }

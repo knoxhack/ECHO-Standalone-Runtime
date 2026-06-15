@@ -1,5 +1,7 @@
 package dev.echo.standalone.runtime.world;
 
+import dev.echo.standalone.runtime.world.block.behavior.EchoBlockBehaviorRegistry;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,7 +19,8 @@ public record EchoVoxelWorld(
         double spawnY,
         double spawnZ,
         double spawnYawDegrees,
-        EchoVoxelBiomeSource biomeSource
+        EchoVoxelBiomeSource biomeSource,
+        Optional<EchoBlockBehaviorRegistry> behaviorRegistry
 ) {
     public EchoVoxelWorld {
         if (worldId == null || worldId.isBlank()) {
@@ -29,6 +32,32 @@ public record EchoVoxelWorld(
         Objects.requireNonNull(chunks, "chunks");
         chunks = List.copyOf(chunks);
         biomeSource = biomeSource == null ? EchoVoxelBiomeSources.byWorldId(worldId) : biomeSource;
+        behaviorRegistry = behaviorRegistry == null ? Optional.empty() : behaviorRegistry;
+    }
+
+    public EchoVoxelWorld(
+            String worldId,
+            long seed,
+            int chunkSize,
+            List<EchoVoxelChunk> chunks,
+            double spawnX,
+            double spawnY,
+            double spawnZ,
+            double spawnYawDegrees,
+            EchoVoxelBiomeSource biomeSource
+    ) {
+        this(
+                worldId,
+                seed,
+                chunkSize,
+                chunks,
+                spawnX,
+                spawnY,
+                spawnZ,
+                spawnYawDegrees,
+                biomeSource,
+                Optional.empty()
+        );
     }
 
     public EchoVoxelWorld(
@@ -50,7 +79,26 @@ public record EchoVoxelWorld(
                 spawnY,
                 spawnZ,
                 spawnYawDegrees,
-                EchoVoxelBiomeSources.byWorldId(worldId)
+                EchoVoxelBiomeSources.byWorldId(worldId),
+                Optional.empty()
+        );
+    }
+
+    /**
+     * Returns a world that consults the given block behavior registry when breaking blocks.
+     */
+    public EchoVoxelWorld withBehaviorRegistry(EchoBlockBehaviorRegistry registry) {
+        return new EchoVoxelWorld(
+                worldId,
+                seed,
+                chunkSize,
+                chunks,
+                spawnX,
+                spawnY,
+                spawnZ,
+                spawnYawDegrees,
+                biomeSource,
+                Optional.ofNullable(registry)
         );
     }
 
@@ -338,7 +386,8 @@ public record EchoVoxelWorld(
                 spawnY,
                 spawnZ,
                 spawnYawDegrees,
-                biomeSource
+                biomeSource,
+                behaviorRegistry
         );
     }
 
@@ -361,7 +410,8 @@ public record EchoVoxelWorld(
                 spawnY,
                 spawnZ,
                 spawnYawDegrees,
-                biomeSource
+                biomeSource,
+                behaviorRegistry
         );
     }
 
@@ -380,7 +430,8 @@ public record EchoVoxelWorld(
                 spawnY,
                 spawnZ,
                 spawnYawDegrees,
-                replacement
+                replacement,
+                behaviorRegistry
         );
     }
 
@@ -443,8 +494,12 @@ public record EchoVoxelWorld(
         return (int) Math.floor(value);
     }
 
-    private static double breakDurationSeconds(EchoVoxelBlock block, double toolSpeed) {
-        return Math.max(0.12D, (0.22D + block.hardness() * 0.58D) / toolSpeed);
+    private double breakDurationSeconds(EchoVoxelBlock block, double toolSpeed) {
+        double hardness = block.hardness();
+        if (behaviorRegistry.isPresent()) {
+            hardness = behaviorRegistry.orElseThrow().get(block.id()).destroyTime();
+        }
+        return Math.max(0.12D, (0.22D + hardness * 0.58D) / toolSpeed);
     }
 
     private static double clamp(double value, double minimum, double maximum) {

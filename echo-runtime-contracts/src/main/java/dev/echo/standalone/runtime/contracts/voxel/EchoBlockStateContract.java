@@ -35,10 +35,14 @@ public interface EchoBlockStateContract {
     default Optional<String> value(String name) {
         for (EchoBlockPropertyContract<?> property : properties()) {
             if (property.name().equals(name)) {
-                return Optional.of(property.serialize(value(property)));
+                return Optional.of(serializedValueOf(property));
             }
         }
         return Optional.empty();
+    }
+
+    private <T> String serializedValueOf(EchoBlockPropertyContract<T> property) {
+        return property.serialize(value(property));
     }
 
     /**
