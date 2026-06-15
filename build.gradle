@@ -54,9 +54,14 @@ def echoModulesRoot = providers.gradleProperty('echoModulesRoot')
         .orElse(providers.environmentVariable('ECHO_MODULES_ROOT'))
         .orElse(defaultEchoModulesRoot)
 
+def echoModulesRepoRootOverride = providers.gradleProperty('echoModulesRepoRoot')
+        .orElse(providers.environmentVariable('ECHO_MODULES_REPO_ROOT'))
 def echoModulesRepoRoot = providers.provider {
+    if (echoModulesRepoRootOverride.isPresent()) {
+        return file(echoModulesRepoRootOverride.get()).absolutePath
+    }
     def modulesRootFile = file(echoModulesRoot.get())
-    return modulesRootFile.parentFile != null ? modulesRootFile.parentFile.absolutePath : modulesRootFile.absolutePath
+    return modulesRootFile.name == 'addons' && modulesRootFile.parentFile != null ? modulesRootFile.parentFile.absolutePath : modulesRootFile.absolutePath
 }
 def localReleaseIndexRoot = providers.provider {
     def releaseIndexRoot = new File(rootProject.projectDir.parentFile, 'ECHO-Release-Index')
