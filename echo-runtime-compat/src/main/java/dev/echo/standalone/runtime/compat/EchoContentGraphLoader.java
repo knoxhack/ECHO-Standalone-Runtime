@@ -39,6 +39,7 @@ public final class EchoContentGraphLoader {
         List<Map<String, Object>> features = new ArrayList<>();
         List<Map<String, Object>> hytalePlans = new ArrayList<>();
         List<EchoCompatDiagnostic> diagnostics = new ArrayList<>();
+        int exportPlanCount = 0;
         int graphCount = 0;
 
         for (Path root : moduleRoots) {
@@ -81,6 +82,7 @@ public final class EchoContentGraphLoader {
             }
 
             Path hytalePath = root.resolve(".echo/content-graph/export-plans/hytale.json");
+            exportPlanCount += countExportPlanFiles(root.resolve(".echo/content-graph/export-plans"));
             if (Files.isRegularFile(hytalePath)) {
                 hytalePlans.add(parseJsonObject(Files.readString(hytalePath, StandardCharsets.UTF_8)));
             }
@@ -93,8 +95,21 @@ public final class EchoContentGraphLoader {
                 Collections.unmodifiableList(edges),
                 Collections.unmodifiableList(features),
                 Collections.unmodifiableList(hytalePlans),
+                exportPlanCount,
                 graphCount,
                 Collections.unmodifiableList(diagnostics));
+    }
+
+    private static int countExportPlanFiles(Path exportPlansDir) throws IOException {
+        if (!Files.isDirectory(exportPlansDir)) {
+            return 0;
+        }
+        try (var stream = Files.list(exportPlansDir)) {
+            return (int) stream
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".json"))
+                    .count();
+        }
     }
 
     private void validateNodeReferences(
@@ -156,6 +171,7 @@ public final class EchoContentGraphLoader {
             List<Map<String, Object>> edges,
             List<Map<String, Object>> features,
             List<Map<String, Object>> hytalePlans,
+            int exportPlanCount,
             int graphCount,
             List<EchoCompatDiagnostic> diagnostics
     ) {

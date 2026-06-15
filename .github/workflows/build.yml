@@ -9,12 +9,24 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: knoxhack/ECHO-Modules
+          path: ECHO-Modules
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 25
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate ECHO module content graph release outputs
+        working-directory: ECHO-Modules
+        run: node scripts/generate-module-release.mjs --out dist/echo-module-release --package-from-source
       - name: Build
         run: .\gradlew.bat build --console=plain
+      - name: Verify standalone content graph load
+        run: .\gradlew.bat runStandaloneContentGraphLoadSmoke -PechoModulesRepoRoot=ECHO-Modules --console=plain
       - name: Stage public alpha release assets
         run: .\gradlew.bat packagePublicAlphaRelease --console=plain
       - name: Upload public alpha release assets

@@ -8,7 +8,7 @@ Standalone runtime shell and engine layer for running ECHO/Ashfall outside Minec
 
 ## What Lives Here
 
-Gradle runtime code, runtime shell contracts, standalone docs, release notes, and runtime integration guides.
+Gradle runtime code, runtime shell contracts, standalone docs, release notes, runtime integration guides, and `.ECHO Content Graph` loading for standalone module roots.
 
 ## Release And Update Role
 
@@ -26,10 +26,15 @@ Run commands from the repository root.
 - macOS/Linux: `./gradlew build`
 - Public alpha staging: `.\gradlew.bat packagePublicAlphaRelease` writes `build/public-alpha/echo-standalone-runtime-0.1.0-alpha.zip`, readiness reports, and `checksums.txt` for GitHub release upload.
 - Public alpha publishing: run the `Release Public Alpha` workflow with tag `v0.1.0-standalone-runtime-alpha`; it stages assets, attests `checksums.txt`, and uploads the exact files to the GitHub Release.
+- Content graph smoke: `.\gradlew.bat runStandaloneContentGraphLoadSmoke -PechoModulesRepoRoot=..\ECHO-Modules` loads every per-module `content-graph.json`, validates node/edge references, and reports feature/export-plan diagnostics.
 
 ## Artifact Ownership
 
 Standalone runtime binaries and runtime metadata belong here. Standalone Ashfall pack releases belong to `ECHO-Ashfall-Standalone-Edition`.
+
+## Content Graph Loading
+
+`echo-runtime-compat` provides `EchoContentGraphLoader`, which reads `.echo/content-graph/content-graph.json`, `.echo/content-graph/features.json`, and `.echo/content-graph/export-plans/*.json` from each module root. It produces an `EchoContentGraphLoadResult` containing nodes, edges, features, export-plan counts, Hytale plans, and diagnostics. The smoke report includes `echo.content_graph.evidence.v1` counts, compares them with `content-graph-evidence.json` when present, and asserts the current Openlands Hytale plan has 9 blocked entity nodes. This is optional evidence: the standalone runtime can start without a content graph, but missing or invalid graphs are reported for review.
 
 ## Release Index Product Routing
 
