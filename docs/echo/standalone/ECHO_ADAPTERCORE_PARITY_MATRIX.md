@@ -22,4 +22,6 @@ AdapterCore is the only bridge for Ashfall parity across NeoForge, ECHO Native L
 
 - Required beta domains: blocks, items, entities, recipes, loot, structures, UI screens, sounds, missions, saves, worldgen, networking, commands.
 - Required runtime targets: NeoForge, ECHO Native Loader, ECHO Runtime Standalone.
-- Beta readiness blocks when module coverage has adapter gaps, when any standalone module omits a runtime target, when a required AdapterCore domain is not represented, or when the Ashfall standalone bridge lacks a parity matrix entry.
+- AdapterCore gameplay mutation receipt coverage is tracked separately from catalog/parity coverage. Ashfall first-join and machine proof must show receipt-backed inventory, player-state, world/structure, capability/energy, save, HUD, packet, and event mutations.
+- Queued-only, diagnostic-only, and metadata-only handoffs are useful standalone diagnostics, but they do not count as live gameplay mutation proof.
+- Beta readiness blocks when module coverage has adapter gaps, when any standalone module omits a runtime target, when a required AdapterCore domain is not represented, when AdapterCore gameplay mutation receipts are missing, or when the Ashfall standalone bridge lacks a parity matrix entry.
