@@ -16709,6 +16709,7 @@ tasks.register('generateStandaloneStrictPlayEvidence', Exec) {
     dependsOn tasks.named('runStandaloneAgent5UiParitySmoke')
     dependsOn tasks.named('runStandaloneClientScreenCatalogSmoke')
     dependsOn tasks.named('runStandaloneClientModsRuntimeContentSmoke')
+    dependsOn tasks.named('runStandaloneClientCreativeInventorySmoke')
     dependsOn tasks.named('runStandaloneClientWorldInteractionSmoke')
     dependsOn tasks.named('runStandaloneClientHeldItemOverlaySmoke')
     dependsOn tasks.named('runStandaloneClientSaveContinueSmoke')

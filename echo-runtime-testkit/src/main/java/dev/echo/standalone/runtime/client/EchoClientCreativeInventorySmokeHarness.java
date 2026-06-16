@@ -52,6 +52,9 @@ public final class EchoClientCreativeInventorySmokeHarness {
             results.add(proveModule(controller, model, expectation));
         }
         writeSmokeReport(results);
+        require(!results.isEmpty(), "creative inventory smoke did not discover any module creative expectations");
+        List<String> blockers = allBlockers(results);
+        require(blockers.isEmpty(), "creative inventory smoke failed: " + String.join("; ", blockers));
         long playable = results.stream().filter(ModuleCreativeResult::playable).count();
         System.out.println("client creative inventory smoke PASS modules=" + results.size() + " playable=" + playable);
     }
@@ -346,6 +349,12 @@ public final class EchoClientCreativeInventorySmokeHarness {
         arrayProperty(json, 1, "selectableItemIds", itemIds(results, ModuleCreativeResult::selectable), true);
         arrayProperty(json, 1, "playableItemIds", itemIds(results, ModuleCreativeResult::playable), true);
         arrayProperty(json, 1, "placedBlockIds", placedBlockIds(results), true);
+        arrayProperty(json, 1, "featureBuckets", List.of("creative_inventory", "creative_tabs", "search", "hotbar", "block_actions"), true);
+        arrayProperty(json, 1, "trustedMutations", trustedMutations(results), true);
+        arrayProperty(json, 1, "visibleRoutes", List.of("echoscreencore:creative_inventory", "echoscreencore:creative_search"), true);
+        arrayProperty(json, 1, "saveEvidence", List.of(), true);
+        arrayProperty(json, 1, "networkEvidence", List.of(), true);
+        arrayProperty(json, 1, "blockers", allBlockers(results), true);
         json.append("  \"modules\": [\n");
         for (int i = 0; i < results.size(); i++) {
             ModuleCreativeResult result = results.get(i);
@@ -401,6 +410,24 @@ public final class EchoClientCreativeInventorySmokeHarness {
                 .filter(ModuleCreativeResult::playable)
                 .filter(result -> result.playMutation().equals("block_place"))
                 .map(ModuleCreativeResult::selectedItemId)
+                .toList();
+    }
+
+    private static List<String> trustedMutations(List<ModuleCreativeResult> results) {
+        return results.stream()
+                .filter(ModuleCreativeResult::playable)
+                .map(result -> switch (result.playMutation()) {
+                    case "block_place" -> "creativeInventory:" + result.moduleId() + ":block_place:" + result.selectedItemId();
+                    case "creative_item_activate" -> "creativeInventory:" + result.moduleId() + ":item_activate:" + result.selectedItemId();
+                    default -> "creativeInventory:" + result.moduleId() + ":" + result.playMutation() + ":" + result.selectedItemId();
+                })
+                .toList();
+    }
+
+    private static List<String> allBlockers(List<ModuleCreativeResult> results) {
+        return results.stream()
+                .flatMap(result -> result.blockers().stream()
+                        .map(blocker -> result.moduleId() + ": " + blocker))
                 .toList();
     }
 
@@ -608,4 +635,10 @@ public final class EchoClientCreativeInventorySmokeHarness {
             List<String> missingCreativeSearchEntries,
             List<String> blockers
     ) {}
+
+    private static void require(boolean condition, String message) {
+        if (!condition) {
+            throw new AssertionError(message);
+        }
+    }
 }

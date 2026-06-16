@@ -80,6 +80,16 @@ try {
     status: 'PASS',
     moduleIds: ['echocontentcore'],
   })
+  await writeJson(root, 'reports/echo/standalone/client-creative-inventory-smoke.json', {
+    schema: 'echo.standalone.client_smoke.client-creative-inventory-smoke.v1',
+    status: 'PASS',
+    moduleIds: ['echocontentcore', 'echoblockworks'],
+    visibleRoutes: ['echoscreencore:creative_inventory'],
+    trustedMutations: [
+      'creativeInventory:echoblockworks:block_place:echoblockworks:debug_panel',
+      'creativeInventory:echocontentcore:item_activate:echocontentcore:debug_wand',
+    ],
+  })
   await writeJson(root, 'reports/echo/standalone/client-world-interaction-smoke.json', {
     schema: 'echo.standalone.client_smoke.client-world-interaction-smoke.v1',
     status: 'PASS',
@@ -111,15 +121,18 @@ try {
 
   const ui = await readJson(root, 'reports/echo/standalone/client-ui-surfaces-play.json')
   assert.equal(ui.status, 'PASS')
-  assert.deepEqual(ui.moduleIds, ['echohudcore', 'echoindex', 'echoscreencore'])
+  assert.deepEqual(ui.moduleIds, ['echoblockworks', 'echocontentcore', 'echohudcore', 'echoindex', 'echoscreencore'])
+  assert.ok(ui.visibleRoutes.includes('echoscreencore:creative_inventory'))
 
   const voxel = await readJson(root, 'reports/echo/standalone/voxel-content-play.json')
   assert.equal(voxel.status, 'PASS')
-  assert.deepEqual(voxel.moduleIds, ['echoashfallprotocol', 'echocontentcore', 'echohudcore', 'echoterminal'])
+  assert.deepEqual(voxel.moduleIds, ['echoashfallprotocol', 'echoblockworks', 'echocontentcore', 'echohudcore', 'echoterminal'])
+  assert.ok(voxel.trustedMutations.some((mutation) => mutation.includes('creativeInventory:echoblockworks:block_place')))
 
   const actions = await readJson(root, 'reports/echo/standalone/block-action-mutations.json')
   assert.equal(actions.status, 'PASS')
-  assert.deepEqual(actions.moduleIds, ['echoashfallprotocol', 'echoterminal'])
+  assert.deepEqual(actions.moduleIds, ['echoashfallprotocol', 'echoblockworks', 'echocontentcore', 'echoterminal'])
+  assert.ok(actions.trustedMutations.some((mutation) => mutation.includes('creativeInventory:echocontentcore:item_activate')))
 
   const worldgen = await readJson(root, 'reports/echo/standalone/worldgen-play.json')
   assert.equal(worldgen.status, 'PASS')
