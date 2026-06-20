@@ -69,11 +69,13 @@ final class EchoClientScreenCatalog {
         EchoAgent5ScreenCoreContract contract = EchoAgent5ScreenCoreContract.runtime();
         ArrayList<EchoClientScreenCatalogEntry> entries = new ArrayList<>(builtInScreenCoreEntries());
         ArrayList<EchoClientScreenCatalogEntry> adapterScreens = new ArrayList<>();
-        for (EchoAdapterCoreRegistryEntry entry : safeBridge.registry().entriesForDomain(EchoAdapterCoreDomain.UI_SCREENS)) {
-            EchoClientScreenCatalogEntry catalogEntry =
-                    EchoClientScreenCatalogEntry.adapterCore(entry, safePresentation);
-            entries.add(catalogEntry);
-            adapterScreens.add(catalogEntry);
+        for (EchoAdapterCoreDomain uiDomain : adapterCoreUiDomains()) {
+            for (EchoAdapterCoreRegistryEntry entry : safeBridge.registry().entriesForDomain(uiDomain)) {
+                EchoClientScreenCatalogEntry catalogEntry =
+                        EchoClientScreenCatalogEntry.adapterCore(entry, safePresentation);
+                entries.add(catalogEntry);
+                adapterScreens.add(catalogEntry);
+            }
         }
         LinkedHashMap<EchoAdapterCoreDomain, Integer> domainCounts = new LinkedHashMap<>();
         for (EchoAdapterCoreDomain domain : EchoAdapterCoreDomain.values()) {
@@ -296,6 +298,18 @@ final class EchoClientScreenCatalog {
                         "saving.status",
                         "Session save status"
                 )
+        );
+    }
+
+    private static List<EchoAdapterCoreDomain> adapterCoreUiDomains() {
+        return List.of(
+                EchoAdapterCoreDomain.UI_SCREENS,
+                EchoAdapterCoreDomain.UI_OVERLAYS,
+                EchoAdapterCoreDomain.TERMINAL,
+                EchoAdapterCoreDomain.LENS,
+                EchoAdapterCoreDomain.INDEX,
+                EchoAdapterCoreDomain.HOLOMAP,
+                EchoAdapterCoreDomain.WIKI
         );
     }
 

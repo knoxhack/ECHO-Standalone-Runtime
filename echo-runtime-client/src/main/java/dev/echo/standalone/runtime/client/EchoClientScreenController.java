@@ -376,12 +376,28 @@ final class EchoClientScreenController {
 
     private void publishInventory() {
         footer = "E closes, Esc returns";
-        uiBridge.showStatic("echoscreencore:inventory", "INVENTORY", List.of(
-                "Player carry slots",
-                "Route: screencore.inventory",
-                "Focus: inventory.slots"
-        ), "inventory.slots");
+        ArrayList<String> lines = new ArrayList<>();
+        lines.add("Module-backed inventory catalog");
+        lines.add(runtimeContent.summaryLabel());
+        lines.add(runtimeContent.domainBreakdownLabel(6));
+        addInventoryDomainLine(lines, "Creative Tabs", "inventory");
+        addInventoryDomainLine(lines, "Blocks", "blocks");
+        addInventoryDomainLine(lines, "Items", "items");
+        addInventoryDomainLine(lines, "Recipes", "recipes");
+        for (EchoClientRuntimeContentRowSummary row : runtimeContent.recentRows(6)) {
+            lines.add(row.menuLabel());
+        }
+        lines.add("Route: screencore.inventory");
+        lines.add("Focus: inventory.slots");
+        uiBridge.showStatic("echoscreencore:inventory", "INVENTORY", List.copyOf(lines), "inventory.slots");
         markSnapshotDirty();
+    }
+
+    private void addInventoryDomainLine(List<String> lines, String label, String domain) {
+        int count = runtimeContent.domainCounts().getOrDefault(domain, 0);
+        if (count > 0) {
+            lines.add(label + ": " + count);
+        }
     }
 
     private void openContainer(boolean hasSession) {
@@ -1519,6 +1535,33 @@ final class EchoClientScreenController {
                 }
             }
             case INVENTORY -> {
+                result.add(new EchoClientScreenOption(
+                        "Runtime Content: " + runtimeContent.summaryLabel(),
+                        EchoClientScreenCommand.NONE,
+                        false,
+                        runtimeContent.domainBreakdownLabel(8)
+                ));
+                for (String domainSummary : runtimeContent.topDomainSummaries(8)) {
+                    result.add(new EchoClientScreenOption(domainSummary, EchoClientScreenCommand.NONE, false));
+                }
+                for (EchoClientRuntimeContentRowSummary row : runtimeContent.recentRows(12)) {
+                    result.add(new EchoClientScreenOption(
+                            row.menuLabel(),
+                            EchoClientScreenCommand.NONE,
+                            false,
+                            row.detailLabel()
+                    ));
+                }
+                if (runtimeContent.rowCount() > 12) {
+                    result.add(new EchoClientScreenOption(
+                            "More Runtime Content: " + (runtimeContent.rowCount() - 12),
+                            EchoClientScreenCommand.NONE,
+                            false,
+                            "Open Mods or Diagnostics for the full module content list"
+                    ));
+                }
+                result.add(new EchoClientScreenOption("Workbench", EchoClientScreenCommand.OPEN_WORKBENCH, hasSession));
+                result.add(new EchoClientScreenOption("Back", EchoClientScreenCommand.BACK, true));
             }
             case CONTAINER -> {
                 result.add(new EchoClientScreenOption("Crash Cache", EchoClientScreenCommand.NONE, false));
@@ -2786,7 +2829,7 @@ final class EchoClientScreenController {
                     + screenCatalog.modSummary() + " | " + runtimeContent.summaryLabel();
             case RESOURCE_PACKS -> "Minecraft resource packs and runtime texture atlas management";
             case RESOURCE_PACK_DETAIL -> "Mounted Minecraft resource pack namespace, model, lang, and sound inventory";
-            case INVENTORY -> "Player hotbar and carry slots";
+            case INVENTORY -> "Module-backed inventory catalog: " + runtimeContent.summaryLabel();
             case CONTAINER -> "Container UI route and slot commands for AdapterCore attachments";
             case WORKBENCH -> workbenchRecipes.size() + " item-runtime recipe(s) loaded from data packs";
             case MACHINE -> screenCatalog.domainCount(EchoAdapterCoreDomain.MACHINES)

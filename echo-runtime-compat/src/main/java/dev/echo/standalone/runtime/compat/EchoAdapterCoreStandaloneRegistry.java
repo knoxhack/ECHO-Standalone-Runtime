@@ -72,6 +72,10 @@ public final class EchoAdapterCoreStandaloneRegistry {
             merged.put(entry.contentId(), entry);
         }
         for (EchoAdapterCoreRegistryEntry entry : replacementEntries) {
+            if (!entry.liveVoxelId().isBlank()) {
+                merged.entrySet().removeIf(existing ->
+                        entry.liveVoxelId().equals(existing.getValue().liveVoxelId()));
+            }
             merged.put(entry.contentId(), entry);
         }
         return new EchoAdapterCoreStandaloneRegistry(new ArrayList<>(merged.values()));

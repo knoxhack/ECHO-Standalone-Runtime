@@ -1765,6 +1765,17 @@ tasks.register('runStandaloneStrictPackBootstrapTests', JavaExec) {
     workingDir = rootProject.projectDir
 }
 
+tasks.register('runStandaloneAshfallContentGraphRuntimeCatalogSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Fails closed unless the installed Ashfall standalone pack loads embedded Content Graphs into the client runtime catalog with required parity coverage.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.client.EchoClientAshfallContentGraphRuntimeCatalogSmokeHarness'
+    workingDir = rootProject.projectDir
+    def defaultPackRoot = file('../ECHO-Ashfall-Standalone-Edition/tmp/rebuild-official-modpack-assets/ashfall-standalone-edition')
+    args((findProperty('echoStandaloneAshfallPackRoot') ?: defaultPackRoot.absolutePath).toString())
+}
+
 tasks.register('runStandaloneAddonArchiveCompatibilitySmoke', JavaExec) {
     group = 'verification'
     description = 'Verifies standalone addon discovery/execution from folders, jar/zip/.echo-addon archives, unsafe archive classpath rejection, and corrupt archive recovery.'
@@ -16088,6 +16099,7 @@ tasks.register('runStandaloneBetaReadinessGate') {
     dependsOn tasks.named('runStandaloneNativeLoaderAbiSmoke')
     dependsOn tasks.named('runStandaloneRealModuleExecutionSmoke')
     dependsOn tasks.named('runStandaloneAddonArchiveCompatibilitySmoke')
+    dependsOn tasks.named('runStandaloneAshfallContentGraphRuntimeCatalogSmoke')
     dependsOn tasks.named('runStandaloneAdapterCoreModuleCoverageSmoke')
     dependsOn tasks.named('runStandaloneAshfallAdapterCoreParitySmoke')
     dependsOn tasks.named('verifyStandaloneAssetRuntime')
@@ -16189,6 +16201,7 @@ tasks.register('runStandaloneBetaReadinessGate') {
                 taskCheck('modules.real-execution', 'runStandaloneRealModuleExecutionSmoke', 'real-modules', true),
                 taskCheck('modules.strict-pack-bootstrap', 'runStandaloneStrictPackBootstrapTests', 'real-modules', true),
                 taskCheck('addons.folder-jar-zip-echo-addon', 'runStandaloneAddonArchiveCompatibilitySmoke', 'addons', true),
+                taskCheck('content-graph.ashfall-runtime-catalog', 'runStandaloneAshfallContentGraphRuntimeCatalogSmoke', 'content-graph', true),
                 taskCheck('adaptercore.module-coverage', 'runStandaloneAdapterCoreModuleCoverageSmoke', 'adaptercore', true),
                 taskCheck('adaptercore.ashfall-parity', 'runStandaloneAshfallAdapterCoreParitySmoke', 'adaptercore', true),
                 taskCheck('assets.resource-pack-mounts', 'verifyStandaloneAssetRuntime', 'assets-data', true),

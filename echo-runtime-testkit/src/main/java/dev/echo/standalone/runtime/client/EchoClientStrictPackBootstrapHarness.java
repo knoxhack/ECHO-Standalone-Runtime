@@ -35,22 +35,30 @@ public final class EchoClientStrictPackBootstrapHarness {
         require(result.modScanSummary().activeCount() == 1, "valid pack should expose one active module");
         require(result.moduleRuntimeResult().registry().runtimeStatus(MODULE_ID) == EchoRuntimeModuleStatus.RUNTIME_ACTIVE,
                 "valid module should be runtime-active");
-        require(result.adapterCoreContentRows().size() == 1, "native activation bridge should produce one content row");
-        require(CONTENT_ID.equals(result.adapterCoreContentRows().get(0).get("contentId")),
-                "native content row should use the fixture content id");
+        require(result.contentGraphLoaded(), "valid strict pack should load embedded Content Graph artifacts");
+        require(result.contentGraphResult().standalonePlans().size() == 1,
+                "valid strict pack should load one standalone export plan");
+        require(result.adapterCoreContentRows().size() == 3,
+                "graph plus native activation bridge should produce three merged content rows");
+        require(hasContentRow(result.adapterCoreContentRows(), CONTENT_ID),
+                "merged runtime catalog should retain the fixture item content id");
+        require(hasContentRow(result.adapterCoreContentRows(), MODULE_ID + ":strict_pack_block"),
+                "merged runtime catalog should include the fixture block content id");
+        require(hasContentRow(result.adapterCoreContentRows(), MODULE_ID + ":strict_pack_tab"),
+                "merged runtime catalog should include the fixture creative tab content id");
 
         EchoClientRuntimeServices services = EchoClientRuntimeServices.forTemplate(
                 EchoClientWorldTemplates.ashfallCrashSite(),
                 root.resolve("saves"),
                 result
         );
-        require(services.runtimeContentSummary().rowCount() == 1,
-                "client runtime services should import native AdapterCore content");
+        require(services.runtimeContentSummary().rowCount() == 3,
+                "client runtime services should import graph-backed AdapterCore content");
         services.refreshModScan();
-        require(services.runtimeContentSummary().rowCount() == 1,
+        require(services.runtimeContentSummary().rowCount() == 3,
                 "active module bootstrap refresh should not duplicate runtime content");
         require(services.importAdapterCoreContentRegistrations(result.adapterCoreContentRows()) == 0,
-                "re-importing identical native content rows should be duplicate-free");
+                "re-importing identical graph/native content rows should be duplicate-free");
 
         EchoRuntimeModuleRuntimeResult runtimeResult = result.moduleRuntimeResult();
         result.close();
@@ -155,6 +163,10 @@ public final class EchoClientStrictPackBootstrapHarness {
         Files.createDirectories(jar.getParent());
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
             addJarEntry(output, "META-INF/echo.mod.json", descriptor().getBytes(StandardCharsets.UTF_8));
+            addJarEntry(output, ".echo/content-graph/content-graph.json",
+                    contentGraph().getBytes(StandardCharsets.UTF_8));
+            addJarEntry(output, ".echo/content-graph/export-plans/echo_runtime_standalone.json",
+                    standaloneExportPlan().getBytes(StandardCharsets.UTF_8));
             try (var stream = Files.walk(classes)) {
                 for (Path file : stream
                         .filter(Files::isRegularFile)
@@ -190,6 +202,110 @@ public final class EchoClientStrictPackBootstrapHarness {
                   }
                 }
                 """.formatted(MODULE_ID);
+    }
+
+    private static String contentGraph() {
+        return """
+                {
+                  "schemaVersion": "echo.content_graph.v1",
+                  "moduleId": "%1$s",
+                  "nodes": [
+                    {
+                      "schemaVersion": "echo.content_graph.node.v1",
+                      "kind": "echo:block",
+                      "id": "%1$s:strict_pack_block",
+                      "moduleId": "%1$s",
+                      "displayName": "Strict Pack Block",
+                      "runtimeHints": {
+                        "echo_runtime_standalone": {
+                          "id": "%1$s:strict_pack_block"
+                        }
+                      },
+                      "data": {
+                        "hardness": 2,
+                        "texture": "%1$s:block/strict_pack_block"
+                      }
+                    },
+                    {
+                      "schemaVersion": "echo.content_graph.node.v1",
+                      "kind": "echo:item",
+                      "id": "%2$s",
+                      "moduleId": "%1$s",
+                      "displayName": "Strict Pack Ingot",
+                      "runtimeHints": {
+                        "echo_runtime_standalone": {
+                          "id": "%2$s"
+                        }
+                      },
+                      "data": {
+                        "maxStackSize": 64,
+                        "texture": "%1$s:item/strict_pack_ingot"
+                      }
+                    },
+                    {
+                      "schemaVersion": "echo.content_graph.node.v1",
+                      "kind": "echo:creative_tab",
+                      "id": "%1$s:strict_pack_tab",
+                      "moduleId": "%1$s",
+                      "displayName": "Strict Pack",
+                      "runtimeHints": {
+                        "echo_runtime_standalone": {
+                          "id": "%1$s:strict_pack_tab"
+                        }
+                      },
+                      "data": {
+                        "titleKey": "itemGroup.%1$s.strict_pack",
+                        "iconItem": "%2$s",
+                        "itemIds": [
+                          "%2$s",
+                          "%1$s:strict_pack_block"
+                        ]
+                      }
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "kind": "creative_tab_contains_item",
+                      "id": "%1$s:strict_pack_tab/%2$s",
+                      "from": "%1$s:strict_pack_tab",
+                      "to": "%2$s"
+                    },
+                    {
+                      "kind": "creative_tab_contains_item",
+                      "id": "%1$s:strict_pack_tab/%1$s:strict_pack_block",
+                      "from": "%1$s:strict_pack_tab",
+                      "to": "%1$s:strict_pack_block"
+                    }
+                  ]
+                }
+                """.formatted(MODULE_ID, CONTENT_ID);
+    }
+
+    private static String standaloneExportPlan() {
+        return """
+                {
+                  "schemaVersion": "echo.content_graph.export_plan.v1",
+                  "sourceGraphId": "%1$s:graph",
+                  "targetRuntime": "echo_runtime_standalone",
+                  "nodes": [
+                    {
+                      "nodeId": "%1$s:strict_pack_block",
+                      "kind": "echo:block",
+                      "status": "direct"
+                    },
+                    {
+                      "nodeId": "%2$s",
+                      "kind": "echo:item",
+                      "status": "direct"
+                    },
+                    {
+                      "nodeId": "%1$s:strict_pack_tab",
+                      "kind": "echo:creative_tab",
+                      "status": "direct"
+                    }
+                  ]
+                }
+                """.formatted(MODULE_ID, CONTENT_ID);
     }
 
     private static EchoClientLaunchContext context(FixturePack pack, boolean safeMode) {
@@ -240,6 +356,10 @@ public final class EchoClientStrictPackBootstrapHarness {
         if (!condition) {
             throw new AssertionError(message);
         }
+    }
+
+    private static boolean hasContentRow(List<Map<String, Object>> rows, String contentId) {
+        return rows.stream().anyMatch(row -> contentId.equals(row.get("contentId")));
     }
 
     private record FixturePack(Path packRoot, Path modulesRoot) {

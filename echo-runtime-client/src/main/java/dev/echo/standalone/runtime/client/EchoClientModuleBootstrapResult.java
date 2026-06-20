@@ -2,6 +2,7 @@ package dev.echo.standalone.runtime.client;
 
 import dev.echo.standalone.runtime.core.EchoDefaultRuntimeServiceRegistry;
 import dev.echo.standalone.runtime.core.EchoRuntimeDiagnosticCollector;
+import dev.echo.standalone.runtime.compat.EchoContentGraphLoader;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleManager;
 import dev.echo.standalone.runtime.modules.EchoRuntimeModuleRuntimeResult;
 
@@ -22,7 +23,9 @@ final class EchoClientModuleBootstrapResult implements AutoCloseable {
                     null,
                     EchoClientModScanSummary.empty(),
                     List.of(),
-                    List.of()
+                    List.of(),
+                    null,
+                    Map.of()
             );
 
     private final boolean active;
@@ -36,6 +39,8 @@ final class EchoClientModuleBootstrapResult implements AutoCloseable {
     private final EchoClientModScanSummary modScanSummary;
     private final List<Path> moduleRoots;
     private final List<Map<String, Object>> adapterCoreContentRows;
+    private final EchoContentGraphLoader.EchoContentGraphLoadResult contentGraphResult;
+    private final Map<String, Object> contentGraphConsumptionReport;
     private boolean closed;
 
     private EchoClientModuleBootstrapResult(
@@ -49,7 +54,9 @@ final class EchoClientModuleBootstrapResult implements AutoCloseable {
             EchoRuntimeDiagnosticCollector diagnostics,
             EchoClientModScanSummary modScanSummary,
             List<Path> moduleRoots,
-            List<Map<String, Object>> adapterCoreContentRows
+            List<Map<String, Object>> adapterCoreContentRows,
+            EchoContentGraphLoader.EchoContentGraphLoadResult contentGraphResult,
+            Map<String, Object> contentGraphConsumptionReport
     ) {
         this.active = active;
         this.strictPackMode = strictPackMode;
@@ -62,6 +69,10 @@ final class EchoClientModuleBootstrapResult implements AutoCloseable {
         this.modScanSummary = modScanSummary == null ? EchoClientModScanSummary.empty() : modScanSummary;
         this.moduleRoots = moduleRoots == null ? List.of() : List.copyOf(moduleRoots);
         this.adapterCoreContentRows = adapterCoreContentRows == null ? List.of() : List.copyOf(adapterCoreContentRows);
+        this.contentGraphResult = contentGraphResult;
+        this.contentGraphConsumptionReport = contentGraphConsumptionReport == null
+                ? Map.of()
+                : Map.copyOf(contentGraphConsumptionReport);
     }
 
     static EchoClientModuleBootstrapResult inactive() {
@@ -89,7 +100,9 @@ final class EchoClientModuleBootstrapResult implements AutoCloseable {
                         cleanFailure
                 ),
                 List.of(),
-                List.of()
+                List.of(),
+                null,
+                Map.of()
         );
     }
 
@@ -102,7 +115,9 @@ final class EchoClientModuleBootstrapResult implements AutoCloseable {
             EchoRuntimeDiagnosticCollector diagnostics,
             EchoClientModScanSummary modScanSummary,
             List<Path> moduleRoots,
-            List<Map<String, Object>> adapterCoreContentRows
+            List<Map<String, Object>> adapterCoreContentRows,
+            EchoContentGraphLoader.EchoContentGraphLoadResult contentGraphResult,
+            Map<String, Object> contentGraphConsumptionReport
     ) {
         return new EchoClientModuleBootstrapResult(
                 true,
@@ -115,7 +130,9 @@ final class EchoClientModuleBootstrapResult implements AutoCloseable {
                 diagnostics,
                 modScanSummary,
                 moduleRoots,
-                adapterCoreContentRows
+                adapterCoreContentRows,
+                contentGraphResult,
+                contentGraphConsumptionReport
         );
     }
 
@@ -149,6 +166,18 @@ final class EchoClientModuleBootstrapResult implements AutoCloseable {
 
     List<Map<String, Object>> adapterCoreContentRows() {
         return adapterCoreContentRows;
+    }
+
+    EchoContentGraphLoader.EchoContentGraphLoadResult contentGraphResult() {
+        return contentGraphResult;
+    }
+
+    Map<String, Object> contentGraphConsumptionReport() {
+        return contentGraphConsumptionReport;
+    }
+
+    boolean contentGraphLoaded() {
+        return contentGraphResult != null && contentGraphResult.graphCount() > 0;
     }
 
     EchoRuntimeDiagnosticCollector diagnostics() {

@@ -2,6 +2,7 @@ package dev.echo.standalone.runtime.client;
 
 import dev.echo.nativeplatform.contracts.EchoNativeRegisteredService;
 import dev.echo.nativeplatform.contracts.EchoNativeServiceRegistry;
+import dev.echo.standalone.runtime.compat.EchoContentGraphLoader;
 import dev.echo.standalone.runtime.contracts.EchoRuntimeDiagnosticSink;
 import dev.echo.standalone.runtime.core.EchoDefaultRuntimeServiceRegistry;
 import dev.echo.standalone.runtime.core.EchoRuntimeDiagnosticCollector;
@@ -27,6 +28,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 final class EchoClientModuleBootstrap {
     private EchoClientModuleBootstrap() {
@@ -63,15 +65,22 @@ final class EchoClientModuleBootstrap {
 
             EchoRuntimeModuleManager manager = EchoRuntimeModuleManager.executableAbiV1();
             EchoRuntimeModuleRuntimeResult moduleRuntimeResult = manager.run(roots, services);
-            List<String> runtimeFailures = validateRuntimeResult(moduleRuntimeResult, manifest);
-            if (!runtimeFailures.isEmpty() && !context.safeMode()) {
+            EchoContentGraphLoader.EchoContentGraphLoadResult contentGraphResult =
+                    new EchoContentGraphLoader(roots).load();
+            List<String> runtimeFailures = validateRuntimeResult(moduleRuntimeResult, manifest, contentGraphResult);
+            List<Map<String, Object>> contentGraphRows =
+                    EchoClientContentGraphRuntimeCatalog.rows(contentGraphResult);
+            List<String> contentGraphFailures =
+                    EchoClientContentGraphRuntimeCatalog.strictValidationFailures(contentGraphResult, roots.size());
+            if ((!runtimeFailures.isEmpty() || !contentGraphFailures.isEmpty()) && !context.safeMode()) {
                 manager.unload(moduleRuntimeResult, services);
                 throw new IllegalStateException("Installed module graph failed: "
-                        + String.join("; ", runtimeFailures));
+                        + String.join("; ", concat(runtimeFailures, contentGraphFailures)));
             }
 
-            List<Map<String, Object>> rows = adapterCoreRows(services);
-            EchoClientModScanSummary summary = summary(moduleRuntimeResult, roots, concat(manifestFailures, runtimeFailures));
+            List<Map<String, Object>> rows = mergeRows(contentGraphRows, adapterCoreRows(services));
+            EchoClientModScanSummary summary = summary(moduleRuntimeResult, roots,
+                    concat(concat(manifestFailures, runtimeFailures), contentGraphFailures));
             return EchoClientModuleBootstrapResult.active(
                     true,
                     context.safeMode(),
@@ -81,7 +90,9 @@ final class EchoClientModuleBootstrap {
                     diagnostics,
                     summary,
                     roots,
-                    rows
+                    rows,
+                    contentGraphResult,
+                    EchoClientContentGraphRuntimeCatalog.consumptionReport(contentGraphResult, contentGraphRows)
             );
         } catch (IOException | RuntimeException exception) {
             if (context.safeMode()) {
@@ -114,15 +125,42 @@ final class EchoClientModuleBootstrap {
         return List.copyOf(roots);
     }
 
+    private static List<Map<String, Object>> mergeRows(
+            List<Map<String, Object>> contentGraphRows,
+            List<Map<String, Object>> adapterCoreRows
+    ) {
+        LinkedHashMap<String, Map<String, Object>> merged = new LinkedHashMap<>();
+        if (contentGraphRows != null) {
+            for (Map<String, Object> row : contentGraphRows) {
+                String contentId = text(row == null ? null : row.get("contentId"));
+                if (!contentId.isBlank()) {
+                    merged.put(contentId, row);
+                }
+            }
+        }
+        if (adapterCoreRows != null) {
+            for (Map<String, Object> row : adapterCoreRows) {
+                String contentId = text(row == null ? null : row.get("contentId"));
+                if (!contentId.isBlank()) {
+                    merged.put(contentId, row);
+                }
+            }
+        }
+        return List.copyOf(merged.values());
+    }
+
     private static List<String> validateRuntimeResult(
             EchoRuntimeModuleRuntimeResult result,
-            PackManifest manifest
+            PackManifest manifest,
+            EchoContentGraphLoader.EchoContentGraphLoadResult contentGraphResult
     ) {
         ArrayList<String> failures = new ArrayList<>();
         EchoRuntimeModuleRegistry registry = result.registry();
+        Set<String> contentGraphModuleIds = contentGraphModuleIds(contentGraphResult);
         if (result.moduleGraph().hasBlockingIssues()) {
             for (EchoRuntimeModuleIssue issue : result.moduleGraph().issues()) {
-                if (issue.severity() == EchoRuntimeModuleIssue.Severity.ERROR) {
+                if (issue.severity() == EchoRuntimeModuleIssue.Severity.ERROR
+                        && !contentGraphModuleIds.contains(text(issue.moduleId()))) {
                     failures.add(issue.code() + ": " + issue.summary());
                 }
             }
@@ -134,14 +172,30 @@ final class EchoClientModuleBootstrap {
             }
             EchoRuntimeModuleStatus status = registry.runtimeStatus(moduleId);
             EchoRuntimeModuleLifecycle lifecycle = registry.lifecycle(moduleId);
-            if (status != EchoRuntimeModuleStatus.RUNTIME_ACTIVE) {
+            boolean graphBacked = contentGraphModuleIds.contains(moduleId);
+            if (status != EchoRuntimeModuleStatus.RUNTIME_ACTIVE && !graphBacked) {
                 failures.add(moduleId + " is " + status.id());
             }
-            if (lifecycle == EchoRuntimeModuleLifecycle.FAILED || lifecycle == EchoRuntimeModuleLifecycle.DISABLED) {
+            if ((lifecycle == EchoRuntimeModuleLifecycle.FAILED || lifecycle == EchoRuntimeModuleLifecycle.DISABLED)
+                    && !graphBacked) {
                 failures.add(moduleId + " lifecycle is " + lifecycle.name());
             }
         }
         return List.copyOf(failures);
+    }
+
+    private static Set<String> contentGraphModuleIds(EchoContentGraphLoader.EchoContentGraphLoadResult result) {
+        LinkedHashSet<String> moduleIds = new LinkedHashSet<>();
+        if (result == null) {
+            return Set.of();
+        }
+        for (Map<String, Object> node : result.nodes()) {
+            String moduleId = firstText(node.get("moduleId"), moduleFromId(text(node.get("id"))));
+            if (!moduleId.isBlank()) {
+                moduleIds.add(moduleId);
+            }
+        }
+        return Set.copyOf(moduleIds);
     }
 
     private static EchoClientModScanSummary summary(
@@ -434,6 +488,11 @@ final class EchoClientModuleBootstrap {
 
     private static String text(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private static String moduleFromId(String id) {
+        int separator = text(id).indexOf(':');
+        return separator > 0 ? id.substring(0, separator) : "";
     }
 
     private record PackManifest(Path manifestPath, Path packRoot, List<ModuleFile> files) {
