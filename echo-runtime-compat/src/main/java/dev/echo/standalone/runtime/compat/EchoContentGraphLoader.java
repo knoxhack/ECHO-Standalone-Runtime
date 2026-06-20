@@ -237,19 +237,23 @@ public final class EchoContentGraphLoader {
         for (Map<String, Object> edge : edges) {
             String from = stringValue(edge.get("from"));
             String to = stringValue(edge.get("to"));
+            String subject = stringValue(edge.get("id"));
+            if (subject == null || subject.isBlank()) {
+                subject = "content_graph_edge";
+            }
             EchoCompatDiagnosticSeverity unresolvedSeverity = moduleDependencyEdge(edge)
                     ? EchoCompatDiagnosticSeverity.WARNING
                     : EchoCompatDiagnosticSeverity.ERROR;
             if (from != null && !nodeById.containsKey(from)) {
                 diagnostics.add(new EchoCompatDiagnostic(
                         unresolvedSeverity,
-                        stringValue(edge.get("id")),
+                        subject,
                         "content_graph_unresolved_edge_source: Edge references missing source node " + from));
             }
             if (to != null && !nodeById.containsKey(to)) {
                 diagnostics.add(new EchoCompatDiagnostic(
                         unresolvedSeverity,
-                        stringValue(edge.get("id")),
+                        subject,
                         "content_graph_unresolved_edge_target: Edge references missing target node " + to));
             }
         }

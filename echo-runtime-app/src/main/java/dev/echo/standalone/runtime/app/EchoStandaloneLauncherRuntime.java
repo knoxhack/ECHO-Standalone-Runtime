@@ -159,7 +159,7 @@ public final class EchoStandaloneLauncherRuntime {
         ));
         checks.add(new EchoStandaloneLauncherCheck(
                 "runtime.version",
-                detection.runtimeVersion().startsWith("0.1.0-phase14."),
+                supportedRuntimeVersion(detection.runtimeVersion()),
                 "runtime version is " + detection.runtimeVersion()
         ));
         for (String artifact : REQUIRED_ARTIFACTS) {
@@ -179,10 +179,20 @@ public final class EchoStandaloneLauncherRuntime {
         return new EchoStandaloneLauncherVerification(checks);
     }
 
+    private static boolean supportedRuntimeVersion(String version) {
+        if (version == null || version.isBlank() || "unknown".equals(version)) {
+            return false;
+        }
+        if (version.startsWith("0.1.0-phase14.")) {
+            return true;
+        }
+        return version.matches("0\\.1\\.[0-9]+-(alpha|beta|rc)(\\..+)?");
+    }
+
     private static EchoStandaloneLauncherRepairPlan repairPlan(EchoStandaloneLauncherVerification verification) {
         List<String> actions = verification.checks().stream()
                 .filter(check -> !check.passed())
-                .map(check -> "plan repair for " + check.checkId() + ": " + check.detail())
+                .<String>map(check -> "plan repair for " + check.checkId() + ": " + check.detail())
                 .toList();
         return new EchoStandaloneLauncherRepairPlan(
                 "echo:standalone-launcher-repair-plan",

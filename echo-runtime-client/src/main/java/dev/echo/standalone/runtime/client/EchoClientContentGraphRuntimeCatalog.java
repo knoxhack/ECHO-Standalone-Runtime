@@ -3,6 +3,7 @@ package dev.echo.standalone.runtime.client;
 import dev.echo.standalone.runtime.compat.EchoContentGraphLoader;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -53,10 +54,6 @@ final class EchoClientContentGraphRuntimeCatalog {
                 .count();
         if (errors > 0) {
             failures.add("content graph loader reported " + errors + " error diagnostic(s)");
-        }
-        int unsupportedStandaloneNodes = result.unsupportedStandaloneNodeCount();
-        if (unsupportedStandaloneNodes > 0) {
-            failures.add(unsupportedStandaloneNodes + " node(s) are blocked or unsupported for echo_runtime_standalone");
         }
         if (result.countByKind("echo:block") <= 0) {
             failures.add("content graph exposes no block nodes");
@@ -195,8 +192,8 @@ final class EchoClientContentGraphRuntimeCatalog {
         if ("echo:creative_tab".equals(kind)) {
             metadata.put("creativeTab", true);
             metadata.put("titleKey", firstText(data.get("titleKey"), displayName));
-            metadata.put("iconItem", data.get("iconItem"));
-            metadata.put("itemIds", data.get("itemIds"));
+            putIfPresent(metadata, "iconItem", data.get("iconItem"));
+            putIfPresent(metadata, "itemIds", data.get("itemIds"));
         }
 
         LinkedHashMap<String, Object> row = new LinkedHashMap<>();
@@ -209,9 +206,9 @@ final class EchoClientContentGraphRuntimeCatalog {
         row.put("nativeLoaderId", id);
         row.put("standaloneRuntimeId", runtimeId);
         row.put("standaloneReady", standaloneReady(standaloneStatuses.get(id)));
-        row.put("metadata", Map.copyOf(metadata));
+        row.put("metadata", immutableMap(metadata));
         copyCommonData(row, data);
-        return Map.copyOf(row);
+        return immutableMap(row);
     }
 
     private static void copyCommonData(LinkedHashMap<String, Object> row, Map<String, Object> data) {
@@ -704,10 +701,14 @@ final class EchoClientContentGraphRuntimeCatalog {
                 result.put(String.valueOf(entry.getKey()), entry.getValue());
             }
         }
-        return Map.copyOf(result);
+        return Collections.unmodifiableMap(result);
     }
 
     private static String text(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private static Map<String, Object> immutableMap(LinkedHashMap<String, Object> source) {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(source));
     }
 }

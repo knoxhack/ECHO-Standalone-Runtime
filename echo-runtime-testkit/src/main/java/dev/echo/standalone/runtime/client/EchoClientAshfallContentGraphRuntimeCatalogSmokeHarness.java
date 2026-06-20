@@ -5,6 +5,8 @@ import dev.echo.standalone.runtime.compat.EchoCompatDiagnosticSeverity;
 import dev.echo.standalone.runtime.compat.EchoContentGraphLoader;
 import dev.echo.standalone.runtime.data.EchoDataJson;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -98,6 +100,7 @@ public final class EchoClientAshfallContentGraphRuntimeCatalogSmokeHarness {
             } catch (Exception exception) {
                 failures.add("preflight content graph load failed: " + exception.getMessage());
                 report.put("preflightContentGraphException", exception.getClass().getName());
+                report.put("preflightContentGraphStackTrace", stackTrace(exception));
             }
         }
 
@@ -175,6 +178,7 @@ public final class EchoClientAshfallContentGraphRuntimeCatalogSmokeHarness {
         } catch (Exception exception) {
             failures.add("strict Ashfall installed-pack bootstrap failed: " + exception.getMessage());
             report.put("exception", exception.getClass().getName());
+            report.put("stackTrace", stackTrace(exception));
         } finally {
             if (bootstrap != null) {
                 bootstrap.close();
@@ -275,8 +279,8 @@ public final class EchoClientAshfallContentGraphRuntimeCatalogSmokeHarness {
         for (EchoCompatDiagnostic diagnostic : diagnostics) {
             LinkedHashMap<String, Object> row = new LinkedHashMap<>();
             row.put("severity", diagnostic.severity().name());
-            row.put("subject", diagnostic.subject());
-            row.put("message", diagnostic.message());
+            row.put("subject", text(diagnostic.subject()));
+            row.put("message", text(diagnostic.message()));
             rows.add(Map.copyOf(row));
         }
         return List.copyOf(rows);
@@ -309,6 +313,12 @@ public final class EchoClientAshfallContentGraphRuntimeCatalogSmokeHarness {
 
     private static String text(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private static String stackTrace(Exception exception) {
+        StringWriter out = new StringWriter();
+        exception.printStackTrace(new PrintWriter(out));
+        return out.toString();
     }
 
     private static String toJson(Object value) {

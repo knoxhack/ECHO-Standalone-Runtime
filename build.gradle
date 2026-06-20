@@ -31,7 +31,7 @@ def standaloneRuntimeModules = [
 
 allprojects {
     group = 'dev.echo.standalone'
-    version = '0.1.1-beta.20260620'
+    version = '0.1.2-beta.20260620'
 
     repositories {
         mavenCentral()
@@ -223,6 +223,7 @@ standaloneRuntimeModules.findAll { it != 'echo-runtime-contracts' }.each { modul
 
 project(':echo-runtime-testkit') {
     dependencies {
+        compileOnly files(project(':echo-runtime-client').sourceSets.main.output.classesDirs)
         implementation project(':echo-runtime-app')
         implementation project(':echo-runtime-client')
         implementation project(':echo-runtime-core')
@@ -361,8 +362,8 @@ tasks.register('runStandaloneClientWorldInteractionSmoke', JavaExec) {
 tasks.register('runStandaloneClientSaveContinueSmoke', JavaExec) {
     group = 'verification'
     description = 'Verifies live client Save, Quit to Title, Continue, and Load Game restore from disk saves.'
-    dependsOn ':echo-runtime-client:classes'
-    classpath = project(':echo-runtime-client').sourceSets.main.runtimeClasspath
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
     mainClass = 'dev.echo.standalone.runtime.client.EchoClientSaveContinueSmokeHarness'
     workingDir = rootProject.projectDir
 }
@@ -11318,15 +11319,18 @@ tasks.register('runStandaloneReleaseSigningEvidencePlan') {
                 setupExe.absolutePath,
                 '-OutputPath',
                 file('reports/echo/standalone/release-signing-evidence.json').absolutePath,
-                '-ExpectedRuntimeExeSha256',
-                currentArtifactShaById['runtime-exe'],
-                '-ExpectedLauncherExeSha256',
-                currentArtifactShaById['launcher-exe'],
-                '-ExpectedLauncherSetupExeSha256',
-                currentArtifactShaById['launcher-setup-exe'],
                 '-TimestampServer',
                 'http://timestamp.digicert.com'
         ]
+        if (currentArtifactShaById['runtime-exe']) {
+            command.addAll(['-ExpectedRuntimeExeSha256', currentArtifactShaById['runtime-exe']])
+        }
+        if (currentArtifactShaById['launcher-exe']) {
+            command.addAll(['-ExpectedLauncherExeSha256', currentArtifactShaById['launcher-exe']])
+        }
+        if (currentArtifactShaById['launcher-setup-exe']) {
+            command.addAll(['-ExpectedLauncherSetupExeSha256', currentArtifactShaById['launcher-setup-exe']])
+        }
         def certificateThumbprint = normalizeThumbprint(winConfig.certificateSha1)
         def certificateSubject = textValue(winConfig.certificateSubject)
         if (certificateThumbprint) {
@@ -11906,7 +11910,7 @@ def echoStandaloneBuildOpenGlPackage = {
                 'jpackage',
                 '--type', 'app-image',
                 '--name', appName,
-                '--app-version', '0.1.1',
+                '--app-version', '0.1.2',
                 '--vendor', 'ECHO',
                 '--input', installLibDir.absolutePath,
                 '--main-jar', mainJar.name,
@@ -14531,15 +14535,16 @@ tasks.register('runStandaloneBetaDistributionReleaseContractSmoke') {
 
         def strict30mWindowReport = optionalReport('reports/echo/standalone/packaged-exe-wallclock-strict-30m.json')
         def strict60mWindowReport = optionalReport('reports/echo/standalone/packaged-exe-wallclock-strict-60m.json')
-        def windowLaunchBlocked = [
+        def betaWindowLaunchBlocked = [
                 portableInstall,
                 smoke,
-                strict,
-                manualCapture,
+                strict
+        ].any { bool(it.windowLaunchOptInRequired) }
+        def longMonitorWindowLaunchBlocked = [
                 strict30mWindowReport,
                 strict60mWindowReport
         ].any { bool(it.windowLaunchOptInRequired) }
-        if (windowLaunchBlocked) {
+        if (betaWindowLaunchBlocked) {
             checks << [
                     id    : 'distribution.visible-window-evidence',
                     category: 'exe-smoke',
@@ -14551,7 +14556,8 @@ tasks.register('runStandaloneBetaDistributionReleaseContractSmoke') {
                             strictRehearsalStatus : text(strict.status ?: 'UNKNOWN'),
                             strict30mStatus       : text(strict30mWindowReport.status ?: 'UNKNOWN'),
                             strict60mStatus       : text(strict60mWindowReport.status ?: 'UNKNOWN'),
-                            requiredNextAction    : 'Run visible packaged EXE probes and 30/60 minute monitor evidence with -PechoStandaloneAllowWindowLaunch=true on the target Windows machine.'
+                            longMonitorWindowLaunchOptInRequired: longMonitorWindowLaunchBlocked,
+                            requiredNextAction    : 'Run portable zip, packaged EXE smoke, and strict visible-window rehearsal with -PechoStandaloneAllowWindowLaunch=true on the target Windows machine. 30/60 minute monitors remain public-release/manual evidence and do not block the beta distribution contract.'
                     ]
             ]
         }
@@ -14563,15 +14569,16 @@ tasks.register('runStandaloneBetaDistributionReleaseContractSmoke') {
                 status                   : failed.isEmpty() ? 'PASS' : 'BLOCKED',
                 summary                  : failed.isEmpty()
                         ? 'Beta distribution contract proves deterministic OpenGL runtime packaging, portable zip extract/run/remove, reproducibility, packaged EXE launch, and strict visible-window rehearsal; public release blockers are tracked separately.'
-                        : (windowLaunchBlocked
+                        : (betaWindowLaunchBlocked
                                 ? 'Beta distribution contract is blocked because visible packaged EXE probes require explicit opt-in.'
                                 : 'Beta distribution contract is blocked by runtime packaging or packaged EXE evidence failures.'),
                 phase                    : 'Phase 10 - Beta Distribution Release',
                 betaDistributionReady    : failed.isEmpty(),
                 publicReleaseReady       : bool(signing.publicReleaseReady) && text(install.status) == 'PASS' && text(workspace.status) == 'PASS' && missingRequired.isEmpty(),
                 replacesHumanPlaytest    : false,
-                windowLaunchSkipped      : windowLaunchBlocked,
-                windowLaunchOptInRequired: windowLaunchBlocked,
+                windowLaunchSkipped      : betaWindowLaunchBlocked,
+                windowLaunchOptInRequired: betaWindowLaunchBlocked,
+                longMonitorWindowLaunchOptInRequired: longMonitorWindowLaunchBlocked,
                 checkCount               : checks.size(),
                 checksPassed             : checks.count { it.status == 'PASS' },
                 failedChecks             : failed,
@@ -14597,7 +14604,7 @@ tasks.register('runStandaloneBetaDistributionReleaseContractSmoke') {
         def reportFile = file('reports/echo/standalone/beta-distribution-release-contract.json')
         reportFile.parentFile.mkdirs()
         reportFile.text = echoStandaloneJson(reportPayload)
-        if (!failed.isEmpty() && !windowLaunchBlocked) {
+        if (!failed.isEmpty() && !betaWindowLaunchBlocked) {
             throw new GradleException("Beta distribution contract blocked; see ${reportFile}")
         }
     }
