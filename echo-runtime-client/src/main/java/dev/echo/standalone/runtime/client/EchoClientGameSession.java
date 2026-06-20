@@ -712,6 +712,7 @@ final class EchoClientGameSession {
         player = EchoVoxelPlayerController.spawnAt(
                 world(),
                 world().spawnX(),
+                world().spawnY(),
                 world().spawnZ(),
                 world().spawnYawDegrees(),
                 -32.0D

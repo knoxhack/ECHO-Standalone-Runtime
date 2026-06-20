@@ -7,8 +7,10 @@ import org.lwjgl.Version;
  */
 public final class EchoClientMain {
     public static void main(String[] args) {
+        EchoClientLaunchContext launchContext = EchoClientLaunchContext.parse(args);
         System.out.println("[echo-client] starting ECHO standalone client (LWJGL " + Version.getVersion() + ")");
-        EchoClientEngine engine = new EchoClientEngine();
+        System.out.println("[echo-client] launch context " + launchContext.summaryLine());
+        EchoClientEngine engine = new EchoClientEngine(launchContext);
         try {
             engine.start();
         } finally {

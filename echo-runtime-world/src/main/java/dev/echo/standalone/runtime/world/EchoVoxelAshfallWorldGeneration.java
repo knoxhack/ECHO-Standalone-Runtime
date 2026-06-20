@@ -6,9 +6,9 @@ import java.util.function.Function;
 public final class EchoVoxelAshfallWorldGeneration {
     public static final String WORLD_ID = "echoashfallprotocol:standalone_crash_site";
     private static final int CHUNK_SIZE = 16;
-    private static final double SPAWN_X = 7.5D;
-    private static final double SPAWN_Y = 5.8D;
-    private static final double SPAWN_Z = -4.5D;
+    private static final double SPAWN_X = 4.5D;
+    private static final double SPAWN_Y = 5.0D;
+    private static final double SPAWN_Z = 4.5D;
     private static final double SPAWN_YAW_DEGREES = 35.0D;
 
     private EchoVoxelAshfallWorldGeneration() {

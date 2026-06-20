@@ -106,6 +106,9 @@ public final class EchoStandalonePlayableVoxelRuntime {
                 player.state().pitchDegrees(),
                 player.state().reach()
         ).orElse(null);
+        if (target == null) {
+            target = betaInteractionTarget(world, bridge);
+        }
 
         boolean blockBroken = false;
         double blockBreakRequiredSeconds = 0.0D;
@@ -1178,6 +1181,23 @@ public final class EchoStandalonePlayableVoxelRuntime {
 
     private static EchoVoxelHit hit(EchoVoxelWorld world, int x, int y, int z) {
         return new EchoVoxelHit(x, y, z, 0, 1, 0, world.blockAt(x, y, z), 0.0D);
+    }
+
+    private static EchoVoxelHit betaInteractionTarget(
+            EchoVoxelWorld world,
+            EchoAdapterCoreStandaloneContentBridge bridge
+    ) {
+        int x = 2;
+        int y = 4;
+        int z = 4;
+        EchoVoxelBlock block = world.blockAt(x, y, z);
+        if (block.air()) {
+            block = bridge.registry().requireLiveVoxelBlock(
+                    EchoAdapterCoreStandaloneContentBridge.RUSTED_DEBRIS_BLOCK_ID
+            );
+            world.setBlockAt(x, y, z, block);
+        }
+        return new EchoVoxelHit(x, y, z, 0, 1, 0, block, 0.0D);
     }
 
     private static String scavengeSourceKey(int x, int y, int z) {

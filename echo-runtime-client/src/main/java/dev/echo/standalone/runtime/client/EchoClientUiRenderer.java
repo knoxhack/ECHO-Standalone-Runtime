@@ -9,6 +9,15 @@ final class EchoClientUiRenderer {
             MAIN_MENU_TERRAIN_LAYERS * MAIN_MENU_TERRAIN_STEPS
                     + MAIN_MENU_ATMOSPHERIC_STREAKS
                     + 1;
+    private static final float BG_R = 0.012f;
+    private static final float BG_G = 0.025f;
+    private static final float BG_B = 0.034f;
+    private static final float PANEL_R = 0.025f;
+    private static final float PANEL_G = 0.070f;
+    private static final float PANEL_B = 0.085f;
+    private static final float CYAN_R = 0.38f;
+    private static final float CYAN_G = 0.91f;
+    private static final float CYAN_B = 1.00f;
 
     private final EchoClientFontRenderer font = new EchoClientFontRenderer();
     private final EchoClientNineSliceRenderer panels = new EchoClientNineSliceRenderer();
@@ -72,12 +81,15 @@ final class EchoClientUiRenderer {
         if (plan.mainMenuPanorama()) {
             drawMainMenuPanorama(hud2d, w, h, plan);
         } else {
-            hud2d.rect(0, 0, w, h, 0.025f, 0.04f, 0.055f, 1.0f);
+            hud2d.rect(0, 0, w, h, BG_R, BG_G, BG_B, 1.0f);
             int horizon = Math.max(120, h / 3);
+            hud2d.rect(0, 0, w, horizon, 0.020f, 0.040f, 0.060f, 0.72f);
             hud2d.rect(0, horizon, w, 2, 0.15f, 0.8f, 0.70f, 0.35f);
+            hud2d.rect(0, horizon + 2, w, Math.max(1, h - horizon - 2), 0.015f, 0.030f, 0.032f, 0.80f);
         }
-        hud2d.rect(0, 0, w, 48, 0.03f, 0.12f, 0.13f, 0.85f);
-        hud2d.rect(0, h - 42, w, 42, 0.02f, 0.09f, 0.10f, 0.90f);
+        drawTerminalOverlay(hud2d, w, h);
+        hud2d.rect(0, 0, w, 48, 0.015f, 0.065f, 0.080f, 0.86f);
+        hud2d.rect(0, h - 42, w, 42, 0.010f, 0.050f, 0.060f, 0.92f);
     }
 
     private void drawMainMenuPanorama(
@@ -132,12 +144,20 @@ final class EchoClientUiRenderer {
 
     private void drawLoadingScreen(EchoClientHud2D hud2d, int w, int h, EchoClientScreenSnapshot screen) {
         EchoClientUiVisualPlan plan = planVisuals(w, h, screen);
-        font.drawCentered(hud2d, screen.title(), w / 2.0f, h * 0.30f, 4.0f, 0.84f, 1.0f, 0.96f, 1.0f);
-        font.drawCentered(hud2d, screen.subtitle(), w / 2.0f, h * 0.43f, 2.0f, 0.58f, 0.92f, 0.86f, 0.95f);
-        int barWidth = Math.min(520, Math.max(260, w - 220));
+        int panelW = Math.min(620, Math.max(300, w - 96));
+        int panelH = Math.min(230, Math.max(166, h / 3));
+        int panelX = (w - panelW) / 2;
+        int panelY = Math.max(56, (h - panelH) / 2);
+        panels.panel(hud2d, panelX, panelY, panelW, panelH, PANEL_R, PANEL_G, PANEL_B, 0.96f, true);
+        hud2d.rect(panelX + 2, panelY + 2, panelW - 4, 30, 0.10f, 0.012f, 0.22f, 0.52f);
+        hud2d.rect(panelX + 18, panelY + 33, panelW - 36, 2, CYAN_R, CYAN_G, CYAN_B, 0.62f);
+
+        font.drawCentered(hud2d, screen.title(), w / 2.0f, panelY + 12, 2.0f, 0.84f, 1.0f, 0.96f, 1.0f);
+        font.drawCentered(hud2d, screen.subtitle(), w / 2.0f, panelY + 58, 1.0f, 0.58f, 0.92f, 0.86f, 0.95f);
+        int barWidth = panelW - 64;
         int barHeight = 18;
-        int x = (w - barWidth) / 2;
-        int y = (int) (h * 0.52f);
+        int x = panelX + 32;
+        int y = panelY + panelH - 76;
         panels.panel(hud2d, x - 2, y - 2, barWidth + 4, barHeight + 4, 0.02f, 0.05f, 0.06f, 1.0f, false);
         hud2d.rect(x, y, (float) (barWidth * screen.loadingProgress()), barHeight, 0.18f, 0.78f, 0.70f, 1.0f);
         font.drawCentered(hud2d, Math.round(screen.loadingProgress() * 100.0D) + "%", w / 2.0f, y + 34, 2.0f,
@@ -156,18 +176,32 @@ final class EchoClientUiRenderer {
             int h,
             EchoClientScreenSnapshot screen
     ) {
-        font.drawCentered(hud2d, screen.title(), w / 2.0f, Math.max(76, h * 0.18f), 4.0f,
-                0.84f, 1.0f, 0.96f, 1.0f);
-        if (!screen.subtitle().isBlank()) {
-            font.drawCentered(hud2d, screen.subtitle(), w / 2.0f, Math.max(122, h * 0.18f + 48), 2.0f,
-                    0.50f, 0.90f, 0.84f, 0.95f);
-        }
-        drawSaveSlotThumbnail(hud2d, textures, w, h, screen);
-
         int buttonWidth = EchoClientScreenController.MENU_BUTTON_WIDTH;
         int buttonHeight = EchoClientScreenController.MENU_BUTTON_HEIGHT;
         int visibleCount = EchoClientScreenController.menuVisibleCount(h, screen.options().size());
         int startY = EchoClientScreenController.menuStartY(h, visibleCount);
+        int panelW = Math.min(screen.kind() == EchoClientScreenKind.WORLD_SELECT ? 720 : 560,
+                Math.max(buttonWidth + 84, w - 96));
+        int panelX = (w - panelW) / 2;
+        int panelTop = Math.max(58, startY - 74);
+        int panelBottom = Math.min(h - 48, startY + visibleCount * (buttonHeight + EchoClientScreenController.MENU_BUTTON_SPACING) + 42);
+        if (panelBottom - panelTop < 170) {
+            panelBottom = Math.min(h - 48, panelTop + 170);
+        }
+        panels.panel(hud2d, panelX, panelTop, panelW, panelBottom - panelTop, PANEL_R, PANEL_G, PANEL_B, 0.92f, false);
+        hud2d.rect(panelX + 2, panelTop + 2, panelW - 4, 30, 0.10f, 0.012f, 0.22f, 0.46f);
+        hud2d.rect(panelX + 18, panelTop + 33, panelW - 36, 2, CYAN_R, CYAN_G, CYAN_B, 0.55f);
+        font.drawCentered(hud2d, "ECHO TERMINAL // " + surfaceLabel(screen), w / 2.0f, panelTop + 10, 1.0f,
+                CYAN_R, CYAN_G, CYAN_B, 1.0f);
+        font.drawCentered(hud2d, screen.title(), w / 2.0f, panelTop + 38, 2.0f,
+                0.84f, 1.0f, 0.96f, 1.0f);
+        if (!screen.subtitle().isBlank()) {
+            font.drawCentered(hud2d, screen.subtitle(), w / 2.0f, panelTop + 62, 1.0f,
+                    0.50f, 0.90f, 0.84f, 0.95f);
+        }
+        drawStatusRail(hud2d, w, h, screen);
+        drawSaveSlotThumbnail(hud2d, textures, w, h, screen);
+
         int start = Math.max(0, Math.min(screen.scrollOffset(), Math.max(0, screen.options().size() - visibleCount)));
         int end = Math.min(screen.options().size(), start + visibleCount);
         for (int i = start; i < end; i++) {
@@ -188,6 +222,38 @@ final class EchoClientUiRenderer {
                     0.72f, 0.95f, 0.88f, 0.90f);
         }
         font.drawCentered(hud2d, screen.footer(), w / 2.0f, h - 28, 1.0f, 0.55f, 0.75f, 0.72f, 0.9f);
+    }
+
+    private static void drawTerminalOverlay(EchoClientHud2D hud2d, int w, int h) {
+        hud2d.rect(12, 12, w - 24, 1, CYAN_R, CYAN_G, CYAN_B, 0.42f);
+        hud2d.rect(12, h - 13, w - 24, 1, CYAN_R, CYAN_G, CYAN_B, 0.42f);
+        hud2d.rect(12, 12, 1, h - 24, CYAN_R, CYAN_G, CYAN_B, 0.36f);
+        hud2d.rect(w - 13, 12, 1, h - 24, CYAN_R, CYAN_G, CYAN_B, 0.36f);
+        for (int x = 32; x < w; x += 48) {
+            hud2d.rect(x, 0, 1, h, 0.12f, 0.55f, 0.60f, 0.08f);
+        }
+        for (int y = 32; y < h; y += 32) {
+            hud2d.rect(0, y, w, 1, 0.12f, 0.55f, 0.60f, 0.08f);
+        }
+    }
+
+    private void drawStatusRail(EchoClientHud2D hud2d, int w, int h, EchoClientScreenSnapshot screen) {
+        if (w < 820 || h < 330) {
+            return;
+        }
+        int railW = 220;
+        int x = 28;
+        int y = Math.max(78, h / 2 - 86);
+        int railH = 156;
+        panels.panel(hud2d, x, y, railW, railH, 0.020f, 0.055f, 0.065f, 0.74f, false);
+        hud2d.text(":: ROUTE STATUS", x + 14, y + 16, 1.0f, CYAN_R, CYAN_G, CYAN_B, 0.90f);
+        hud2d.text("SURFACE: " + surfaceRoute(screen), x + 14, y + 42, 0.85f, 0.84f, 1.0f, 0.96f, 0.86f);
+        hud2d.text("SHELL: ASHFALL", x + 14, y + 62, 0.85f, 0.46f, 1.0f, 0.66f, 0.86f);
+        hud2d.text("INPUT: STANDALONE", x + 14, y + 82, 0.85f, 0.46f, 1.0f, 0.66f, 0.86f);
+        hud2d.text("SCREENCORE: READY", x + 14, y + 102, 0.85f, 1.0f, 0.80f, 0.40f, 0.86f);
+        hud2d.rect(x + 14, y + railH - 24, railW - 28, 6, 0.03f, 0.08f, 0.09f, 0.80f);
+        hud2d.rect(x + 16, y + railH - 22, Math.max(12, (railW - 32) / 2), 2,
+                CYAN_R, CYAN_G, CYAN_B, 0.72f);
     }
 
     private void drawSaveSlotThumbnail(
@@ -485,6 +551,44 @@ final class EchoClientUiRenderer {
             return "";
         }
         return screen.footer().substring(markerIndex + marker.length()).trim();
+    }
+
+    private static String surfaceLabel(EchoClientScreenSnapshot screen) {
+        if (screen == null) {
+            return "ASHFALL";
+        }
+        return switch (screen.kind()) {
+            case MAIN_MENU -> "MAIN MENU";
+            case PAUSE_MENU -> "FIELD SESSION";
+            case DEATH_SCREEN -> "RECOVERY";
+            case WORLD_SELECT -> "WORLD ARCHIVE";
+            case CREATE_WORLD -> "CREATE SIMULATION";
+            case OPTIONS, CONTROLS, VIDEO_SETTINGS, AUDIO_SETTINGS, ACCESSIBILITY_SETTINGS, LANGUAGE_SETTINGS ->
+                    "SYSTEM OPTIONS";
+            case MODS -> "MODULE INDEX";
+            case RESOURCE_PACKS, RESOURCE_PACK_DETAIL -> "RESOURCE PACKS";
+            case FATAL_ERROR -> "ASHFALL WARNING";
+            default -> "RUNTIME SURFACE";
+        };
+    }
+
+    private static String surfaceRoute(EchoClientScreenSnapshot screen) {
+        if (screen == null) {
+            return "UNKNOWN";
+        }
+        return switch (screen.kind()) {
+            case MAIN_MENU -> "BOOT";
+            case PAUSE_MENU -> "PAUSE";
+            case DEATH_SCREEN -> "RECOVERY";
+            case WORLD_SELECT -> "SAVE INDEX";
+            case CREATE_WORLD -> "WORLD SETUP";
+            case OPTIONS, CONTROLS, VIDEO_SETTINGS, AUDIO_SETTINGS, ACCESSIBILITY_SETTINGS, LANGUAGE_SETTINGS ->
+                    "CONFIG";
+            case MODS -> "MODULES";
+            case RESOURCE_PACKS, RESOURCE_PACK_DETAIL -> "ASSETS";
+            case FATAL_ERROR -> "ERROR";
+            default -> "SCREENCORE";
+        };
     }
 
     private static String loadingTip(EchoClientScreenSnapshot screen) {

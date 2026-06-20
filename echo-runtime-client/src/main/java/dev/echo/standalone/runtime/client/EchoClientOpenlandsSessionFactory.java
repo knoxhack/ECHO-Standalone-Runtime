@@ -210,7 +210,14 @@ final class EchoClientOpenlandsSessionFactory implements EchoClientGameSessionFa
         return new EchoClientGameSession(
                 bridge,
                 world,
-                EchoVoxelPlayerController.spawnAt(world, world.spawnX(), world.spawnZ(), world.spawnYawDegrees(), -18.0D),
+                EchoVoxelPlayerController.spawnAt(
+                        world,
+                        world.spawnX(),
+                        world.spawnY(),
+                        world.spawnZ(),
+                        world.spawnYawDegrees(),
+                        -18.0D
+                ),
                 sessionProfile.newStarterHotbar(),
                 new EchoInventoryOperations(),
                 starterLoadout().newPlayerInventory(),

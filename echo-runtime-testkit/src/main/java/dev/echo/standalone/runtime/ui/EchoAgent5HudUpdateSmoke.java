@@ -36,6 +36,11 @@ public final class EchoAgent5HudUpdateSmoke {
                 && surface.lines().stream().anyMatch(line -> line.contains("HUD overlay is live. Health 85"))
                 && surface.lines().stream()
                 .anyMatch(line -> line.contains("Hazard: " + source.hudValues().get("hazard")))
+                && surface.lines().stream()
+                .anyMatch(line -> line.contains("VITAL") && line.contains("AIR/MASK") && line.contains("TEMP"))
+                && surface.lines().stream()
+                .anyMatch(line -> line.contains("Notifications below panel")
+                        && line.contains(String.valueOf(source.hudValues().get("notificationAnchor"))))
                 && strings(host, "headerLines").stream()
                 .anyMatch(line -> line.contains("HUD: Health 85 / " + source.hudValues().get("hazard")));
 

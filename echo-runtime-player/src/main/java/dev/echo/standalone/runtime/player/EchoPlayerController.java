@@ -147,7 +147,7 @@ public final class EchoPlayerController {
             );
         }
         EchoGameplayInteractionResult interaction;
-        if (target.orElseThrow().id().equals("ashfall:terminal_pod")) {
+        if (isDropPodTerminalTarget(target.orElseThrow().id())) {
             interaction = gameplay.interactionSystem().activateTerminal(playerId);
         } else if (target.orElseThrow().id().equals("ashfall:crash_cache")) {
             interaction = gameplay.interactionSystem().salvageCrashCache(playerId);
@@ -173,6 +173,11 @@ public final class EchoPlayerController {
                 state,
                 List.of("interaction:target=" + target.orElseThrow().id(), "interaction:" + interaction.reason())
         );
+    }
+
+    private static boolean isDropPodTerminalTarget(String targetId) {
+        return "echoashfallprotocol:poi/drop_pod".equals(targetId)
+                || "ashfall:terminal_pod".equals(targetId);
     }
 
     private EchoPlayerControllerResult shortcut(EchoInputEvent event, EchoInputAction action, int slotIndex) {

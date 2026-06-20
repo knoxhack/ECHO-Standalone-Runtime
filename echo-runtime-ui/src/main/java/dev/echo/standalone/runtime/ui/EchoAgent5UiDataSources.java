@@ -6,6 +6,7 @@ import java.util.Map;
 
 public final class EchoAgent5UiDataSources {
     private static final String NOTIFICATION_ANCHOR = "top_left_safe_area";
+    private static final String ASHFALL_NOTIFICATION_ANCHOR = "below_ashfall_status_panel";
 
     private EchoAgent5UiDataSources() {
     }
@@ -52,10 +53,47 @@ public final class EchoAgent5UiDataSources {
     public Map<String, Object> hudValues() {
         Map<String, Object> hud = new LinkedHashMap<>();
         hud.put("health", 100);
+        hud.put("food", 18);
+        hud.put("hydration", 72);
+        hud.put("radiation", 12);
+        hud.put("temperature", 64);
+        hud.put("mask", "FILTER 86%");
         hud.put("hazard", "Mission signal: " + EchoAgent5UiReference.ACTIVE_MISSION_STATUS);
         hud.put("mission", EchoAgent5UiReference.ACTIVE_MISSION_OBJECTIVE);
         hud.put("notifications", notifications());
+        hud.put("statusMeters", statusMeters());
+        hud.put("missionLine", "MISSION " + EchoAgent5UiReference.ACTIVE_MISSION_STATUS
+                + " / " + EchoAgent5UiReference.ACTIVE_MISSION_OBJECTIVE);
+        hud.put("hazardLine", "HAZARD FIELD / H2O 72% RAD 12% TEMP 64% MASK 86%");
+        hud.put("weatherLine", "WEATHER CLEAR / ash haze light");
+        hud.put("notificationRows", notificationRows());
+        hud.put("notificationAnchor", ASHFALL_NOTIFICATION_ANCHOR);
         return Map.copyOf(hud);
+    }
+
+    public List<Map<String, Object>> statusMeters() {
+        return List.of(
+                statusMeter("VITAL", "100/100", 1.0D),
+                statusMeter("FOOD", "18/20", 0.90D),
+                statusMeter("H2O", "72%", 0.72D),
+                statusMeter("AIR/MASK", "FILTER 86%", 0.86D),
+                statusMeter("RAD", "12%", 0.12D),
+                statusMeter("TEMP", "64% Normal", 0.64D)
+        );
+    }
+
+    public List<Map<String, Object>> notificationRows() {
+        return notifications().stream()
+                .map(notification -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("source", notification.get("id"));
+                    row.put("status", notification.get("severity"));
+                    row.put("title", notification.get("message"));
+                    row.put("detail", "Rendered below Ashfall status panel");
+                    row.put("anchor", ASHFALL_NOTIFICATION_ANCHOR);
+                    return Map.copyOf(row);
+                })
+                .toList();
     }
 
     public List<Map<String, Object>> notifications() {
@@ -247,5 +285,13 @@ public final class EchoAgent5UiDataSources {
         notification.put("anchor", NOTIFICATION_ANCHOR);
         notification.put("delivered", true);
         return Map.copyOf(notification);
+    }
+
+    private static Map<String, Object> statusMeter(String label, String value, double percent) {
+        Map<String, Object> meter = new LinkedHashMap<>();
+        meter.put("label", label);
+        meter.put("value", value);
+        meter.put("percent", Math.round(Math.max(0.0D, Math.min(1.0D, percent)) * 100.0D));
+        return Map.copyOf(meter);
     }
 }

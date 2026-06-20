@@ -4,6 +4,7 @@ final class EchoClientRuntimeAssembly {
     private final EchoClientWorldTemplate worldTemplate;
     private final EchoGlfwWindow window;
     private final EchoClientRuntimeServices runtimeServices;
+    private final EchoClientLaunchContext launchContext;
     private final EchoClientScreenController screens;
     private final EchoClientSettingsController settingsController;
     private final EchoClientSettingsRuntimeController settingsRuntime;
@@ -31,6 +32,7 @@ final class EchoClientRuntimeAssembly {
             EchoClientWorldTemplate worldTemplate,
             EchoGlfwWindow window,
             EchoClientRuntimeServices runtimeServices,
+            EchoClientLaunchContext launchContext,
             EchoClientScreenController screens,
             EchoClientSettingsController settingsController,
             EchoClientSettingsRuntimeController settingsRuntime,
@@ -52,6 +54,7 @@ final class EchoClientRuntimeAssembly {
         this.worldTemplate = worldTemplate;
         this.window = window;
         this.runtimeServices = runtimeServices;
+        this.launchContext = launchContext == null ? EchoClientLaunchContext.empty() : launchContext;
         this.screens = screens;
         this.settingsController = settingsController;
         this.settingsRuntime = settingsRuntime;
@@ -72,21 +75,46 @@ final class EchoClientRuntimeAssembly {
     }
 
     static EchoClientRuntimeAssembly create(int initialWidth, int initialHeight) {
-        return create(initialWidth, initialHeight, EchoClientWorldTemplates.defaultTemplate());
+        return create(initialWidth, initialHeight, EchoClientWorldTemplates.defaultTemplate(), EchoClientLaunchContext.empty());
+    }
+
+    static EchoClientRuntimeAssembly create(
+            int initialWidth,
+            int initialHeight,
+            EchoClientLaunchContext launchContext
+    ) {
+        return create(initialWidth, initialHeight, EchoClientWorldTemplates.defaultTemplate(), launchContext);
     }
 
     static EchoClientRuntimeAssembly create(int initialWidth, int initialHeight, EchoClientWorldTemplate worldTemplate) {
+        return create(initialWidth, initialHeight, worldTemplate, EchoClientLaunchContext.empty());
+    }
+
+    static EchoClientRuntimeAssembly create(
+            int initialWidth,
+            int initialHeight,
+            EchoClientWorldTemplate worldTemplate,
+            EchoClientLaunchContext launchContext
+    ) {
         EchoClientWorldTemplate safeTemplate = worldTemplate == null
                 ? EchoClientWorldTemplates.defaultTemplate()
                 : worldTemplate;
+        EchoClientLaunchContext safeLaunchContext = launchContext == null
+                ? EchoClientLaunchContext.empty()
+                : launchContext;
         EchoClientWorldPresentation presentation = safeTemplate.presentation();
         EchoGlfwWindow window = new EchoGlfwWindow(presentation.windowTitle(), initialWidth, initialHeight);
         EchoClientRuntimeServices runtimeServices = EchoClientRuntimeServices.forTemplate(safeTemplate);
         EchoClientSettingsStore settingsStore = EchoClientSettingsStore.openDefault(presentation);
         EchoClientScreenController screens =
-                new EchoClientScreenController(settingsStore.load(), presentation, safeTemplate.displayName());
+                new EchoClientScreenController(
+                        settingsStore.load(),
+                        presentation,
+                        safeTemplate.displayName(),
+                        safeLaunchContext
+                );
         EchoClientWorldSessionController worldSessions =
-                new EchoClientWorldSessionController(runtimeServices, screens);
+                new EchoClientWorldSessionController(runtimeServices, screens, safeLaunchContext);
         EchoClientGameplayRuntimeController gameplayRuntime =
                 new EchoClientGameplayRuntimeController(runtimeServices, screens, worldSessions);
         EchoClientParticleRuntimeController particleRuntime =
@@ -140,6 +168,7 @@ final class EchoClientRuntimeAssembly {
                 worldTemplate,
                 window,
                 runtimeServices,
+                safeLaunchContext,
                 screens,
                 settingsController,
                 settingsRuntime,
@@ -178,6 +207,11 @@ final class EchoClientRuntimeAssembly {
         renderer.resize(window.width(), window.height());
         runtimeServices.setAudio(audio);
         screenRuntime.showInitialMainMenu();
+        if (launchContext.quickPlayNewWorld()) {
+            System.out.println("[echo-client] quick play: new world requested");
+            launchContext.appendInstanceLog("[echo-client] quick play: new world requested");
+            worldSessions.beginNewWorldLoad();
+        }
     }
 
     void resizeRendererIfNeeded() {
@@ -270,6 +304,10 @@ final class EchoClientRuntimeAssembly {
 
     EchoClientRuntimeServices runtimeServices() {
         return runtimeServices;
+    }
+
+    EchoClientLaunchContext launchContext() {
+        return launchContext;
     }
 
     EchoClientSettingsController settingsController() {

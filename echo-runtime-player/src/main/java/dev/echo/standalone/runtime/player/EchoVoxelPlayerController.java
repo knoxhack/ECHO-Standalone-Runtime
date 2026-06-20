@@ -40,6 +40,32 @@ public final class EchoVoxelPlayerController {
     ) {
         Objects.requireNonNull(world, "world");
         double y = standingY(world, x, z, 1.82D).orElse(4.0D);
+        return spawnAtResolvedY(world, x, y, z, yawDegrees, pitchDegrees);
+    }
+
+    public static EchoVoxelPlayerController spawnAt(
+            EchoVoxelWorld world,
+            double x,
+            double y,
+            double z,
+            double yawDegrees,
+            double pitchDegrees
+    ) {
+        Objects.requireNonNull(world, "world");
+        double resolvedY = Double.isFinite(y) && canOccupy(world, x, y, z, 1.82D)
+                ? y
+                : standingY(world, x, z, 1.82D).orElse(4.0D);
+        return spawnAtResolvedY(world, x, resolvedY, z, yawDegrees, pitchDegrees);
+    }
+
+    private static EchoVoxelPlayerController spawnAtResolvedY(
+            EchoVoxelWorld world,
+            double x,
+            double y,
+            double z,
+            double yawDegrees,
+            double pitchDegrees
+    ) {
         return new EchoVoxelPlayerController(new EchoVoxelPlayerState(
                 x,
                 y,
@@ -47,7 +73,7 @@ public final class EchoVoxelPlayerController {
                 0.0D,
                 wrapDegrees(yawDegrees),
                 clamp(pitchDegrees, -75.0D, 55.0D),
-                true,
+                hasGroundBelow(world, x, y, z),
                 false,
                 false,
                 0,

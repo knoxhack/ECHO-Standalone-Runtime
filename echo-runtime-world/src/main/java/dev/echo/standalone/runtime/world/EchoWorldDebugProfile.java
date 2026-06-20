@@ -96,9 +96,9 @@ public record EchoWorldDebugProfile(
                 ),
                 List.of(
                         new EchoWorldPoi(
-                                "ashfall:terminal_pod",
+                                "echoashfallprotocol:poi/drop_pod",
                                 "terminal",
-                                "Emergency Terminal Pod",
+                                "Starting Drop Pod",
                                 new EchoWorldPosition(0, 0, 0)
                         ),
                         new EchoWorldPoi(

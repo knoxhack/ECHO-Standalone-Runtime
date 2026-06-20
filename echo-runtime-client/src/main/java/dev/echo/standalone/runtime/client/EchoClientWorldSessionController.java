@@ -3,6 +3,7 @@ package dev.echo.standalone.runtime.client;
 final class EchoClientWorldSessionController {
     private final EchoClientRuntimeServices runtimeServices;
     private final EchoClientScreenController screens;
+    private final EchoClientLaunchContext launchContext;
 
     private PendingWorldLoad pendingWorldLoad = PendingWorldLoad.NONE;
     private String pendingContinueSlotId = "";
@@ -11,8 +12,17 @@ final class EchoClientWorldSessionController {
             EchoClientRuntimeServices runtimeServices,
             EchoClientScreenController screens
     ) {
+        this(runtimeServices, screens, EchoClientLaunchContext.empty());
+    }
+
+    EchoClientWorldSessionController(
+            EchoClientRuntimeServices runtimeServices,
+            EchoClientScreenController screens,
+            EchoClientLaunchContext launchContext
+    ) {
         this.runtimeServices = runtimeServices;
         this.screens = screens;
+        this.launchContext = launchContext == null ? EchoClientLaunchContext.empty() : launchContext;
     }
 
     boolean beginNewWorldLoad() {
@@ -87,9 +97,12 @@ final class EchoClientWorldSessionController {
     }
 
     private LoadCompletion startNewGameSession() {
-        runtimeServices.startNewWorld(screens.worldSeed(), screens.worldName());
+        String worldName = screens.worldName();
+        runtimeServices.startNewWorld(screens.worldSeed(), worldName);
         screens.showInGame();
         screens.showToast("World created");
+        System.out.println("[echo-client] Joined world: " + worldName);
+        launchContext.appendInstanceLog("[echo-client] Joined world: " + worldName);
         return LoadCompletion.SESSION_ATTACHED;
     }
 
@@ -97,6 +110,7 @@ final class EchoClientWorldSessionController {
         if (runtimeServices.continueFromSlot(slotId)) {
             showInGameOrDeathScreen();
             screens.showToast("World loaded");
+            launchContext.appendInstanceLog("[echo-client] Joined world: " + slotId);
             return LoadCompletion.SESSION_ATTACHED;
         }
         screens.showMainMenu(runtimeServices.hasContinuableSession());

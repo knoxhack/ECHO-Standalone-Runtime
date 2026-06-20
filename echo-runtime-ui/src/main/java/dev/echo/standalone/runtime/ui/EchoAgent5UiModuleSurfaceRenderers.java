@@ -228,11 +228,19 @@ public final class EchoAgent5UiModuleSurfaceRenderers {
             Object health = stateValue(state, "hudHealth", hud.get("health"));
             Object hazard = stateValue(state, "hudHazard", hud.get("hazard"));
             Object mission = stateValue(state, "hudMission", hud.get("mission"));
+            List<Map<String, Object>> statusMeters = maps(hud.get("statusMeters"));
+            List<Map<String, Object>> notificationRows = maps(hud.get("notificationRows"));
             String output = string(state, "hudUpdateOutput", "");
             ArrayList<String> lines = new ArrayList<>();
             lines.add("HUD overlay is live. Health " + health);
             lines.add("Hazard: " + hazard);
             lines.add("Mission: " + mission);
+            lines.add("Ashfall status: " + meterSummary(statusMeters));
+            lines.add(String.valueOf(hud.get("missionLine")));
+            lines.add(String.valueOf(hud.get("hazardLine")));
+            lines.add(String.valueOf(hud.get("weatherLine")));
+            lines.add("Notifications below panel: " + notificationRowSummary(notificationRows)
+                    + " @ " + hud.get("notificationAnchor"));
             if (!output.isBlank()) {
                 lines.add(output);
             }
@@ -246,8 +254,15 @@ public final class EchoAgent5UiModuleSurfaceRenderers {
                     lines.add("Letterbox: active    Subtitle: " + string(state, "cinematicSubtitle", ""));
                 }
             }
-            return moduleModel("echohudcore", EchoAgent5HudSurfaceRenderer.class.getSimpleName(),
-                    EchoAgent5UiReference.HUD_LAYER, lines);
+            Map<String, Object> model = new LinkedHashMap<>(moduleModel("echohudcore",
+                    EchoAgent5HudSurfaceRenderer.class.getSimpleName(), EchoAgent5UiReference.HUD_LAYER, lines));
+            model.put("statusMeters", statusMeters);
+            model.put("missionLine", hud.get("missionLine"));
+            model.put("hazardLine", hud.get("hazardLine"));
+            model.put("weatherLine", hud.get("weatherLine"));
+            model.put("notificationRows", notificationRows);
+            model.put("notificationAnchor", hud.get("notificationAnchor"));
+            return Map.copyOf(model);
         }
     }
 
@@ -312,6 +327,33 @@ public final class EchoAgent5UiModuleSurfaceRenderers {
             return fallback;
         }
         return state.get(key);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> maps(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream()
+                    .filter(Map.class::isInstance)
+                    .map(entry -> (Map<String, Object>) entry)
+                    .map(Map::copyOf)
+                    .toList();
+        }
+        return List.of();
+    }
+
+    private static String meterSummary(List<Map<String, Object>> meters) {
+        return meters.stream()
+                .map(meter -> meter.get("label") + " " + meter.get("value"))
+                .reduce((left, right) -> left + " / " + right)
+                .orElse("");
+    }
+
+    private static String notificationRowSummary(List<Map<String, Object>> rows) {
+        return rows.stream()
+                .map(row -> String.valueOf(row.get("title")))
+                .filter(title -> !title.isBlank())
+                .reduce((left, right) -> left + " / " + right)
+                .orElse("");
     }
 
     private static String decimal(Object value) {

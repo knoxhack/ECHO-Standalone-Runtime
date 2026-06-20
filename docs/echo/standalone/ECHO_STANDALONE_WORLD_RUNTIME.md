@@ -32,7 +32,7 @@ chunk: 0,0
 cells: 4x4
 hazard: ashfall:toxic_ash
 weather: ashfall:ash_storm
-POIs: ashfall:terminal_pod, ashfall:crash_cache
+POIs: echoashfallprotocol:poi/drop_pod, ashfall:crash_cache
 ```
 
 The model is deliberately small enough for deterministic smoke validation and later vertical-slice bootstrapping.

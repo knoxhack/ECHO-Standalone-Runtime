@@ -65,6 +65,7 @@ public final class EchoRuntimeModulePermissionCatalog {
             "hazard.read",
             "hazard.write",
             "holomap.layers",
+            "hud.widgets",
             "index.inventory_overlay",
             "index.recipes",
             "inventory.overlay",

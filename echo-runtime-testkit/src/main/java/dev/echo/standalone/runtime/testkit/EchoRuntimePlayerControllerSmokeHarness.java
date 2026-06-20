@@ -95,11 +95,11 @@ public final class EchoRuntimePlayerControllerSmokeHarness {
 
         EchoPlayerControllerState initial = controller.state();
         require(initial.player().worldPosition().equals(new EchoWorldPosition(0, 0, 0)),
-                "player should start at the Ashfall terminal");
+                "player should start at the Ashfall drop pod");
         require(initial.facing() == EchoPlayerFacing.EAST, "player should start facing east");
         requireCamera(initial.camera(), 0.5D, 3.0D, 0.5D, "initial camera");
-        require(initial.target().orElseThrow().id().equals("ashfall:terminal_pod"),
-                "initial target should be the terminal");
+        require(initial.target().orElseThrow().id().equals("echoashfallprotocol:poi/drop_pod"),
+                "initial target should be the drop pod");
         require(initial.target().orElseThrow().exact(), "initial target should be exact");
 
         EchoPlayerControllerResult terminal = controller.handle(mouse(0, "PRIMARY"));
@@ -352,7 +352,7 @@ public final class EchoRuntimePlayerControllerSmokeHarness {
                 targetJson(southOne.state().target().orElseThrow()),
                 targetJson(terminal.target().orElseThrow()),
                 targetJson(cache.target().orElseThrow()),
-                initial.target().orElseThrow().id().equals("ashfall:terminal_pod")
+                initial.target().orElseThrow().id().equals("echoashfallprotocol:poi/drop_pod")
                         && eastTwo.state().target().orElseThrow().id().equals("ashfall:crash_cache")
                         && !eastTwo.state().target().orElseThrow().exact()
                         && southOne.state().target().orElseThrow().exact()

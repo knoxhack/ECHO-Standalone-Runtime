@@ -20,7 +20,11 @@ final class EchoClientEngine {
     private int fps;
 
     EchoClientEngine() {
-        this(EchoClientRuntimeAssembly.create(INITIAL_WIDTH, INITIAL_HEIGHT));
+        this(EchoClientLaunchContext.empty());
+    }
+
+    EchoClientEngine(EchoClientLaunchContext launchContext) {
+        this(EchoClientRuntimeAssembly.create(INITIAL_WIDTH, INITIAL_HEIGHT, launchContext));
     }
 
     EchoClientEngine(EchoClientRuntimeAssembly runtime) {

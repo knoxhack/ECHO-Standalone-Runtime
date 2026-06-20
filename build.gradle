@@ -2845,7 +2845,8 @@ tasks.register('verifyStandaloneWorldRuntime') {
                 || runtimeWorld.worldStateServiceBound != true
                 || runtimeWorld.queryOriginTerrain != 'crash_debris'
                 || runtimeWorld.queryHazardIntensity != 0.72
-                || runtimeWorld.queryTerminalLabel != 'Emergency Terminal Pod'
+                || runtimeWorld.queryTerminalLabel != 'Starting Drop Pod'
+                || runtimeWorld.legacyTerminalAliasResolved != true
                 || runtimeWorld.queryDimensionEnvironment != 'toxic_wasteland'
                 || runtimeWorld.savedFileCount != 2
                 || runtimeWorld.saveHealthy != true) {
@@ -2897,9 +2898,10 @@ tasks.register('verifyStandaloneWorldRuntime') {
         def pois = json.parse(file('reports/echo/standalone/world-pois.json'))
         if (pois.schema != 'echo.standalone.world_pois.v2'
                 || pois.poiCount != 2
-                || pois.terminalLabel != 'Emergency Terminal Pod'
+                || pois.terminalLabel != 'Starting Drop Pod'
                 || pois.crashCacheQueryable != true
-                || !pois.pois.any { it.id == 'ashfall:terminal_pod' }
+                || pois.legacyTerminalAliasResolved != true
+                || !pois.pois.any { it.id == 'echoashfallprotocol:poi/drop_pod' }
                 || !pois.pois.any { it.id == 'ashfall:crash_cache' }) {
             throw new GradleException('Phase 14.9 world POI report did not prove terminal/cache query coverage')
         }
@@ -6072,7 +6074,7 @@ tasks.register('verifyStandalonePlayerControllerRuntime') {
                 || runtimePlayer.shortcutRuntimeBound != true
                 || runtimePlayer.initialPosition.key != '0,0,0'
                 || runtimePlayer.initialFacing != 'EAST'
-                || runtimePlayer.initialTarget.id != 'ashfall:terminal_pod'
+                || runtimePlayer.initialTarget.id != 'echoashfallprotocol:poi/drop_pod'
                 || runtimePlayer.initialTarget.exact != true
                 || runtimePlayer.finalPosition.key != '3,0,2'
                 || runtimePlayer.finalCamera.x != 3.5
@@ -6121,13 +6123,13 @@ tasks.register('verifyStandalonePlayerControllerRuntime') {
         }
         def targeting = json.parse(file('reports/echo/standalone/player-targeting.json'))
         if (targeting.schema != 'echo.standalone.player_targeting.v2'
-                || targeting.initialTarget.id != 'ashfall:terminal_pod'
+                || targeting.initialTarget.id != 'echoashfallprotocol:poi/drop_pod'
                 || targeting.initialTarget.exact != true
                 || targeting.nearbyCacheTarget.id != 'ashfall:crash_cache'
                 || targeting.nearbyCacheTarget.exact != false
                 || targeting.exactCacheTarget.id != 'ashfall:crash_cache'
                 || targeting.exactCacheTarget.exact != true
-                || targeting.terminalInteractionTarget.id != 'ashfall:terminal_pod'
+                || targeting.terminalInteractionTarget.id != 'echoashfallprotocol:poi/drop_pod'
                 || targeting.cacheInteractionTarget.id != 'ashfall:crash_cache'
                 || targeting.targetingStable != true) {
             throw new GradleException('Phase 15.4 player targeting report did not prove terminal/cache targeting transitions')
@@ -9763,6 +9765,8 @@ tasks.register('runStandaloneFullWorldgenDimensionsStructuresAudit') {
                         && statusPass(worldPois)
                         && count(worldPois.poiCount) >= 2
                         && bool(worldPois.crashCacheQueryable)
+                        && bool(worldPois.legacyTerminalAliasResolved)
+                        && (worldPois.pois ?: []).any { it.id == 'echoashfallprotocol:poi/drop_pod' }
                         && String.valueOf(worldPois.terminalType ?: '') == 'terminal',
                 [
                         worldId          : runtimeWorld.worldId,

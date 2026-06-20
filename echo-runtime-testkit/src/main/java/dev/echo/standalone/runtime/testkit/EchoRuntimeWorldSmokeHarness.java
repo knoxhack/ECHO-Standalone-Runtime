@@ -46,8 +46,10 @@ public final class EchoRuntimeWorldSmokeHarness {
                 "origin cell should be crash debris");
         require(world.query().hazardIntensityAt(new EchoWorldPosition(1, 0, 1)) == 0.72D,
                 "hazard center should report toxic ash intensity");
-        require(world.query().poi("ashfall:terminal_pod").orElseThrow().label().equals("Emergency Terminal Pod"),
-                "terminal POI should be queryable");
+        require(world.query().poi("echoashfallprotocol:poi/drop_pod").orElseThrow().label().equals("Starting Drop Pod"),
+                "drop pod POI should be queryable");
+        require(world.query().poi("ashfall:terminal_pod").orElseThrow().id().equals("echoashfallprotocol:poi/drop_pod"),
+                "legacy terminal pod alias should resolve to the canonical drop pod POI");
         require(world.query().dimension("ashfall:surface").orElseThrow().environment().equals("toxic_wasteland"),
                 "Ashfall surface dimension should be queryable");
 
@@ -128,6 +130,7 @@ public final class EchoRuntimeWorldSmokeHarness {
                   "queryOriginTerrain": "%s",
                   "queryHazardIntensity": %.2f,
                   "queryTerminalLabel": "%s",
+                  "legacyTerminalAliasResolved": true,
                   "queryDimensionEnvironment": "%s",
                   "savedFileCount": %d,
                   "saveHealthy": %s
@@ -144,7 +147,7 @@ public final class EchoRuntimeWorldSmokeHarness {
                 state.poiCount(),
                 escape(world.query().cellAt(new EchoWorldPosition(0, 0, 0)).orElseThrow().terrain()),
                 world.query().hazardIntensityAt(new EchoWorldPosition(1, 0, 1)),
-                escape(world.query().poi("ashfall:terminal_pod").orElseThrow().label()),
+                escape(world.query().poi("echoashfallprotocol:poi/drop_pod").orElseThrow().label()),
                 escape(world.query().dimension("ashfall:surface").orElseThrow().environment()),
                 saved.writtenPaths().size(),
                 saveCheck.healthy()
@@ -290,6 +293,7 @@ public final class EchoRuntimeWorldSmokeHarness {
                   "pois": %s,
                   "terminalLabel": "%s",
                   "terminalType": "%s",
+                  "legacyTerminalAliasResolved": true,
                   "crashCacheQueryable": %s
                 }
                 """.formatted(
@@ -300,8 +304,8 @@ public final class EchoRuntimeWorldSmokeHarness {
                                 + "\", \"label\": \"" + escape(value.label())
                                 + "\", \"position\": \"" + escape(value.position().key()) + "\"}")
                         .collect(java.util.stream.Collectors.joining(", ", "[", "]")),
-                escape(world.query().poi("ashfall:terminal_pod").orElseThrow().label()),
-                escape(world.query().poi("ashfall:terminal_pod").orElseThrow().type()),
+                escape(world.query().poi("echoashfallprotocol:poi/drop_pod").orElseThrow().label()),
+                escape(world.query().poi("echoashfallprotocol:poi/drop_pod").orElseThrow().type()),
                 world.query().poi("ashfall:crash_cache").isPresent()
         ));
 

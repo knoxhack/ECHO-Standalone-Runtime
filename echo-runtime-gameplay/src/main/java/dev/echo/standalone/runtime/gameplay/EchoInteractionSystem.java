@@ -91,7 +91,7 @@ public final class EchoInteractionSystem {
                     "terminal_online"
             );
         }
-        EchoWorldPoi terminal = world.query().poi("ashfall:terminal_pod")
+        EchoWorldPoi terminal = world.query().poi("echoashfallprotocol:poi/drop_pod")
                 .orElseThrow(() -> new IllegalStateException("Missing terminal POI"));
         if (!player.worldPosition().equals(terminal.position())) {
             return new EchoGameplayInteractionResult(

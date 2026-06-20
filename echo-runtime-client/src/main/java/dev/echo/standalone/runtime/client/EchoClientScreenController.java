@@ -20,6 +20,7 @@ final class EchoClientScreenController {
     private static final String[] LANGUAGE_CODES = {"en_us", "en_gb", "de_de", "es_es", "fr_fr", "ja_jp"};
 
     private final EchoClientWorldPresentation presentation;
+    private final EchoClientLaunchContext launchContext;
     private final String defaultWorldName;
     private final EchoClientLoadingController loading;
     private final EchoClientUiBridge uiBridge = new EchoClientUiBridge();
@@ -116,7 +117,17 @@ final class EchoClientScreenController {
             EchoClientWorldPresentation presentation,
             String defaultWorldName
     ) {
+        this(settings, presentation, defaultWorldName, EchoClientLaunchContext.empty());
+    }
+
+    EchoClientScreenController(
+            EchoClientSettings settings,
+            EchoClientWorldPresentation presentation,
+            String defaultWorldName,
+            EchoClientLaunchContext launchContext
+    ) {
         this.presentation = presentation == null ? EchoClientWorldPresentation.generic() : presentation;
+        this.launchContext = launchContext == null ? EchoClientLaunchContext.empty() : launchContext;
         this.defaultWorldName = normalizedWorldName(defaultWorldName);
         this.worldName = this.defaultWorldName;
         this.loading = new EchoClientLoadingController(this.presentation);
@@ -1073,7 +1084,7 @@ final class EchoClientScreenController {
             return new EchoClientScreenSnapshot(
                     state,
                     screenKind,
-                    frame.screen().title(),
+                    "ASHFALL TERMINAL // LOADING",
                     String.join("  ", frame.screen().lines()),
                     List.of(),
                     -1,
@@ -1088,8 +1099,8 @@ final class EchoClientScreenController {
             );
         }
         String title = switch (state) {
-            case MAIN_MENU -> "ECHO ASHFALL";
-            case PAUSED -> "GAME PAUSED";
+            case MAIN_MENU -> "ASHFALL TERMINAL";
+            case PAUSED -> "FIELD SESSION PAUSED";
             case DEAD -> "YOU DIED";
             case SAVING -> "SAVING";
             case FATAL_ERROR -> "RUNTIME ERROR";
@@ -1097,8 +1108,10 @@ final class EchoClientScreenController {
             default -> "ECHO";
         };
         String subtitle = switch (state) {
-            case MAIN_MENU -> "Standalone Client";
-            case PAUSED -> "Runtime shell";
+            case MAIN_MENU -> launchContext.hasPackContext()
+                    ? "Standalone profile " + launchContext.compactProfileLabel()
+                    : "Nexus recovery interface";
+            case PAUSED -> "Vanilla-safe runtime shell";
             case DEAD -> "Respawn available";
             case SAVING -> "Please wait";
             case FATAL_ERROR -> "Standalone client halted safely";
@@ -1642,6 +1655,13 @@ final class EchoClientScreenController {
                                 ? supportBundleResult.archivePath()
                                 : supportBundleResult.message()
                 ));
+                for (String line : launchContext.diagnosticsLines()) {
+                    result.add(new EchoClientScreenOption(
+                            line,
+                            EchoClientScreenCommand.NONE,
+                            false
+                    ));
+                }
                 result.add(new EchoClientScreenOption("Runtime State: " + state, EchoClientScreenCommand.NONE, false));
                 result.add(new EchoClientScreenOption("Screen: " + screenKind, EchoClientScreenCommand.NONE, false));
                 result.add(new EchoClientScreenOption("Save Slots: " + saveSlots.size(), EchoClientScreenCommand.NONE, false));
@@ -2525,11 +2545,11 @@ final class EchoClientScreenController {
     }
 
     private void publishLoading() {
-        uiBridge.showStatic("echoscreencore:loading", "ECHO ASHFALL", List.of(
-                loading.label(),
+        uiBridge.showStatic("echoscreencore:loading", "ASHFALL TERMINAL // LOADING", List.of(
+                "Boot vector: " + loading.label(),
                 loading.detail(),
-                "Tip " + loading.tip(),
-                "Progress " + Math.round(loading.progress() * 100.0D) + "%",
+                "Tip: " + loading.tip(),
+                "Progress: " + Math.round(loading.progress() * 100.0D) + "%",
                 "Route: screencore.loading",
                 "Focus: loading.progress"
         ), "loading.progress");
@@ -2614,11 +2634,11 @@ final class EchoClientScreenController {
 
     private String footerForScreenKind() {
         return switch (screenKind) {
-            case MAIN_MENU -> "Enter selects, Esc quits";
-            case PAUSE_MENU -> "Esc resumes";
+            case MAIN_MENU -> "ASHFALL ROUTE // Enter selects  Esc quits";
+            case PAUSE_MENU -> "FIELD SESSION // Esc resumes";
             case DEATH_SCREEN -> "Enter respawns";
             case FATAL_ERROR -> "Export a support bundle, return to title, or quit";
-            default -> "Esc backs out";
+            default -> "ASHFALL ROUTE // Esc backs out";
         };
     }
 
@@ -2654,18 +2674,18 @@ final class EchoClientScreenController {
 
     private String screenTitle() {
         return switch (screenKind) {
-            case MAIN_MENU -> "ECHO ASHFALL";
-            case PAUSE_MENU -> "GAME PAUSED";
+            case MAIN_MENU -> "ASHFALL TERMINAL";
+            case PAUSE_MENU -> "FIELD SESSION PAUSED";
             case DEATH_SCREEN -> "YOU DIED";
-            case WORLD_SELECT -> "WORLD SELECT";
-            case CREATE_WORLD -> "CREATE WORLD";
-            case OPTIONS -> "OPTIONS";
+            case WORLD_SELECT -> "WORLD ARCHIVE";
+            case CREATE_WORLD -> "CREATE SIMULATION";
+            case OPTIONS -> "SYSTEM OPTIONS";
             case CONTROLS -> "CONTROLS";
             case VIDEO_SETTINGS -> "VIDEO SETTINGS";
             case AUDIO_SETTINGS -> "AUDIO SETTINGS";
             case ACCESSIBILITY_SETTINGS -> "ACCESSIBILITY";
             case LANGUAGE_SETTINGS -> "LANGUAGE";
-            case MODS -> "MODS";
+            case MODS -> "MODULE INDEX";
             case RESOURCE_PACKS -> "RESOURCE PACKS";
             case RESOURCE_PACK_DETAIL -> {
                 EchoClientResourcePackSummary pack = selectedResourcePack();
@@ -2687,18 +2707,20 @@ final class EchoClientScreenController {
 
     private String screenSubtitle() {
         return switch (screenKind) {
-            case MAIN_MENU -> "Standalone Client";
-            case PAUSE_MENU -> "Runtime shell";
+            case MAIN_MENU -> launchContext.hasPackContext()
+                    ? "Standalone profile " + launchContext.compactProfileLabel()
+                    : "Nexus recovery interface";
+            case PAUSE_MENU -> "Vanilla-safe runtime shell";
             case DEATH_SCREEN -> "Respawn";
-            case WORLD_SELECT -> "Save slots";
+            case WORLD_SELECT -> "Save archive";
             case CREATE_WORLD -> "World setup";
-            case OPTIONS -> "ScreenCore settings";
+            case OPTIONS -> "Configuration shell";
             case CONTROLS -> "Input mapping";
             case VIDEO_SETTINGS -> "Renderer settings";
             case AUDIO_SETTINGS -> "Sound mix";
             case ACCESSIBILITY_SETTINGS -> "Readable feedback";
             case LANGUAGE_SETTINGS -> "Locale selection";
-            case MODS -> "Loader registry";
+            case MODS -> "Loader module registry";
             case RESOURCE_PACKS -> "Asset packs";
             case RESOURCE_PACK_DETAIL -> "Mounted pack detail";
             case INVENTORY -> "Player inventory";
@@ -2749,10 +2771,10 @@ final class EchoClientScreenController {
                     : pack.detailLabel();
         }
         return switch (screenKind) {
-            case MAIN_MENU -> "AdapterCore-ready runtime shell";
+            case MAIN_MENU -> launchContext.screenSummary();
             case PAUSE_MENU -> "World simulation is paused";
             case DEATH_SCREEN -> "Respawn restores health and returns to the crash site";
-            case WORLD_SELECT -> "Named saves, backups, and migrations mount here";
+            case WORLD_SELECT -> "Named saves, backups, and migrations mount through the archive";
             case CREATE_WORLD -> "Create '" + worldName() + "' with seed " + worldSeed();
             case OPTIONS -> "Client, controls, video, audio, and packs mount here";
             case CONTROLS -> "Keyboard and mouse bindings will mirror Minecraft-style controls";

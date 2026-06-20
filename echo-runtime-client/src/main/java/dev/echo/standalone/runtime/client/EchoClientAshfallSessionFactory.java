@@ -265,7 +265,14 @@ final class EchoClientAshfallSessionFactory implements EchoClientGameSessionFact
         EchoVoxelWorld world = sessionProfile.generateAndStream(seed);
         EchoVoxelWorldStreamer streamer = sessionProfile.streamer();
         EchoVoxelPlayerController player =
-                EchoVoxelPlayerController.spawnAt(world, world.spawnX(), world.spawnZ(), world.spawnYawDegrees(), -32.0D);
+                EchoVoxelPlayerController.spawnAt(
+                        world,
+                        world.spawnX(),
+                        world.spawnY(),
+                        world.spawnZ(),
+                        world.spawnYawDegrees(),
+                        -32.0D
+                );
         EchoVoxelPlayerHotbar hotbar = sessionProfile.newStarterHotbar();
         EchoClientWorkbenchLoadout workbench =
                 EchoClientWorkbenchLoadoutFactory.fromStarterLoadout(
