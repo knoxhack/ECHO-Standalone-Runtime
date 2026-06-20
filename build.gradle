@@ -31,7 +31,7 @@ def standaloneRuntimeModules = [
 
 allprojects {
     group = 'dev.echo.standalone'
-    version = '0.1.0-phase14.20-alpha-readiness'
+    version = '0.1.1-beta.20260620'
 
     repositories {
         mavenCentral()
@@ -11895,7 +11895,7 @@ def echoStandaloneBuildOpenGlPackage = {
                 'jpackage',
                 '--type', 'app-image',
                 '--name', appName,
-                '--app-version', '0.1.0',
+                '--app-version', '0.1.1',
                 '--vendor', 'ECHO',
                 '--input', installLibDir.absolutePath,
                 '--main-jar', mainJar.name,
