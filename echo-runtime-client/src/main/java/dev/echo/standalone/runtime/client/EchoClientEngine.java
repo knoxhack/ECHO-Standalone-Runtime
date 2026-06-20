@@ -63,7 +63,9 @@ final class EchoClientEngine {
                 }
 
                 runtime.resizeRendererIfNeeded();
+                runtime.prepareVisibleEvidenceCaptureFrame(frameSequence);
                 runtime.renderFrame(fps, frameSequence, framePacing.snapshot());
+                runtime.captureVisibleEvidenceFrame(frameSequence);
                 runtime.screenshotRuntime().captureIfRequested();
                 runtime.window().swapBuffers();
             } catch (Throwable failure) {

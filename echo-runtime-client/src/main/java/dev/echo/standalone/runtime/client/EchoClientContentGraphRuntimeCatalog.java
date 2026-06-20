@@ -229,6 +229,16 @@ final class EchoClientContentGraphRuntimeCatalog {
         copyIfPresent(row, data, "aiProfile");
         copyIfPresent(row, data, "renderShape");
         copyIfPresent(row, data, "renderArgb");
+        copyIfPresent(row, data, "renderProfile");
+        copyIfPresent(row, data, "renderProfileId");
+        copyIfPresent(row, data, "visualProfile");
+        copyIfPresent(row, data, "threat");
+        copyIfPresent(row, data, "threatClass");
+        copyIfPresent(row, data, "threatProfile");
+        copyIfPresent(row, data, "threatLevel");
+        copyIfPresent(row, data, "dangerLevel");
+        copyIfPresent(row, data, "hostility");
+        copyIfPresent(row, data, "hostilityLevel");
         copyIfPresent(row, data, "biomeId");
         copyIfPresent(row, data, "structureId");
         copyIfPresent(row, data, "featureId");
@@ -242,6 +252,7 @@ final class EchoClientContentGraphRuntimeCatalog {
         copyIfPresent(row, data, "modelPath");
         copyIfPresent(row, data, "animation");
         copyIfPresent(row, data, "animationId");
+        copyIfPresent(row, data, "animationPath");
     }
 
     private static void copyIfPresent(LinkedHashMap<String, Object> row, Map<String, Object> data, String key) {
@@ -369,6 +380,12 @@ final class EchoClientContentGraphRuntimeCatalog {
                 List.of("echo:entity", "echo:npc"),
                 List.of("model", "modelId", "modelPath", "texture", "textureId", "texturePath",
                         "animation", "animationId")
+        ));
+        putCoverage(coverage, "entityThreatMetadata", countNodesWithAnyKey(
+                result,
+                List.of("echo:entity", "echo:npc"),
+                List.of("threat", "threatClass", "threatProfile", "threatLevel",
+                        "dangerLevel", "hostility", "hostilityLevel")
         ));
         putCoverage(coverage, "spawnRules", countAnyKind(result, List.of("echo:spawn_rule"))
                 + countNodesWithAnyKey(result, List.of("echo:entity", "echo:npc"),

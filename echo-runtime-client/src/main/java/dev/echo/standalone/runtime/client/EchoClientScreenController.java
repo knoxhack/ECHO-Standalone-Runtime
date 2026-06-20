@@ -30,6 +30,8 @@ final class EchoClientScreenController {
     private List<EchoClientSaveSlotSummary> saveSlots = List.of();
     private EchoClientModScanSummary modScan = EchoClientModScanSummary.empty();
     private EchoClientRuntimeContentSummary runtimeContent = EchoClientRuntimeContentSummary.empty();
+    private EchoClientCreativeInventoryController.CreativeInventoryModel creativeInventory =
+            new EchoClientCreativeInventoryController().model(List.of());
     private EchoClientTechSurfaceModel techSurface = EchoClientTechSurfaceModel.empty();
     private List<EchoClientResourcePackSummary> resourcePacks = List.of();
     private List<EchoClientWorkbenchRecipeSummary> workbenchRecipes = List.of();
@@ -562,7 +564,20 @@ final class EchoClientScreenController {
     void updateRuntimeContentSummary(EchoClientRuntimeContentSummary runtimeContent) {
         this.runtimeContent = runtimeContent == null ? EchoClientRuntimeContentSummary.empty() : runtimeContent;
         markSnapshotDirty();
-        if (screenKind == EchoClientScreenKind.MODS || screenKind == EchoClientScreenKind.DIAGNOSTICS) {
+        if (screenKind == EchoClientScreenKind.MODS
+                || screenKind == EchoClientScreenKind.DIAGNOSTICS
+                || screenKind == EchoClientScreenKind.INVENTORY) {
+            selectedIndex = firstEnabledIndex(options(false), selectedIndex);
+            publishMenu(false);
+        }
+    }
+
+    void updateCreativeInventoryModel(EchoClientCreativeInventoryController.CreativeInventoryModel creativeInventory) {
+        this.creativeInventory = creativeInventory == null
+                ? new EchoClientCreativeInventoryController().model(List.of())
+                : creativeInventory;
+        markSnapshotDirty();
+        if (screenKind == EchoClientScreenKind.INVENTORY || screenKind == EchoClientScreenKind.DIAGNOSTICS) {
             selectedIndex = firstEnabledIndex(options(false), selectedIndex);
             publishMenu(false);
         }
@@ -1536,6 +1551,57 @@ final class EchoClientScreenController {
             }
             case INVENTORY -> {
                 result.add(new EchoClientScreenOption(
+                        "Creative Tabs: " + creativeInventory.tabs().size()
+                                + " | Entries: " + creativeInventory.entries().size(),
+                        EchoClientScreenCommand.NONE,
+                        false,
+                        creativeInventory.entries().isEmpty()
+                                ? "No Content Graph creative tab membership is loaded."
+                                : "Content Graph-backed creative inventory"
+                ));
+                int displayedCreativeEntries = 0;
+                int displayedCreativeTabs = 0;
+                for (EchoClientCreativeInventoryController.CreativeTab tab : creativeInventory.tabs()) {
+                    if (displayedCreativeTabs >= 8) {
+                        break;
+                    }
+                    displayedCreativeTabs++;
+                    result.add(new EchoClientScreenOption(
+                            "Tab: " + tab.titleKey() + " (" + tab.entries().size() + ")",
+                            EchoClientScreenCommand.NONE,
+                            false,
+                            tab.tabId() + " | module=" + tab.moduleId()
+                    ));
+                    int tabEntries = 0;
+                    for (EchoClientCreativeInventoryController.CreativeEntry entry : tab.entries()) {
+                        if (tabEntries >= 4 || displayedCreativeEntries >= 24) {
+                            break;
+                        }
+                        tabEntries++;
+                        displayedCreativeEntries++;
+                        result.add(new EchoClientScreenOption(
+                                (entry.block() ? "Block: " : "Item: ") + entry.displayName(),
+                                EchoClientScreenCommand.NONE,
+                                false,
+                                entry.itemId() + " | module=" + entry.moduleId()
+                        ));
+                    }
+                }
+                int hiddenCreativeTabs = Math.max(0, creativeInventory.tabs().size() - displayedCreativeTabs);
+                int hiddenCreativeEntries = Math.max(0, creativeInventory.entries().size() - displayedCreativeEntries);
+                if (hiddenCreativeTabs > 0 || hiddenCreativeEntries > 0) {
+                    result.add(new EchoClientScreenOption(
+                            "More Creative Content: " + hiddenCreativeTabs + " tab(s), "
+                                    + hiddenCreativeEntries + " entries",
+                            EchoClientScreenCommand.NONE,
+                            false,
+                            "Open Diagnostics for runtime catalog counts"
+                    ));
+                }
+                addAdapterCoreRouteOption(result, "Index", "index");
+                addAdapterCoreRouteOption(result, "Lens", "lens");
+                addAdapterCoreRouteOption(result, "Terminal", "terminal");
+                result.add(new EchoClientScreenOption(
                         "Runtime Content: " + runtimeContent.summaryLabel(),
                         EchoClientScreenCommand.NONE,
                         false,
@@ -2089,15 +2155,31 @@ final class EchoClientScreenController {
             return null;
         }
         String normalizedToken = token.trim().toLowerCase(java.util.Locale.ROOT);
-        for (EchoClientScreenCatalogEntry screen : screenCatalog.adapterCoreScreens()) {
+        List<EchoClientScreenCatalogEntry> screens = screenCatalog.adapterCoreScreens();
+        for (int index = screens.size() - 1; index >= 0; index--) {
+            EchoClientScreenCatalogEntry screen = screens.get(index);
             String haystack = (screen.screenId() + " " + screen.title() + " "
                     + screen.contentId() + " " + screen.nativeLoaderId() + " "
-                    + screen.standaloneRuntimeId()).toLowerCase(java.util.Locale.ROOT);
+                    + screen.adapterKey() + " " + screen.standaloneRuntimeId())
+                    .toLowerCase(java.util.Locale.ROOT);
             if (haystack.contains(normalizedToken)) {
                 return screen;
             }
         }
         return null;
+    }
+
+    private void addAdapterCoreRouteOption(List<EchoClientScreenOption> options, String label, String token) {
+        EchoClientScreenCatalogEntry screen = firstAdapterCoreScreenContaining(token);
+        if (screen == null) {
+            return;
+        }
+        options.add(EchoClientScreenOption.target(
+                label + ": " + screen.title(),
+                EchoClientScreenCommand.OPEN_REGISTERED_SCREEN,
+                screen.screenId(),
+                screen.tooltip()
+        ));
     }
 
     private void ensureSelectedVisible(int optionCount, int height) {

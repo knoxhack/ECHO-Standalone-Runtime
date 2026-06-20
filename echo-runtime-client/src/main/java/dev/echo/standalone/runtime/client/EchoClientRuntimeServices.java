@@ -254,6 +254,11 @@ final class EchoClientRuntimeServices {
         return EchoClientRuntimeContentSummary.fromRows(runtimeContentRegistrations.registrations(""));
     }
 
+    EchoClientCreativeInventoryController.CreativeInventoryModel creativeInventoryModel() {
+        return new EchoClientCreativeInventoryController()
+                .modelFromRuntimeContentRows(runtimeContentRegistrations.registrations(""));
+    }
+
     EchoClientTechSurfaceModel techSurfaceModel() {
         EchoClientGameSession session = session();
         return session == null ? EchoClientTechSurfaceModel.from(runtimeContentBridge) : session.techSurfaceModel();
@@ -917,7 +922,7 @@ final class EchoClientRuntimeServices {
         rememberMemorySaveIdentity();
     }
 
-    private EchoClientEntityCatalog runtimeEntityCatalog() {
+    EchoClientEntityCatalog runtimeEntityCatalog() {
         return EchoClientRuntimeEntityCatalogBridge.merge(
                 baseEntityCatalog,
                 runtimeContentRegistrations.registrations("")
@@ -940,7 +945,7 @@ final class EchoClientRuntimeServices {
         );
     }
 
-    private EchoClientRuntimeWorldgenCatalog runtimeWorldgenCatalog() {
+    EchoClientRuntimeWorldgenCatalog runtimeWorldgenCatalog() {
         ArrayList<Map<String, Object>> rows = new ArrayList<>(runtimeContentRegistrations.registrations(""));
         rows.addAll(activePackResourceRows(dataWorldCoreRegions.rows()));
         rows.addAll(activePackResourceRows(dataWorldgenStructures.rows()));

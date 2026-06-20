@@ -13,6 +13,7 @@ import dev.echo.standalone.runtime.render.EchoVoxelCamera;
 import dev.echo.standalone.runtime.world.EchoWorldPosition;
 
 import java.util.List;
+import java.util.Map;
 
 public final class EchoClientEntityRenderSmokeHarness {
     private EchoClientEntityRenderSmokeHarness() {
@@ -54,6 +55,7 @@ public final class EchoClientEntityRenderSmokeHarness {
         require(EchoClientEntityRenderer.meshData(List.of(), entityCatalog).indexCount() == 0,
                 "Empty entity lists should not emit render geometry");
         requireEntityRenderSelection(entityCatalog);
+        requireEntityTextureAtlasSource(session);
 
         System.out.println("client entity render smoke PASS humanoidVertices="
                 + humanoid.vertexCount()
@@ -137,6 +139,35 @@ public final class EchoClientEntityRenderSmokeHarness {
                         && ties.get(0).id().value().equals("test:a_tie")
                         && ties.get(1).id().value().equals("test:z_tie"),
                 "Equal-distance entity render selection should expose a stable id order");
+    }
+
+    private static void requireEntityTextureAtlasSource(EchoClientGameSession session) {
+        EchoClientRenderer.AtlasSourceCache cache = new EchoClientRenderer.AtlasSourceCache();
+        int baseSignature = cache.sourceSignature(session.world(), session.entityCatalog());
+        EchoClientEntityCatalog texturedCatalog = EchoClientRuntimeEntityCatalogBridge.merge(
+                session.entityCatalog(),
+                List.of(Map.of(
+                        "moduleId", "echoruntimehost",
+                        "contentId", "echoruntimehost:entity/texture_backed_probe",
+                        "contentKind", "ENTITY",
+                        "domain", "entities",
+                        "displayName", "Texture Backed Probe",
+                        "standaloneRuntimeId", "echoruntimehost:texture_backed_probe",
+                        "metadata", Map.ofEntries(
+                                Map.entry("definitionId", "echoruntimehost:texture_backed_probe"),
+                                Map.entry("kind", "HOSTILE"),
+                                Map.entry("biomeTags", List.of("crash_zone")),
+                                Map.entry("modelId", "echoruntimehost:entity/texture_backed_probe"),
+                                Map.entry("textureId", "echoruntimehost:textures/entity/texture_backed_probe.png"),
+                                Map.entry("renderShape", "HUMANOID"),
+                                Map.entry("threatProfile", "probe"),
+                                Map.entry("threatLevel", 1)
+                        )
+                ))
+        );
+        int texturedSignature = cache.sourceSignature(session.world(), texturedCatalog);
+        require(texturedSignature != baseSignature,
+                "Renderer atlas source should include Content Graph entity texture requests");
     }
 
     private static EchoEntityState entity(String definitionId, int x, int y, int z) {

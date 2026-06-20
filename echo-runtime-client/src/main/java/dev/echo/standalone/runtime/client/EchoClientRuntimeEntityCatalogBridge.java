@@ -48,7 +48,8 @@ final class EchoClientRuntimeEntityCatalogBridge {
             if (!biomeTags.isEmpty()) {
                 runtimeRules.add(new EchoClientEntityCatalog.SpawnRule(biomeTags, definition));
             }
-            renderProfiles.put(definition.definitionId(), renderProfile(definition.definitionId(), row, metadata));
+            renderProfiles.put(definition.definitionId(),
+                    renderProfile(definition.definitionId(), row, metadata, biomeTags));
         }
 
         if (runtimeRules.isEmpty()
@@ -74,8 +75,59 @@ final class EchoClientRuntimeEntityCatalogBridge {
     private static EchoClientEntityCatalog.RenderProfile renderProfile(
             String definitionId,
             Map<String, Object> row,
-            Map<String, Object> metadata
+            Map<String, Object> metadata,
+            List<String> spawnBiomeTags
     ) {
+        String modelId = firstText(
+                row.get("modelId"),
+                metadata.get("modelId"),
+                row.get("model"),
+                metadata.get("model"),
+                row.get("modelPath"),
+                metadata.get("modelPath")
+        );
+        String textureId = firstText(
+                row.get("textureId"),
+                metadata.get("textureId"),
+                row.get("texture"),
+                metadata.get("texture"),
+                row.get("texturePath"),
+                metadata.get("texturePath")
+        );
+        String animationId = firstText(
+                row.get("animationId"),
+                metadata.get("animationId"),
+                row.get("animation"),
+                metadata.get("animation"),
+                row.get("animationPath"),
+                metadata.get("animationPath")
+        );
+        String renderProfileId = firstText(
+                row.get("renderProfileId"),
+                metadata.get("renderProfileId"),
+                row.get("renderProfile"),
+                metadata.get("renderProfile"),
+                row.get("visualProfile"),
+                metadata.get("visualProfile")
+        );
+        String threatProfile = firstText(
+                row.get("threatProfile"),
+                metadata.get("threatProfile"),
+                row.get("threat"),
+                metadata.get("threat"),
+                row.get("threatClass"),
+                metadata.get("threatClass"),
+                row.get("hostility"),
+                metadata.get("hostility")
+        );
+        int threatLevel = intValue(firstText(
+                row.get("threatLevel"),
+                metadata.get("threatLevel"),
+                row.get("dangerLevel"),
+                metadata.get("dangerLevel"),
+                row.get("hostilityLevel"),
+                metadata.get("hostilityLevel")
+        ), 0);
         int argb = intValue(firstText(
                 row.get("renderArgb"),
                 metadata.get("renderArgb"),
@@ -90,7 +142,19 @@ final class EchoClientRuntimeEntityCatalogBridge {
                 row.get("shape"),
                 metadata.get("shape")
         ), definitionId);
-        return new EchoClientEntityCatalog.RenderProfile(argb, shape);
+        boolean graphBackedVisual = !modelId.isBlank() || !textureId.isBlank() || !animationId.isBlank();
+        return new EchoClientEntityCatalog.RenderProfile(
+                argb,
+                shape,
+                modelId,
+                textureId,
+                animationId,
+                renderProfileId,
+                graphBackedVisual,
+                threatProfile,
+                threatLevel,
+                spawnBiomeTags
+        );
     }
 
     private static EchoClientEntityCatalog.RenderShape renderShape(String value, String definitionId) {

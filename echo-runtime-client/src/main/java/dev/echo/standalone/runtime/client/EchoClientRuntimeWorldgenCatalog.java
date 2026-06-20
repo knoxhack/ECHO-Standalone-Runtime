@@ -12,6 +12,7 @@ import dev.echo.standalone.runtime.world.EchoVoxelWorldGenerationProfile;
 import dev.echo.standalone.runtime.world.EchoVoxelWorldRuntimeProfile;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -84,6 +85,64 @@ final class EchoClientRuntimeWorldgenCatalog {
 
     boolean emptyCatalog() {
         return placements.isEmpty() && features.isEmpty() && regionRules.isEmpty() && biomeRules.isEmpty();
+    }
+
+    int structurePlacementCount() {
+        return placements.size();
+    }
+
+    int featurePlacementCount() {
+        return features.size();
+    }
+
+    int regionRuleCount() {
+        return regionRules.size();
+    }
+
+    int biomeRuleCount() {
+        return biomeRules.size();
+    }
+
+    List<WorldgenEvidenceTarget> evidenceTargets() {
+        if (placements.isEmpty() && features.isEmpty()) {
+            return List.of();
+        }
+        ArrayList<WorldgenEvidenceTarget> targets = new ArrayList<>();
+        for (StructurePlacement placement : placements) {
+            targets.add(new WorldgenEvidenceTarget(
+                    "structure",
+                    "runtime_structure",
+                    "structure",
+                    placement.contentId(),
+                    placement.structureId(),
+                    placement.blockId(),
+                    placement.x(),
+                    placement.y(),
+                    placement.z(),
+                    placement.width(),
+                    placement.height(),
+                    placement.depth(),
+                    true
+            ));
+        }
+        for (FeaturePlacement feature : features) {
+            targets.add(new WorldgenEvidenceTarget(
+                    "feature",
+                    "runtime_feature",
+                    "feature",
+                    feature.contentId(),
+                    feature.featureId(),
+                    feature.blockId(),
+                    feature.x(),
+                    feature.y(),
+                    feature.z(),
+                    feature.width(),
+                    feature.height(),
+                    feature.depth(),
+                    feature.fixedY() >= 0
+            ));
+        }
+        return List.copyOf(targets);
     }
 
     String detailSummaryForSmoke() {
@@ -828,6 +887,83 @@ final class EchoClientRuntimeWorldgenCatalog {
             int depth,
             PlacementShape shape
     ) {
+    }
+
+    record WorldgenEvidenceTarget(
+            String kind,
+            String sourceTag,
+            String runtimePropertyKey,
+            String contentId,
+            String runtimeId,
+            String blockId,
+            int x,
+            int y,
+            int z,
+            int width,
+            int height,
+            int depth,
+            boolean fixedY
+    ) {
+        WorldgenEvidenceTarget {
+            kind = text(kind);
+            sourceTag = text(sourceTag);
+            runtimePropertyKey = text(runtimePropertyKey);
+            contentId = text(contentId);
+            runtimeId = text(runtimeId);
+            blockId = text(blockId);
+            width = Math.max(1, width);
+            height = Math.max(1, height);
+            depth = Math.max(1, depth);
+        }
+
+        int cameraX() {
+            return x + Math.max(0, width - 1) / 2;
+        }
+
+        int cameraZ() {
+            return z + Math.max(0, depth - 1) / 2;
+        }
+
+        int cameraY(int fallbackY, int chunkSize) {
+            int targetY = fixedY ? y + height + 2 : fallbackY;
+            int upper = Math.max(2, chunkSize - 2);
+            return Math.max(2, Math.min(targetY, upper));
+        }
+
+        boolean matches(EchoVoxelBlockState state) {
+            if (state == null || state.air()) {
+                return false;
+            }
+            if (!blockId.isBlank() && !state.block().id().equals(blockId)) {
+                return false;
+            }
+            if (!state.property("source").orElse("").equals(sourceTag)) {
+                return false;
+            }
+            String runtimeContentValue = state.property("runtimeContentId").orElse("");
+            if (!contentId.isBlank() && !runtimeContentValue.equals(contentId)) {
+                return false;
+            }
+            String runtimeValue = state.property(runtimePropertyKey).orElse("");
+            return runtimeId.isBlank() || runtimeValue.equals(runtimeId);
+        }
+
+        Map<String, Object> metadata() {
+            LinkedHashMap<String, Object> value = new LinkedHashMap<>();
+            value.put("kind", kind);
+            value.put("sourceTag", sourceTag);
+            value.put("contentId", contentId);
+            value.put("runtimeId", runtimeId);
+            value.put("blockId", blockId);
+            value.put("x", x);
+            value.put("y", y);
+            value.put("z", z);
+            value.put("width", width);
+            value.put("height", height);
+            value.put("depth", depth);
+            value.put("fixedY", fixedY);
+            return Map.copyOf(value);
+        }
     }
 
     private record FeaturePlacement(

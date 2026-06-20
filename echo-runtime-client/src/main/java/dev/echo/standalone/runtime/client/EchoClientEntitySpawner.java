@@ -77,6 +77,8 @@ final class EchoClientEntitySpawner {
             }
             EchoVoxelBiome biome = world.biomeAt(candidate.x(), candidate.z());
             EchoEntityDefinition definition = entityCatalog.definitionForBiome(biome);
+            EchoClientEntityCatalog.RenderProfile profile =
+                    entityCatalog.renderProfile(definition.definitionId());
             store.register(new EchoEntityState(
                     new EchoEntityId("client:mob_" + (++nextEntityNumber)),
                     definition,
@@ -90,6 +92,9 @@ final class EchoClientEntitySpawner {
                     biome.id(),
                     definition.definitionId(),
                     "spawned",
+                    profile.threatProfile(),
+                    profile.threatLevel(),
+                    profile.spawnBiomeTags(),
                     store.living().size(),
                     livingHostiles(store),
                     attempts,
@@ -112,10 +117,16 @@ final class EchoClientEntitySpawner {
             String reason
     ) {
         String biomeId = world.biomeAt(player.x(), player.z()).id();
+        EchoEntityDefinition definition = entityCatalog.definitionForBiome(world.biomeAt(player.x(), player.z()));
+        EchoClientEntityCatalog.RenderProfile profile =
+                entityCatalog.renderProfile(definition.definitionId());
         lastSummary = new EchoClientEntitySpawnSummary(
                 biomeId,
-                entityCatalog.definitionForBiome(world.biomeAt(player.x(), player.z())).definitionId(),
+                definition.definitionId(),
                 reason,
+                profile.threatProfile(),
+                profile.threatLevel(),
+                profile.spawnBiomeTags(),
                 store.living().size(),
                 livingHostiles(store),
                 attempts,

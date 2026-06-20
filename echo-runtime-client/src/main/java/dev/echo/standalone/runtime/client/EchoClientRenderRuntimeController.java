@@ -64,7 +64,7 @@ final class EchoClientRenderRuntimeController {
         }
         EchoClientGameSession session = runtimeServices.session();
         if (rebuildAtlas && session != null && renderer != null) {
-            renderer.rebuildAtlas(session.world());
+            renderer.rebuildAtlas(session.world(), session.entityCatalog());
         }
     }
 
@@ -82,7 +82,7 @@ final class EchoClientRenderRuntimeController {
         EchoClientGameplay gameplay = runtimeServices.gameplay();
         clearBiomeEnvironmentCache();
         gameplay.init(session.world(), session.player(), session.hotbar());
-        renderer.rebuildAtlas(session.world());
+        renderer.rebuildAtlas(session.world(), session.entityCatalog());
         renderer.updateChunks(session.world(), gameplayCamera(session.player().state()));
     }
 
@@ -100,7 +100,7 @@ final class EchoClientRenderRuntimeController {
         }
         if (streamResult.loadedChunksChanged()) {
             gameplay.init(session.world(), session.player(), session.hotbar());
-            renderer.rebuildAtlasIfSourceChanged(session.world());
+            renderer.rebuildAtlasIfSourceChanged(session.world(), session.entityCatalog());
             renderer.updateChunks(session.world(), gameplayCamera(session.player().state()));
         } else if (gameplay.isWorldDirty()) {
             Set<EchoVoxelChunkId> dirtyChunkIds = gameplay.dirtyChunkIds();

@@ -103,6 +103,10 @@ public final class EchoClientEntitySpawnSmokeHarness {
                 "Native entity smoke should spawn through the live entity runtime");
         require(first.definitionId().equals(nativeEntityId),
                 "Native entity spawn rule should override the crash-zone prototype in the live session");
+        require(first.threatProfile().equals("irradiated_drone") && first.threatLevel() == 4,
+                "Native entity spawn summary should expose graph threat metadata");
+        require(first.spawnBiomeTags().contains("crash_zone"),
+                "Native entity spawn summary should expose graph spawn tags");
 
         EchoEntityState spawned = session.entityStore().living().getFirst();
         require(spawned.definition().displayName().equals("Native Watch Drone"),
@@ -113,6 +117,31 @@ public final class EchoClientEntitySpawnSmokeHarness {
                 "Spawned native entity should preserve native registration AI profile data");
         require(EchoClientEntityRenderer.argbForDefinition(nativeEntityId, session.entityCatalog()) == 0xFF40C8FF,
                 "Live entity renderer metadata should use the native entity render tint");
+        EchoClientEntityCatalog.RenderProfile nativeProfile =
+                session.entityCatalog().renderProfile(nativeEntityId);
+        require(nativeProfile.graphBackedVisual(),
+                "Live entity catalog should mark module entity rows with model/texture/animation as graph-backed");
+        require(nativeProfile.modelId().equals("echoruntimehost:entity/native_watch_drone"),
+                "Live entity catalog should preserve graph entity model ids");
+        require(nativeProfile.textureId().equals("echoruntimehost:textures/entity/native_watch_drone.png"),
+                "Live entity catalog should preserve graph entity texture ids");
+        require(nativeProfile.animationId().equals("echoruntimehost:animations/entity/native_watch_drone.animation.json"),
+                "Live entity catalog should preserve graph entity animation ids");
+        require(nativeProfile.spawnRuleMetadataPresent()
+                        && nativeProfile.spawnBiomeTags().contains("crash_zone"),
+                "Live entity catalog should preserve graph spawn metadata");
+        require(nativeProfile.threatMetadataPresent()
+                        && nativeProfile.threatProfile().equals("irradiated_drone")
+                        && nativeProfile.threatLevel() == 4,
+                "Live entity catalog should preserve graph threat metadata");
+        EchoClientEntityCatalog.EntityVisualProfile firstProfile =
+                session.entityCatalog().firstGraphBackedSpawnProfile().orElseThrow();
+        require(firstProfile.definition().definitionId().equals(nativeEntityId),
+                "Live entity catalog should expose module-backed visual profiles for evidence gates");
+        require(session.entityCatalog().graphBackedVisualProfileCount() >= 1
+                        && session.entityCatalog().graphBackedSpawnRuleProfileCount() >= 1
+                        && session.entityCatalog().graphBackedThreatProfileCount() >= 1,
+                "Live entity catalog should report graph entity visual, spawn, and threat coverage");
         EchoClientEntityRenderer.MeshData mesh =
                 EchoClientEntityRenderer.meshData(session.entityStore().living(), session.entityCatalog());
         require(mesh.vertexCount() == 72,
@@ -130,15 +159,20 @@ public final class EchoClientEntitySpawnSmokeHarness {
                 "neoForgeId", "echoruntimehost:native_watch_drone",
                 "nativeLoaderId", "echoruntimehost:entity/native_watch_drone",
                 "standaloneRuntimeId", "echoruntimehost:native_watch_drone",
-                "metadata", Map.of(
-                        "definitionId", "echoruntimehost:native_watch_drone",
-                        "kind", "HOSTILE",
-                        "maxHealth", 42,
-                        "movementSpeed", 1,
-                        "aiProfile", "hostile_scavenger",
-                        "biomeTags", List.of("crash_zone"),
-                        "renderArgb", "#40C8FF",
-                        "renderShape", "DRONE"
+                "metadata", Map.ofEntries(
+                        Map.entry("definitionId", "echoruntimehost:native_watch_drone"),
+                        Map.entry("kind", "HOSTILE"),
+                        Map.entry("maxHealth", 42),
+                        Map.entry("movementSpeed", 1),
+                        Map.entry("aiProfile", "hostile_scavenger"),
+                        Map.entry("biomeTags", List.of("crash_zone")),
+                        Map.entry("modelId", "echoruntimehost:entity/native_watch_drone"),
+                        Map.entry("textureId", "echoruntimehost:textures/entity/native_watch_drone.png"),
+                        Map.entry("animationId", "echoruntimehost:animations/entity/native_watch_drone.animation.json"),
+                        Map.entry("renderArgb", "#40C8FF"),
+                        Map.entry("renderShape", "DRONE"),
+                        Map.entry("threatProfile", "irradiated_drone"),
+                        Map.entry("threatLevel", 4)
                 )
         )));
         require(imported == 1,

@@ -57,6 +57,7 @@ final class EchoClientScreenRuntimeController {
         screens.updateSaveSlots(runtimeServices.saveSlotSummaries(), runtimeServices.saveSlotError());
         screens.updateModScan(runtimeServices.modScanSummary());
         screens.updateRuntimeContentSummary(runtimeServices.runtimeContentSummary());
+        screens.updateCreativeInventoryModel(runtimeServices.creativeInventoryModel());
         screens.updateTechSurfaceModel(runtimeServices.techSurfaceModel());
         screens.updateResourcePacks(runtimeServices.resourcePackSummaries(), runtimeServices.resourcePackError());
         screens.updateScreenCatalog(runtimeServices.screenCatalog());

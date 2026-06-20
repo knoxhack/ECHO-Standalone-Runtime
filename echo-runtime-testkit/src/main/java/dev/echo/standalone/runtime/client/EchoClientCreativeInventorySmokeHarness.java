@@ -40,6 +40,8 @@ public final class EchoClientCreativeInventorySmokeHarness {
         Path modulesRoot = args.length > 0
                 ? Path.of(args[0]).toAbsolutePath().normalize()
                 : Path.of("..", "ECHO-Modules").toAbsolutePath().normalize();
+        proveRuntimeContentRowsBridge();
+        proveInventoryExposesModuleUiRoutes();
         List<ModuleCreativeExpectation> expectations = discoverExpectations(modulesRoot);
         EchoClientCreativeInventoryController controller = new EchoClientCreativeInventoryController();
         EchoClientCreativeInventoryController.CreativeInventoryModel model =
@@ -57,6 +59,158 @@ public final class EchoClientCreativeInventorySmokeHarness {
         require(blockers.isEmpty(), "creative inventory smoke failed: " + String.join("; ", blockers));
         long playable = results.stream().filter(ModuleCreativeResult::playable).count();
         System.out.println("client creative inventory smoke PASS modules=" + results.size() + " playable=" + playable);
+    }
+
+    private static void proveRuntimeContentRowsBridge() {
+        EchoClientCreativeInventoryController controller = new EchoClientCreativeInventoryController();
+        List<Map<String, Object>> rows = List.of(
+                row(
+                        "echoashfallprotocol:ashfall_blocks",
+                        "inventory",
+                        "DIAGNOSTIC",
+                        "Ashfall Blocks",
+                        "echoashfallprotocol",
+                        Map.of(
+                                "contentGraphKind", "echo:creative_tab",
+                                "creativeTab", true,
+                                "titleKey", "itemGroup.echoashfallprotocol.ashfall_blocks",
+                                "itemIds", List.of(
+                                        "echoashfallprotocol:ash_slate",
+                                        "echoashfallprotocol:filter_core"
+                                )
+                        )
+                ),
+                row(
+                        "echoashfallprotocol:ash_slate",
+                        "blocks",
+                        "BLOCK",
+                        "Ash Slate",
+                        "echoashfallprotocol",
+                        Map.of(
+                                "contentGraphKind", "echo:block",
+                                "creativeTabs", List.of("echoashfallprotocol:ashfall_blocks")
+                        )
+                ),
+                row(
+                        "echoashfallprotocol:filter_core",
+                        "items",
+                        "ITEM",
+                        "Filter Core",
+                        "echoashfallprotocol",
+                        Map.of(
+                                "contentGraphKind", "echo:item",
+                                "creativeTabs", List.of("echoashfallprotocol:ashfall_blocks")
+                        )
+                )
+        );
+        EchoClientCreativeInventoryController.CreativeInventoryModel model =
+                controller.modelFromRuntimeContentRows(rows);
+        require(model.tabs().size() == 1, "Content Graph creative bridge should expose one tab");
+        require(model.entries().size() == 2, "Content Graph creative bridge should expose block and item entries");
+        require(model.visibleParent("echoashfallprotocol"),
+                "Content Graph creative bridge should expose parent module tab entries");
+        require(model.search("filter").stream()
+                        .anyMatch(entry -> entry.itemId().equals("echoashfallprotocol:filter_core")),
+                "Content Graph creative bridge should expose searchable Index-like item entries");
+        require(model.entries().stream().anyMatch(EchoClientCreativeInventoryController.CreativeEntry::block),
+                "Content Graph creative bridge should preserve block entries as placeable");
+    }
+
+    private static void proveInventoryExposesModuleUiRoutes() {
+        EchoClientRuntimeServices services = new EchoClientRuntimeServices();
+        List<Map<String, Object>> rows = new ArrayList<>(List.of(
+                row(
+                        "echoashfallprotocol:ashfall_blocks",
+                        "inventory",
+                        "DIAGNOSTIC",
+                        "Ashfall Blocks",
+                        "echoashfallprotocol",
+                        Map.of(
+                                "contentGraphKind", "echo:creative_tab",
+                                "creativeTab", true,
+                                "titleKey", "itemGroup.echoashfallprotocol.ashfall_blocks",
+                                "itemIds", List.of("echoashfallprotocol:ash_slate")
+                        )
+                ),
+                row(
+                        "echoashfallprotocol:ash_slate",
+                        "blocks",
+                        "BLOCK",
+                        "Ash Slate",
+                        "echoashfallprotocol",
+                        Map.of(
+                                "contentGraphKind", "echo:block",
+                                "creativeTabs", List.of("echoashfallprotocol:ashfall_blocks")
+                        )
+                ),
+                row(
+                        "echoindex:index/search",
+                        "index",
+                        "UI_SCREEN",
+                        "Ashfall Index",
+                        "echoindex",
+                        Map.of("route", "screencore.index.search")
+                ),
+                row(
+                        "echolens:lens/field_scan",
+                        "lens",
+                        "UI_SCREEN",
+                        "Ashfall Lens",
+                        "echolens",
+                        Map.of("route", "screencore.lens.field_scan")
+                ),
+                row(
+                        "echoterminal:terminal/field",
+                        "terminal",
+                        "UI_SCREEN",
+                        "Ashfall Terminal",
+                        "echoterminal",
+                        Map.of("route", "screencore.terminal.field")
+                )
+        ));
+        require(services.importAdapterCoreContentRegistrations(rows) == rows.size(),
+                "Runtime services should import creative and UI Content Graph rows");
+
+        EchoClientScreenController screens = new EchoClientScreenController();
+        screens.updateRuntimeContentSummary(services.runtimeContentSummary());
+        screens.updateCreativeInventoryModel(services.creativeInventoryModel());
+        screens.updateScreenCatalog(services.screenCatalog());
+        require(screens.executeNavigationCommand(EchoClientScreenCommand.OPEN_INVENTORY, true),
+                "Inventory route should open with a live session flag for module UI route smoke");
+        EchoClientScreenSnapshot inventory = screens.snapshot(true);
+        require(optionLabelPrefix(inventory, "Index: Ashfall Index"),
+                "Inventory should expose the module-backed searchable Index route");
+        require(optionLabelPrefix(inventory, "Lens: Ashfall Lens"),
+                "Inventory should expose the module-backed Lens route");
+        require(optionLabelPrefix(inventory, "Terminal: Ashfall Terminal"),
+                "Inventory should expose the module-backed Terminal route");
+    }
+
+    private static Map<String, Object> row(
+            String contentId,
+            String domain,
+            String contentKind,
+            String displayName,
+            String moduleId,
+            Map<String, Object> metadata
+    ) {
+        LinkedHashMap<String, Object> row = new LinkedHashMap<>();
+        row.put("contentId", contentId);
+        row.put("domain", domain);
+        row.put("contentKind", contentKind);
+        row.put("displayName", displayName);
+        row.put("moduleId", moduleId);
+        row.put("metadata", metadata);
+        return Map.copyOf(row);
+    }
+
+    private static boolean optionLabelPrefix(EchoClientScreenSnapshot snapshot, String prefix) {
+        for (EchoClientScreenOption option : snapshot.options()) {
+            if (option.label().startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ModuleCreativeResult proveModule(

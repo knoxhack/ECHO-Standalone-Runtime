@@ -18,16 +18,39 @@ record EchoClientLaunchContext(
         Path modulesRoot,
         String devAccount,
         boolean quickPlayNewWorld,
-        boolean safeMode
+        boolean safeMode,
+        boolean visibleEvidenceCapture,
+        boolean packagedClientEvidence,
+        Path evidenceOutputRoot,
+        Path evidenceManifest
 ) {
     static final String PACK_ROOT_PROPERTY = "echo.pack.root";
     static final String MODULES_ROOT_PROPERTY = "echo.modules.root";
     static final String SAFE_MODE_PROPERTY = "echo.safe.mode";
     private static final String PACK_ROOT_ENV = "ECHO_PACK_ROOT";
     private static final String MODULES_ROOT_ENV = "ECHO_MODULES_ROOT";
+    private static final Path DEFAULT_VISIBLE_EVIDENCE_OUTPUT_ROOT =
+            Path.of("reports", "echo", "standalone", "visible-client");
+    private static final Path DEFAULT_VISIBLE_EVIDENCE_MANIFEST =
+            Path.of("reports", "echo", "standalone", "packaged-visible-client-captures.json");
 
     private static final EchoClientLaunchContext EMPTY =
-            new EchoClientLaunchContext(false, null, "", null, null, null, null, "", false, false);
+            new EchoClientLaunchContext(
+                    false,
+                    null,
+                    "",
+                    null,
+                    null,
+                    null,
+                    null,
+                    "",
+                    false,
+                    false,
+                    false,
+                    false,
+                    null,
+                    null
+            );
 
     EchoClientLaunchContext {
         profileId = clean(profileId);
@@ -49,6 +72,10 @@ record EchoClientLaunchContext(
         String devAccount = "";
         boolean quickPlayNewWorld = false;
         boolean safeMode = Boolean.parseBoolean(System.getProperty(SAFE_MODE_PROPERTY, "false"));
+        boolean visibleEvidenceCapture = false;
+        boolean packagedClientEvidence = false;
+        Path evidenceOutputRoot = null;
+        Path evidenceManifest = null;
 
         String[] safeArgs = args == null ? new String[0] : args;
         for (int index = 0; index < safeArgs.length; index++) {
@@ -75,6 +102,10 @@ record EchoClientLaunchContext(
                 case "--pack-root" -> packRoot = path(value);
                 case "--modules-root" -> modulesRoot = path(value);
                 case "--safe-mode" -> safeMode = true;
+                case "--visible-evidence-capture", "--capture-visible-evidence" -> visibleEvidenceCapture = true;
+                case "--packaged-client-evidence" -> packagedClientEvidence = true;
+                case "--evidence-output", "--evidenceOutput" -> evidenceOutputRoot = path(value);
+                case "--evidence-manifest", "--evidenceManifest" -> evidenceManifest = path(value);
                 case "--profileId" -> profileId = value;
                 case "--profile" -> profileId = value;
                 case "--installPath" -> installPath = path(value);
@@ -97,7 +128,11 @@ record EchoClientLaunchContext(
                 resolveModulesRoot(modulesRoot, resolvePackRoot(packRoot, installPath, packManifest)),
                 devAccount,
                 quickPlayNewWorld,
-                safeMode
+                safeMode,
+                visibleEvidenceCapture,
+                packagedClientEvidence,
+                resolveEvidenceOutputRoot(visibleEvidenceCapture, evidenceOutputRoot),
+                resolveEvidenceManifest(visibleEvidenceCapture, evidenceManifest)
         );
     }
 
@@ -157,6 +192,18 @@ record EchoClientLaunchContext(
         if (safeMode) {
             parts.add("safeMode=true");
         }
+        if (visibleEvidenceCapture) {
+            parts.add("visibleEvidenceCapture=true");
+        }
+        if (packagedClientEvidence) {
+            parts.add("packagedClientEvidence=true");
+        }
+        if (evidenceOutputRoot != null) {
+            parts.add("evidenceOutputRoot=" + evidenceOutputRoot);
+        }
+        if (evidenceManifest != null) {
+            parts.add("evidenceManifest=" + evidenceManifest);
+        }
         return String.join(" ", parts);
     }
 
@@ -210,6 +257,18 @@ record EchoClientLaunchContext(
         }
         if (safeMode) {
             lines.add("Safe Mode: true");
+        }
+        if (visibleEvidenceCapture) {
+            lines.add("Visible Evidence Capture: true");
+        }
+        if (packagedClientEvidence) {
+            lines.add("Packaged Client Evidence: true");
+        }
+        if (evidenceOutputRoot != null) {
+            lines.add("Evidence Output Root: " + evidenceOutputRoot);
+        }
+        if (evidenceManifest != null) {
+            lines.add("Evidence Manifest: " + evidenceManifest);
         }
         return List.copyOf(lines);
     }
@@ -271,6 +330,20 @@ record EchoClientLaunchContext(
             return modulesRoot;
         }
         return packRoot == null ? null : packRoot.resolve("mods").toAbsolutePath().normalize();
+    }
+
+    private static Path resolveEvidenceOutputRoot(boolean captureEnabled, Path evidenceOutputRoot) {
+        if (evidenceOutputRoot != null) {
+            return evidenceOutputRoot;
+        }
+        return captureEnabled ? DEFAULT_VISIBLE_EVIDENCE_OUTPUT_ROOT.toAbsolutePath().normalize() : null;
+    }
+
+    private static Path resolveEvidenceManifest(boolean captureEnabled, Path evidenceManifest) {
+        if (evidenceManifest != null) {
+            return evidenceManifest;
+        }
+        return captureEnabled ? DEFAULT_VISIBLE_EVIDENCE_MANIFEST.toAbsolutePath().normalize() : null;
     }
 
     private static String clean(String value) {

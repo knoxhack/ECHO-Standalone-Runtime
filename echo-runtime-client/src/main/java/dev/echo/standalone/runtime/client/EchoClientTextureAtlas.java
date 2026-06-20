@@ -36,6 +36,7 @@ import java.util.TreeMap;
  */
 final class EchoClientTextureAtlas {
     private static final int TEX_SIZE = 64; // size of each tile
+    static final String ENTITY_FALLBACK_ATLAS_KEY = "echo-client/entity/fallback";
     private int textureId;
     private final Map<String, AtlasEntry> entries = new HashMap<>();
     private int atlasWidth;
@@ -95,8 +96,24 @@ final class EchoClientTextureAtlas {
             Map<String, String> blockIdsByAtlasKey,
             java.util.List<BlockModelRequest> blockModelRequests
     ) {
+        build(materialColors, atlasKeys, blockIdsByAtlasKey, blockModelRequests, Map.of());
+    }
+
+    public void build(
+            Map<String, Integer> materialColors,
+            Map<String, String> atlasKeys,
+            Map<String, String> blockIdsByAtlasKey,
+            java.util.List<BlockModelRequest> blockModelRequests,
+            Map<String, String> explicitTextureIdsByAtlasKey
+    ) {
         LinkedHashMap<String, TileRequest> requests =
-                planTileRequests(materialColors, atlasKeys, blockIdsByAtlasKey, blockModelRequests);
+                planTileRequests(
+                        materialColors,
+                        atlasKeys,
+                        blockIdsByAtlasKey,
+                        blockModelRequests,
+                        explicitTextureIdsByAtlasKey
+                );
 
         int count = requests.size();
         if (count == 0) count = 1;
@@ -138,6 +155,18 @@ final class EchoClientTextureAtlas {
     public AtlasEntry get(String atlasKey) {
         return entries.getOrDefault(atlasKey,
                 new AtlasEntry(0.0f, 0.0f, 1.0f, 1.0f));
+    }
+
+    Optional<AtlasEntry> textureEntry(String textureId) {
+        String clean = textureId == null ? "" : textureId.trim();
+        if (clean.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(entries.get(textureAtlasKey(clean)));
+    }
+
+    AtlasEntry entityFallbackEntry() {
+        return get(ENTITY_FALLBACK_ATLAS_KEY);
     }
 
     public AtlasEntry get(EchoVoxelMeshFace face) {
@@ -485,7 +514,7 @@ final class EchoClientTextureAtlas {
             Map<String, String> blockIdsByAtlasKey,
             java.util.List<BlockModelRequest> blockModelRequests
     ) {
-        return planTileRequests(materialColors, atlasKeys, blockIdsByAtlasKey, blockModelRequests).size();
+        return planTileRequests(materialColors, atlasKeys, blockIdsByAtlasKey, blockModelRequests, Map.of()).size();
     }
 
     public void delete() {
@@ -636,7 +665,8 @@ final class EchoClientTextureAtlas {
             Map<String, Integer> materialColors,
             Map<String, String> atlasKeys,
             Map<String, String> blockIdsByAtlasKey,
-            java.util.List<BlockModelRequest> blockModelRequests
+            java.util.List<BlockModelRequest> blockModelRequests,
+            Map<String, String> explicitTextureIdsByAtlasKey
     ) {
         entries.clear();
         faceAtlasKeys.clear();
@@ -653,13 +683,21 @@ final class EchoClientTextureAtlas {
         Map<String, Integer> safeMaterialColors = materialColors == null ? Map.of() : materialColors;
         Map<String, String> safeAtlasKeys = atlasKeys == null ? Map.of() : atlasKeys;
         Map<String, String> safeBlockIdsByAtlasKey = blockIdsByAtlasKey == null ? Map.of() : blockIdsByAtlasKey;
+        Map<String, String> safeExplicitTextureIdsByAtlasKey =
+                explicitTextureIdsByAtlasKey == null ? Map.of() : explicitTextureIdsByAtlasKey;
         LinkedHashMap<String, TileRequest> requests = new LinkedHashMap<>();
+        requests.putIfAbsent(ENTITY_FALLBACK_ATLAS_KEY, new TileRequest(
+                ENTITY_FALLBACK_ATLAS_KEY,
+                "",
+                0xFFFFFFFF,
+                ""
+        ));
         for (String key : new java.util.LinkedHashSet<>(safeAtlasKeys.values())) {
             requests.putIfAbsent(key, new TileRequest(
                     key,
                     safeBlockIdsByAtlasKey.get(key),
                     safeMaterialColors.getOrDefault(key, 0xFFFFFFFF),
-                    ""
+                    safeExplicitTextureIdsByAtlasKey.getOrDefault(key, "")
             ));
         }
         addModelFaceRequests(requests, safeMaterialColors, safeBlockIdsByAtlasKey, blockModelRequests);
@@ -1067,7 +1105,7 @@ final class EchoClientTextureAtlas {
         };
     }
 
-    private static String textureAtlasKey(String textureId) {
+    static String textureAtlasKey(String textureId) {
         return "minecraft-texture/" + textureId.replace(':', '/');
     }
 
@@ -1341,7 +1379,17 @@ final class EchoClientTextureAtlas {
         if (separator < 1 || separator == normalized.length() - 1) {
             throw new IllegalArgumentException("Invalid texture id: " + textureId);
         }
-        return new String[]{normalized.substring(0, separator), normalized.substring(separator + 1)};
+        String path = normalized.substring(separator + 1);
+        if (path.startsWith("textures/")) {
+            path = path.substring("textures/".length());
+        }
+        if (path.endsWith(".png")) {
+            path = path.substring(0, path.length() - ".png".length());
+        }
+        if (path.isBlank()) {
+            throw new IllegalArgumentException("Invalid texture id: " + textureId);
+        }
+        return new String[]{normalized.substring(0, separator), path};
     }
 
     private record TileRequest(String atlasKey, String blockId, int argb, String textureId) {

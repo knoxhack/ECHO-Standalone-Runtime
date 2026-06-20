@@ -7,7 +7,6 @@ import dev.echo.standalone.runtime.data.EchoRecipeDefinition;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -94,8 +93,7 @@ public final class EchoNeoForgeDatapackLoader {
             List<EchoDataTag> tags,
             List<EchoCompatDiagnostic> diagnostics
     ) throws IOException {
-        URI uri = URI.create("jar:" + archive.toUri());
-        try (FileSystem fs = FileSystems.newFileSystem(uri, Map.of())) {
+        try (FileSystem fs = FileSystems.newFileSystem(archive, Map.of())) {
             Path dataDir = fs.getPath("/data");
             if (!Files.isDirectory(dataDir)) {
                 return;

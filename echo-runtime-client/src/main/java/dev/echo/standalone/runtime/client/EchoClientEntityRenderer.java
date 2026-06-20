@@ -4,6 +4,7 @@ import dev.echo.standalone.runtime.entity.EchoEntityState;
 import dev.echo.standalone.runtime.render.EchoVoxelCamera;
 import dev.echo.standalone.runtime.world.EchoWorldPosition;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
@@ -14,9 +15,12 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 final class EchoClientEntityRenderer {
-    static final int VERTEX_STRIDE_FLOATS = 10;
+    static final int VERTEX_STRIDE_FLOATS = 12;
+    static final int ASSET_BILLBOARD_VERTEX_COUNT = 16;
+    static final int ASSET_BILLBOARD_INDEX_COUNT = 24;
     static final int HUMANOID_VERTEX_COUNT = 48;
     static final int HUMANOID_INDEX_COUNT = 72;
     static final int DROPPED_ITEM_VERTEX_COUNT = 24;
@@ -26,13 +30,15 @@ final class EchoClientEntityRenderer {
 
     private static final int STRIDE = VERTEX_STRIDE_FLOATS * Float.BYTES;
     private static final int POS_OFFSET = 0;
-    private static final int NORM_OFFSET = 3 * Float.BYTES;
-    private static final int COLOR_OFFSET = 6 * Float.BYTES;
+    private static final int TEX_OFFSET = 3 * Float.BYTES;
+    private static final int NORM_OFFSET = 5 * Float.BYTES;
+    private static final int COLOR_OFFSET = 8 * Float.BYTES;
     private static final int MIN_DYNAMIC_BUFFER_BYTES = 256;
 
     private final EchoClientShader shader;
     private final int uProjection;
     private final int uView;
+    private final int uAtlas;
     private final int uLightDir;
     private final int uFogColor;
     private final int uFogDensity;
@@ -46,6 +52,7 @@ final class EchoClientEntityRenderer {
         shader.use();
         uProjection = shader.uniform("uProjection");
         uView = shader.uniform("uView");
+        uAtlas = shader.uniform("uAtlas");
         uLightDir = shader.uniform("uLightDir");
         uFogColor = shader.uniform("uFogColor");
         uFogDensity = shader.uniform("uFogDensity");
@@ -62,7 +69,7 @@ final class EchoClientEntityRenderer {
             EchoClientBiomeEnvironment environment,
             boolean fogEnabled
     ) {
-        render(camera, entities, entityCatalog, droppedItems, List.of(), projectionMatrix, viewMatrix,
+        render(camera, entities, entityCatalog, droppedItems, List.of(), null, projectionMatrix, viewMatrix,
                 environment, fogEnabled);
     }
 
@@ -72,6 +79,7 @@ final class EchoClientEntityRenderer {
             EchoClientEntityCatalog entityCatalog,
             List<EchoClientDroppedItem> droppedItems,
             List<EchoClientParticle> particles,
+            EchoClientTextureAtlas atlas,
             float[] projectionMatrix,
             float[] viewMatrix,
             EchoClientBiomeEnvironment environment,
@@ -82,17 +90,17 @@ final class EchoClientEntityRenderer {
         Objects.requireNonNull(viewMatrix, "viewMatrix");
         EchoClientBiomeEnvironment activeEnvironment =
                 environment == null ? EchoClientBiomeEnvironment.DEFAULT : environment;
-        int entitySignature = entityMeshSignature(entities, entityCatalog);
+        int entitySignature = entityMeshSignature(entities, entityCatalog, atlas);
         if (sectionNeedsUpload(entitySection, entitySignature)) {
-            entitySection.upload(entitySignature, entityMeshData(entities, entityCatalog));
+            entitySection.upload(entitySignature, entityMeshData(entities, entityCatalog, atlas));
         }
         int droppedItemSignature = droppedItemMeshSignature(droppedItems);
         if (sectionNeedsUpload(droppedItemSection, droppedItemSignature)) {
-            droppedItemSection.upload(droppedItemSignature, droppedItemMeshData(droppedItems));
+            droppedItemSection.upload(droppedItemSignature, droppedItemMeshData(droppedItems, atlas));
         }
         int particleSignature = particleMeshSignature(particles);
         if (sectionNeedsUpload(particleSection, particleSignature)) {
-            particleSection.upload(particleSignature, particleMeshData(particles));
+            particleSection.upload(particleSignature, particleMeshData(particles, atlas));
         }
         if (!entitySection.visible() && !droppedItemSection.visible() && !particleSection.visible()) {
             return;
@@ -108,6 +116,9 @@ final class EchoClientEntityRenderer {
         shader.use();
         shader.setMat4(uProjection, projectionMatrix);
         shader.setMat4(uView, viewMatrix);
+        GL13.glActiveTexture(GL13.GL_TEXTURE0);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, atlas == null ? 0 : atlas.textureId());
+        shader.setInt(uAtlas, 0);
         shader.setVec3(uLightDir, 0.3f, 0.8f, 0.2f);
         shader.setVec3(
                 uFogColor,
@@ -120,6 +131,7 @@ final class EchoClientEntityRenderer {
         entitySection.draw();
         droppedItemSection.draw();
         particleSection.draw();
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
         GL11.glDisable(GL11.GL_BLEND);
         GL20.glUseProgram(0);
     }
@@ -165,23 +177,31 @@ final class EchoClientEntityRenderer {
         );
         for (EchoEntityState entity : safeEntities) {
             if (entity != null && entity.alive()) {
-                appendEntity(builder, entity, catalog);
+                appendEntity(builder, entity, catalog, null);
             }
         }
         for (EchoClientDroppedItem drop : safeDrops) {
             if (drop != null && drop.quantity() > 0) {
-                appendDroppedItem(builder, drop);
+                appendDroppedItem(builder, drop, null);
             }
         }
         for (EchoClientParticle particle : safeParticles) {
             if (particle != null && particle.alive()) {
-                appendParticle(builder, particle);
+                appendParticle(builder, particle, null);
             }
         }
         return builder.build();
     }
 
     static MeshData entityMeshData(List<EchoEntityState> entities, EchoClientEntityCatalog entityCatalog) {
+        return entityMeshData(entities, entityCatalog, null);
+    }
+
+    static MeshData entityMeshData(
+            List<EchoEntityState> entities,
+            EchoClientEntityCatalog entityCatalog,
+            EchoClientTextureAtlas atlas
+    ) {
         List<EchoEntityState> safeEntities = entities == null ? List.of() : entities;
         if (safeEntities.isEmpty()) {
             return MeshData.EMPTY;
@@ -192,13 +212,20 @@ final class EchoClientEntityRenderer {
         MeshBuilder builder = new MeshBuilder(safeEntities.size() * HUMANOID_VERTEX_COUNT);
         for (EchoEntityState entity : safeEntities) {
             if (entity != null && entity.alive()) {
-                appendEntity(builder, entity, catalog);
+                appendEntity(builder, entity, catalog, atlas);
             }
         }
         return builder.build();
     }
 
     static MeshData droppedItemMeshData(List<EchoClientDroppedItem> droppedItems) {
+        return droppedItemMeshData(droppedItems, null);
+    }
+
+    static MeshData droppedItemMeshData(
+            List<EchoClientDroppedItem> droppedItems,
+            EchoClientTextureAtlas atlas
+    ) {
         List<EchoClientDroppedItem> safeDrops = droppedItems == null ? List.of() : droppedItems;
         if (safeDrops.isEmpty()) {
             return MeshData.EMPTY;
@@ -206,13 +233,20 @@ final class EchoClientEntityRenderer {
         MeshBuilder builder = new MeshBuilder(safeDrops.size() * DROPPED_ITEM_VERTEX_COUNT);
         for (EchoClientDroppedItem drop : safeDrops) {
             if (drop != null && drop.quantity() > 0) {
-                appendDroppedItem(builder, drop);
+                appendDroppedItem(builder, drop, atlas);
             }
         }
         return builder.build();
     }
 
     static MeshData particleMeshData(List<EchoClientParticle> particles) {
+        return particleMeshData(particles, null);
+    }
+
+    static MeshData particleMeshData(
+            List<EchoClientParticle> particles,
+            EchoClientTextureAtlas atlas
+    ) {
         List<EchoClientParticle> safeParticles = particles == null ? List.of() : particles;
         if (safeParticles.isEmpty()) {
             return MeshData.EMPTY;
@@ -220,7 +254,7 @@ final class EchoClientEntityRenderer {
         MeshBuilder builder = new MeshBuilder(safeParticles.size() * PARTICLE_VERTEX_COUNT);
         for (EchoClientParticle particle : safeParticles) {
             if (particle != null && particle.alive()) {
-                appendParticle(builder, particle);
+                appendParticle(builder, particle, atlas);
             }
         }
         return builder.build();
@@ -259,9 +293,18 @@ final class EchoClientEntityRenderer {
     }
 
     static int entityMeshSignature(List<EchoEntityState> entities, EchoClientEntityCatalog entityCatalog) {
+        return entityMeshSignature(entities, entityCatalog, null);
+    }
+
+    static int entityMeshSignature(
+            List<EchoEntityState> entities,
+            EchoClientEntityCatalog entityCatalog,
+            EchoClientTextureAtlas atlas
+    ) {
         List<EchoEntityState> safeEntities = entities == null ? List.of() : entities;
         int signature = 19;
         signature = 31 * signature + System.identityHashCode(entityCatalog);
+        signature = 31 * signature + (atlas == null ? 0 : atlas.textureId());
         for (EchoEntityState entity : safeEntities) {
             if (entity == null) {
                 signature = 31 * signature;
@@ -276,6 +319,11 @@ final class EchoClientEntityRenderer {
             signature = 31 * signature + entity.health().currentHealth();
             signature = 31 * signature + (entity.alive() ? 1 : 0);
             signature = 31 * signature + entity.ai().state().ordinal();
+            EchoClientEntityCatalog.RenderProfile profile = entityCatalog == null
+                    ? EchoClientEntityCatalog.RenderProfile.DEFAULT
+                    : entityCatalog.renderProfile(entity.definition().definitionId());
+            signature = 31 * signature + profile.textureId().hashCode();
+            signature = 31 * signature + (entityTextureUv(profile, atlas).isPresent() ? 1 : 0);
         }
         return signature;
     }
@@ -340,7 +388,8 @@ final class EchoClientEntityRenderer {
     private static void appendEntity(
             MeshBuilder builder,
             EchoEntityState entity,
-            EchoClientEntityCatalog entityCatalog
+            EchoClientEntityCatalog entityCatalog,
+            EchoClientTextureAtlas atlas
     ) {
         EchoWorldPosition position = entity.worldPosition();
         float x = position.x() + 0.5f;
@@ -349,19 +398,45 @@ final class EchoClientEntityRenderer {
         EchoClientEntityCatalog.RenderProfile renderProfile =
                 entityCatalog.renderProfile(entity.definition().definitionId());
         int color = renderProfile.argb();
+        Optional<EchoClientTextureAtlas.AtlasEntry> textureUv = entityTextureUv(renderProfile, atlas);
+        if (textureUv.isPresent()) {
+            addAssetBillboard(builder, x, y + 0.9f, z, 0.92f, 1.80f, color, textureUv.get());
+            return;
+        }
+        EchoClientTextureAtlas.AtlasEntry uv = fallbackUv(atlas);
         if (renderProfile.shape() == EchoClientEntityCatalog.RenderShape.SLIME) {
-            addCuboid(builder, x, y, z, 0.82f, 0.62f, 0.82f, color);
+            addCuboid(builder, x, y, z, 0.82f, 0.62f, 0.82f, color, uv);
         } else if (renderProfile.shape() == EchoClientEntityCatalog.RenderShape.DRONE) {
-            addCuboid(builder, x, y + 0.8f, z, 0.86f, 0.52f, 0.86f, color);
-            addCuboid(builder, x, y + 0.8f, z, 1.24f, 0.16f, 0.28f, darken(color, 0.72f));
-            addCuboid(builder, x, y + 0.8f, z, 0.28f, 0.16f, 1.24f, darken(color, 0.72f));
+            addCuboid(builder, x, y + 0.8f, z, 0.86f, 0.52f, 0.86f, color, uv);
+            addCuboid(builder, x, y + 0.8f, z, 1.24f, 0.16f, 0.28f, darken(color, 0.72f), uv);
+            addCuboid(builder, x, y + 0.8f, z, 0.28f, 0.16f, 1.24f, darken(color, 0.72f), uv);
         } else {
-            addCuboid(builder, x, y + 0.64f, z, 0.62f, 1.28f, 0.62f, color);
-            addCuboid(builder, x, y + 1.50f, z, 0.54f, 0.54f, 0.54f, lighten(color, 1.14f));
+            addCuboid(builder, x, y + 0.64f, z, 0.62f, 1.28f, 0.62f, color, uv);
+            addCuboid(builder, x, y + 1.50f, z, 0.54f, 0.54f, 0.54f, lighten(color, 1.14f), uv);
         }
     }
 
-    private static void appendDroppedItem(MeshBuilder builder, EchoClientDroppedItem drop) {
+    private static Optional<EchoClientTextureAtlas.AtlasEntry> entityTextureUv(
+            EchoClientEntityCatalog.RenderProfile renderProfile,
+            EchoClientTextureAtlas atlas
+    ) {
+        if (renderProfile == null || atlas == null || !renderProfile.graphBackedVisual()) {
+            return Optional.empty();
+        }
+        return atlas.textureEntry(renderProfile.textureId());
+    }
+
+    private static EchoClientTextureAtlas.AtlasEntry fallbackUv(EchoClientTextureAtlas atlas) {
+        return atlas == null
+                ? new EchoClientTextureAtlas.AtlasEntry(0.0f, 0.0f, 1.0f, 1.0f)
+                : atlas.entityFallbackEntry();
+    }
+
+    private static void appendDroppedItem(
+            MeshBuilder builder,
+            EchoClientDroppedItem drop,
+            EchoClientTextureAtlas atlas
+    ) {
         float restOffset = (float) (Math.sin(drop.dropId().hashCode() * 0.01D) * 0.018D);
         float scale = (float) Math.min(0.46D, 0.30D + Math.log1p(drop.quantity()) * 0.035D);
         addCuboid(
@@ -372,7 +447,8 @@ final class EchoClientEntityRenderer {
                 scale,
                 scale * 0.62f,
                 scale,
-                argbForDroppedItem(drop)
+                argbForDroppedItem(drop),
+                fallbackUv(atlas)
         );
     }
 
@@ -385,7 +461,11 @@ final class EchoClientEntityRenderer {
         return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
-    private static void appendParticle(MeshBuilder builder, EchoClientParticle particle) {
+    private static void appendParticle(
+            MeshBuilder builder,
+            EchoClientParticle particle,
+            EchoClientTextureAtlas atlas
+    ) {
         float size = (float) particle.renderSize();
         addCuboid(
                 builder,
@@ -395,7 +475,8 @@ final class EchoClientEntityRenderer {
                 size,
                 size,
                 size,
-                particle.renderArgb()
+                particle.renderArgb(),
+                fallbackUv(atlas)
         );
     }
 
@@ -407,7 +488,8 @@ final class EchoClientEntityRenderer {
             float width,
             float height,
             float depth,
-            int argb
+            int argb,
+            EchoClientTextureAtlas.AtlasEntry uv
     ) {
         float minX = centerX - width * 0.5f;
         float maxX = centerX + width * 0.5f;
@@ -415,23 +497,59 @@ final class EchoClientEntityRenderer {
         float maxY = centerY + height * 0.5f;
         float minZ = centerZ - depth * 0.5f;
         float maxZ = centerZ + depth * 0.5f;
-        face(builder, argb, 0.0f, 1.0f, 0.0f,
+        face(builder, argb, uv, 0.0f, 1.0f, 0.0f,
                 minX, maxY, minZ, minX, maxY, maxZ, maxX, maxY, maxZ, maxX, maxY, minZ);
-        face(builder, argb, 1.0f, 0.0f, 0.0f,
+        face(builder, argb, uv, 1.0f, 0.0f, 0.0f,
                 maxX, minY, maxZ, maxX, minY, minZ, maxX, maxY, minZ, maxX, maxY, maxZ);
-        face(builder, argb, -1.0f, 0.0f, 0.0f,
+        face(builder, argb, uv, -1.0f, 0.0f, 0.0f,
                 minX, minY, minZ, minX, minY, maxZ, minX, maxY, maxZ, minX, maxY, minZ);
-        face(builder, argb, 0.0f, 0.0f, 1.0f,
+        face(builder, argb, uv, 0.0f, 0.0f, 1.0f,
                 minX, minY, maxZ, maxX, minY, maxZ, maxX, maxY, maxZ, minX, maxY, maxZ);
-        face(builder, argb, 0.0f, 0.0f, -1.0f,
+        face(builder, argb, uv, 0.0f, 0.0f, -1.0f,
                 maxX, minY, minZ, minX, minY, minZ, minX, maxY, minZ, maxX, maxY, minZ);
-        face(builder, argb, 0.0f, -1.0f, 0.0f,
+        face(builder, argb, uv, 0.0f, -1.0f, 0.0f,
                 minX, minY, minZ, maxX, minY, minZ, maxX, minY, maxZ, minX, minY, maxZ);
+    }
+
+    private static void addAssetBillboard(
+            MeshBuilder builder,
+            float centerX,
+            float centerY,
+            float centerZ,
+            float width,
+            float height,
+            int argb,
+            EchoClientTextureAtlas.AtlasEntry uv
+    ) {
+        float halfWidth = width * 0.5f;
+        float minY = centerY - height * 0.5f;
+        float maxY = centerY + height * 0.5f;
+        face(builder, argb, uv, 0.0f, 0.0f, 1.0f,
+                centerX - halfWidth, minY, centerZ,
+                centerX + halfWidth, minY, centerZ,
+                centerX + halfWidth, maxY, centerZ,
+                centerX - halfWidth, maxY, centerZ);
+        face(builder, argb, uv, 0.0f, 0.0f, -1.0f,
+                centerX + halfWidth, minY, centerZ,
+                centerX - halfWidth, minY, centerZ,
+                centerX - halfWidth, maxY, centerZ,
+                centerX + halfWidth, maxY, centerZ);
+        face(builder, argb, uv, 1.0f, 0.0f, 0.0f,
+                centerX, minY, centerZ + halfWidth,
+                centerX, minY, centerZ - halfWidth,
+                centerX, maxY, centerZ - halfWidth,
+                centerX, maxY, centerZ + halfWidth);
+        face(builder, argb, uv, -1.0f, 0.0f, 0.0f,
+                centerX, minY, centerZ - halfWidth,
+                centerX, minY, centerZ + halfWidth,
+                centerX, maxY, centerZ + halfWidth,
+                centerX, maxY, centerZ - halfWidth);
     }
 
     private static void face(
             MeshBuilder builder,
             int argb,
+            EchoClientTextureAtlas.AtlasEntry uv,
             float normalX,
             float normalY,
             float normalZ,
@@ -453,10 +571,13 @@ final class EchoClientEntityRenderer {
         float g = ((argb >>> 8) & 0xFF) / 255.0f;
         float b = (argb & 0xFF) / 255.0f;
         float a = ((argb >>> 24) & 0xFF) / 255.0f;
-        builder.vertex(x0, y0, z0, normalX, normalY, normalZ, r, g, b, a);
-        builder.vertex(x1, y1, z1, normalX, normalY, normalZ, r, g, b, a);
-        builder.vertex(x2, y2, z2, normalX, normalY, normalZ, r, g, b, a);
-        builder.vertex(x3, y3, z3, normalX, normalY, normalZ, r, g, b, a);
+        EchoClientTextureAtlas.AtlasEntry safeUv = uv == null
+                ? new EchoClientTextureAtlas.AtlasEntry(0.0f, 0.0f, 1.0f, 1.0f)
+                : uv;
+        builder.vertex(x0, y0, z0, safeUv.u1(), safeUv.v1(), normalX, normalY, normalZ, r, g, b, a);
+        builder.vertex(x1, y1, z1, safeUv.u2(), safeUv.v1(), normalX, normalY, normalZ, r, g, b, a);
+        builder.vertex(x2, y2, z2, safeUv.u2(), safeUv.v2(), normalX, normalY, normalZ, r, g, b, a);
+        builder.vertex(x3, y3, z3, safeUv.u1(), safeUv.v2(), normalX, normalY, normalZ, r, g, b, a);
         builder.index(base);
         builder.index(base + 1);
         builder.index(base + 2);
@@ -566,9 +687,11 @@ final class EchoClientEntityRenderer {
             GL20.glEnableVertexAttribArray(0);
             GL20.glVertexAttribPointer(0, 3, GL11.GL_FLOAT, false, STRIDE, POS_OFFSET);
             GL20.glEnableVertexAttribArray(1);
-            GL20.glVertexAttribPointer(1, 3, GL11.GL_FLOAT, false, STRIDE, NORM_OFFSET);
+            GL20.glVertexAttribPointer(1, 2, GL11.GL_FLOAT, false, STRIDE, TEX_OFFSET);
             GL20.glEnableVertexAttribArray(2);
-            GL20.glVertexAttribPointer(2, 4, GL11.GL_FLOAT, false, STRIDE, COLOR_OFFSET);
+            GL20.glVertexAttribPointer(2, 3, GL11.GL_FLOAT, false, STRIDE, NORM_OFFSET);
+            GL20.glEnableVertexAttribArray(3);
+            GL20.glVertexAttribPointer(3, 4, GL11.GL_FLOAT, false, STRIDE, COLOR_OFFSET);
 
             GL30.glBindVertexArray(0);
         }
@@ -641,6 +764,8 @@ final class EchoClientEntityRenderer {
                 float x,
                 float y,
                 float z,
+                float u,
+                float v,
                 float normalX,
                 float normalY,
                 float normalZ,
@@ -653,6 +778,8 @@ final class EchoClientEntityRenderer {
             vertices[vertexOffset++] = x;
             vertices[vertexOffset++] = y;
             vertices[vertexOffset++] = z;
+            vertices[vertexOffset++] = u;
+            vertices[vertexOffset++] = v;
             vertices[vertexOffset++] = normalX;
             vertices[vertexOffset++] = normalY;
             vertices[vertexOffset++] = normalZ;

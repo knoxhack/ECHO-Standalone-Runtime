@@ -65,6 +65,41 @@ for (const relative of candidates) {
   }
 }
 
+const visibleEvidenceRelative = "reports/echo/standalone/packaged-visible-client-evidence.json";
+const visibleEvidence = parsed.get(visibleEvidenceRelative);
+if (!visibleEvidence) {
+  failures.push(`${visibleEvidenceRelative}: missing packaged visible-client evidence`);
+} else {
+  const status = String(visibleEvidence.status || "UNKNOWN").toUpperCase();
+  if (status !== "PASS") {
+    failures.push(`${visibleEvidenceRelative}: status is ${status}, expected PASS`);
+  }
+  if (String(visibleEvidence.generatedAt || "").startsWith("1970-01-01T00:00:00")) {
+    failures.push(`${visibleEvidenceRelative}: generatedAt uses an epoch placeholder timestamp`);
+  }
+  if (visibleEvidence.safeModeAccepted === true || visibleEvidence.syntheticEvidenceAccepted === true || visibleEvidence.headlessOnlyEvidenceAccepted === true) {
+    failures.push(`${visibleEvidenceRelative}: unsafe evidence policy accepts safe-mode, synthetic, or headless-only evidence`);
+  }
+  const checks = Array.isArray(visibleEvidence.checks) ? visibleEvidence.checks : [];
+  for (const check of checks) {
+    const id = String(check.id || "<unnamed>");
+    const checkStatus = String(check.status || "UNKNOWN").toUpperCase();
+    if (checkStatus !== "PASS") {
+      failures.push(`${visibleEvidenceRelative}: visible-client check ${id} is ${checkStatus}`);
+    }
+  }
+}
+
+for (const relative of [
+  "reports/echo/standalone/beta-readiness-gate.json",
+  "reports/echo/standalone/beta-readiness-checks.json"
+]) {
+  const report = parsed.get(relative);
+  if (report && String(report.generatedAt || "").startsWith("1970-01-01T00:00:00")) {
+    failures.push(`${relative}: generatedAt uses an epoch placeholder timestamp`);
+  }
+}
+
 if (releaseMode) {
   const mandatory = [
     "release-signing-evidence.json",
@@ -73,7 +108,8 @@ if (releaseMode) {
     "audio-hardware-verification.json",
     "packaged-opengl-client-image.json",
     "packaged-exe-wallclock-smoke.json",
-    "packaged-exe-wallclock-strict-rehearsal.json"
+    "packaged-exe-wallclock-strict-rehearsal.json",
+    "packaged-visible-client-evidence.json"
   ];
   for (const name of mandatory) {
     const relative = `reports/echo/standalone/${name}`;

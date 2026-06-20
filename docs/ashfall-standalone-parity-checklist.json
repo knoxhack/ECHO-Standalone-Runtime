@@ -1,0 +1,185 @@
+{
+  "schema": "echo.standalone.parity_checklist.v1",
+  "generatedAt": "2026-06-20T23:34:56.959Z",
+  "generatedFrom": "docs/echo/standalone/ASHFALL_PARITY_MATRIX.md",
+  "title": "Ashfall Standalone Parity Checklist",
+  "description": "Machine-readable list of Ashfall content IDs and domains required for standalone parity. The runtime uses this checklist to report exactly what is missing by ID/domain.",
+  "requiredNamespaces": [
+    "echoashfallprotocol",
+    "echoterminal"
+  ],
+  "requiredDomains": [
+    {
+      "id": "blocks",
+      "label": "Blocks",
+      "nodeKinds": [
+        "echo:block"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "items",
+      "label": "Items",
+      "nodeKinds": [
+        "echo:item"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "creative_tabs",
+      "label": "Creative Tabs",
+      "nodeKinds": [
+        "echo:creative_tab"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "recipes",
+      "label": "Recipes",
+      "nodeKinds": [
+        "echo:recipe"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "loot",
+      "label": "Loot Tables",
+      "nodeKinds": [
+        "echo:loot_table",
+        "echo:loot"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "entities",
+      "label": "Entities/Mobs",
+      "nodeKinds": [
+        "echo:entity",
+        "echo:npc"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "spawn_rules",
+      "label": "Spawn Rules",
+      "nodeKinds": [
+        "echo:spawn_rule"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "biomes",
+      "label": "Biomes",
+      "nodeKinds": [
+        "echo:biome",
+        "echo:region"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "structures",
+      "label": "Structures",
+      "nodeKinds": [
+        "echo:structure"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "features",
+      "label": "World Features",
+      "nodeKinds": [
+        "echo:feature"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "sounds",
+      "label": "Sound Events",
+      "nodeKinds": [
+        "echo:sound_event",
+        "echo:sound"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "missions",
+      "label": "Missions",
+      "nodeKinds": [
+        "echo:mission"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "objectives",
+      "label": "Objectives",
+      "nodeKinds": [
+        "echo:objective"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "ui_routes",
+      "label": "UI Routes (Terminal/Lens/Index/HUD/ScreenCore)",
+      "nodeKinds": [
+        "echo:ui_intent"
+      ],
+      "minCount": 1
+    }
+  ],
+  "domains": [],
+  "metadataRules": {
+    "entityVisuals": {
+      "requiredFields": [
+        "model",
+        "modelPath",
+        "texture",
+        "texturePath",
+        "animation",
+        "animationPath"
+      ],
+      "atLeastOneOf": [
+        "texture",
+        "texturePath",
+        "model",
+        "modelPath"
+      ]
+    },
+    "threatMetadata": {
+      "requiredFields": [],
+      "atLeastOneOf": [
+        "threat",
+        "threatClass",
+        "threatProfile",
+        "threatLevel",
+        "dangerLevel",
+        "hostility",
+        "hostilityLevel"
+      ]
+    },
+    "spawnRules": {
+      "requiredFields": [],
+      "atLeastOneOf": [
+        "spawnRules",
+        "spawnBiomeTags"
+      ]
+    },
+    "worldgenHints": {
+      "requiredFields": [],
+      "atLeastOneOf": [
+        "biomeTags",
+        "surfaceBlockId",
+        "generationBlockId",
+        "placementBlockId"
+      ]
+    },
+    "uiRoutes": {
+      "requiredFields": [
+        "surface",
+        "route"
+      ],
+      "atLeastOneOf": [
+        "surface"
+      ]
+    }
+  }
+}

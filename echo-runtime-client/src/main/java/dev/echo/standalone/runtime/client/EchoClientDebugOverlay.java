@@ -98,7 +98,9 @@ final class EchoClientDebugOverlay {
                 atlasText(renderer),
                 "SPAWN " + compact(spawn.definitionId(), 36)
                         + " " + compact(spawn.reason(), 24)
-                        + " N " + spawn.spawned(),
+                        + " N " + spawn.spawned()
+                        + " THR " + compact(spawn.threatProfile(), 18)
+                        + " L " + spawn.threatLevel(),
                 "AI I " + ai.idle()
                         + " P " + ai.pursuing()
                         + " A " + ai.attacking()

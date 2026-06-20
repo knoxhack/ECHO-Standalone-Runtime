@@ -108,6 +108,20 @@ tasks.register('verifyReleaseIndexProductRouting', Exec) {
     }
 }
 
+tasks.register('auditAshfallContentGraph', Exec) {
+    group = 'verification'
+    description = 'Audits Ashfall module Content Graph output against the standalone parity checklist and writes build/reports/ashfall-content-graph-audit.json.'
+    workingDir = rootProject.projectDir
+    executable = 'node'
+    args 'scripts/audit-ashfall-content-graph.mjs'
+    doFirst {
+        def modulesRepoRoot = echoModulesRepoRoot.get()
+        if (modulesRepoRoot != null && !modulesRepoRoot.toString().trim().isEmpty()) {
+            args '--modules-repo-root', modulesRepoRoot
+        }
+    }
+}
+
 tasks.register('bootstrapStandaloneEvidenceReports') {
     group = 'verification'
     description = 'Creates deterministic fail-closed placeholders for missing standalone evidence.'
@@ -7295,6 +7309,7 @@ gradle.taskGraph.whenReady { graph ->
     }
     def reportDir = file('reports/echo/standalone')
     reportDir.mkdirs()
+    def generatedAt = java.time.Instant.now().toString()
     def pendingBlocker = [
             id      : 'current-run.incomplete',
             category: 'aggregation',
@@ -7303,7 +7318,7 @@ gradle.taskGraph.whenReady { graph ->
     ]
     new File(reportDir, 'beta-readiness-checks.json').text = echoStandaloneJson([
             schema     : 'echo.standalone.beta_readiness_checks.v1',
-            generatedAt: '1970-01-01T00:00:00Z',
+            generatedAt: generatedAt,
             generator  : 'runStandaloneBetaReadinessGate.preflight',
             status     : 'BLOCKED',
             total      : 0,
@@ -7314,7 +7329,7 @@ gradle.taskGraph.whenReady { graph ->
     ])
     new File(reportDir, 'beta-readiness-gate.json').text = echoStandaloneJson([
             schema                   : 'echo.standalone.beta_readiness_gate.v2',
-            generatedAt              : '1970-01-01T00:00:00Z',
+            generatedAt              : generatedAt,
             generator                : 'runStandaloneBetaReadinessGate.preflight',
             status                   : 'BLOCKED',
             summary                  : 'Beta readiness aggregation has not completed for the current Gradle invocation.',
@@ -8070,6 +8085,7 @@ tasks.register('runStandaloneFullPresentationMechanicsAudit') {
     dependsOn tasks.named('runStandaloneClientSettingsSmoke')
 
     doLast {
+        def generatedAt = java.time.Instant.now().toString()
         def readReport = { String relativePath ->
             def reportFile = file(relativePath)
             if (!reportFile.isFile()) {
@@ -13324,6 +13340,7 @@ tasks.register('runStandalonePublicReleaseGateAudit') {
     if (echoStandaloneWindowLaunchOptIn.get().toString().toBoolean()) {
         dependsOn tasks.named('runStandalonePackagedOpenGlImageSmoke')
         dependsOn tasks.named('runStandalonePackagedOpenGlImageStrictRehearsal')
+        dependsOn tasks.named('runStandalonePackagedVisibleClientCapture')
     } else {
         dependsOn tasks.named('writeStandaloneVisibleWindowLaunchOptInReports')
     }
@@ -14709,6 +14726,131 @@ tasks.register('runStandalonePackagedOpenGlImageSmoke') {
     }
 }
 
+tasks.register('runStandalonePackagedVisibleClientCapture') {
+    group = 'verification'
+    description = 'Launches the strict packaged Ashfall client in visible-evidence capture mode and writes framebuffer screenshots plus a capture manifest.'
+    dependsOn tasks.named('refreshStandalonePackagedRuntimeImage')
+
+    doLast {
+        def appName = 'EchoStandaloneRuntime'
+        def imageDir = new File(buildDir, "jpackage-opengl-client/${appName}")
+        def exe = new File(imageDir, "${appName}.exe")
+        def defaultPackRoot = file('../ECHO-Ashfall-Standalone-Edition/tmp/rebuild-official-modpack-assets/ashfall-standalone-edition')
+        def packRoot = file((findProperty('echoStandaloneAshfallPackRoot') ?: defaultPackRoot.absolutePath).toString())
+        def modulesRoot = new File(packRoot, 'mods')
+        def packManifest = new File(packRoot, '.echo/pack-manifest.json')
+        def captureOutput = file('reports/echo/standalone/visible-client')
+        def captureManifest = file('reports/echo/standalone/packaged-visible-client-captures.json')
+        def stdout = new File(buildDir, 'tmp/packaged-visible-client-capture.stdout.log')
+        def stderr = new File(buildDir, 'tmp/packaged-visible-client-capture.stderr.log')
+
+        echoStandaloneRequireWindowLaunchOptIn(
+                'runStandalonePackagedVisibleClientCapture',
+                'reports/echo/standalone/packaged-visible-client-captures.json',
+                'echo.standalone.packaged_visible_client_captures.v1',
+                [
+                        summary                  : 'Packaged visible-client capture was skipped before launching the strict Ashfall EXE because window launch cleanup requires explicit opt-in.',
+                        executable               : exe.absolutePath.replace('\\', '/'),
+                        packRoot                 : packRoot.absolutePath.replace('\\', '/'),
+                        modulesRoot              : modulesRoot.absolutePath.replace('\\', '/'),
+                        packManifest             : packManifest.absolutePath.replace('\\', '/'),
+                        captureOutput            : captureOutput.absolutePath.replace('\\', '/'),
+                        packagedClient           : false,
+                        strictPackMode           : true,
+                        safeMode                 : false,
+                        synthetic                : false,
+                        headlessOnly             : false,
+                        requiredNextAction       : 'Re-run with -PechoStandaloneAllowWindowLaunch=true when a visible packaged-client screenshot capture is intended.'
+                ]
+        )
+
+        stdout.parentFile.mkdirs()
+        stdout.text = ''
+        stderr.text = ''
+        captureOutput.mkdirs()
+        if (!exe.isFile()) {
+            throw new GradleException("Missing packaged OpenGL client executable: ${exe}")
+        }
+        if (!packRoot.isDirectory()) {
+            throw new GradleException("Missing Ashfall standalone pack root: ${packRoot}")
+        }
+        if (!modulesRoot.isDirectory()) {
+            throw new GradleException("Missing Ashfall standalone modules root: ${modulesRoot}")
+        }
+        if (!packManifest.isFile()) {
+            throw new GradleException("Missing Ashfall standalone pack manifest: ${packManifest}")
+        }
+
+        def startedAt = java.time.Instant.now()
+        def process = new ProcessBuilder(
+                exe.absolutePath,
+                '--profileId', 'ashfall-standalone-edition',
+                '--installPath', packRoot.absolutePath,
+                '--packManifest', packManifest.absolutePath,
+                '--pack-root', packRoot.absolutePath,
+                '--modules-root', modulesRoot.absolutePath,
+                '--visible-evidence-capture',
+                '--packaged-client-evidence',
+                '--evidence-output', captureOutput.absolutePath,
+                '--evidence-manifest', captureManifest.absolutePath
+        )
+                .directory(rootProject.projectDir)
+                .redirectOutput(stdout)
+                .redirectError(stderr)
+                .start()
+        int timeoutSeconds = 180
+        boolean exited = process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+        boolean killedAfterTimeout = false
+        if (!exited) {
+            killedAfterTimeout = true
+            new ProcessBuilder('cmd', '/c', 'taskkill', '/PID', Long.toString(process.pid()), '/T', '/F')
+                    .redirectErrorStream(true)
+                    .start()
+                    .waitFor()
+            process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+        }
+        def endedAt = java.time.Instant.now()
+        int exitCode = exited ? process.exitValue() : -1
+        if (killedAfterTimeout || exitCode != 0 || !captureManifest.isFile()) {
+            def failureReport = [
+                    schema            : 'echo.standalone.packaged_visible_client_captures.v1',
+                    generatedAt       : endedAt.toString(),
+                    generator         : 'runStandalonePackagedVisibleClientCapture',
+                    status            : 'BLOCKED',
+                    reason            : killedAfterTimeout ? 'capture_timeout' : 'capture_process_failed',
+                    packagedClient    : true,
+                    strictPackMode    : true,
+                    safeMode          : false,
+                    synthetic         : false,
+                    headlessOnly      : false,
+                    executable        : exe.absolutePath.replace('\\', '/'),
+                    packRoot          : packRoot.absolutePath.replace('\\', '/'),
+                    modulesRoot       : modulesRoot.absolutePath.replace('\\', '/'),
+                    packManifest      : packManifest.absolutePath.replace('\\', '/'),
+                    startedAt         : startedAt.toString(),
+                    endedAt           : endedAt.toString(),
+                    timeoutSeconds    : timeoutSeconds,
+                    exitCode          : exitCode,
+                    killedAfterTimeout: killedAfterTimeout,
+                    stdoutPath        : stdout.absolutePath.replace('\\', '/'),
+                    stderrPath        : stderr.absolutePath.replace('\\', '/'),
+                    captures          : [],
+                    adapterCoreReceipts: [],
+                    blockers          : [[
+                            id    : 'packaged_visible_client_capture',
+                            code  : killedAfterTimeout ? 'timeout' : 'process_failed',
+                            detail: killedAfterTimeout
+                                    ? "Packaged visible-client capture did not exit within ${timeoutSeconds} seconds."
+                                    : "Packaged visible-client capture exited with code ${exitCode} or did not write ${captureManifest}."
+                    ]]
+            ]
+            captureManifest.parentFile.mkdirs()
+            captureManifest.text = echoStandaloneJson(failureReport)
+            throw new GradleException("Packaged visible-client capture failed; see ${captureManifest}")
+        }
+    }
+}
+
 tasks.register('runStandalonePackagedOpenGlImageStrictRehearsal') {
     group = 'verification'
     description = 'Runs a 20-second current OpenGL packaged EXE rehearsal with process and visible-window samples.'
@@ -15510,6 +15652,7 @@ tasks.register('runStandaloneManualWallclockCaptureRehearsal') {
     if (echoStandaloneWindowLaunchOptIn.get().toString().toBoolean()) {
         dependsOn tasks.named('runStandalonePackagedOpenGlImageSmoke')
         dependsOn tasks.named('runStandalonePackagedOpenGlImageStrictRehearsal')
+        dependsOn tasks.named('runStandalonePackagedVisibleClientCapture')
     } else {
         dependsOn tasks.named('writeStandaloneVisibleWindowLaunchOptInReports')
     }
@@ -16100,6 +16243,450 @@ tasks.register('runStandaloneFullWorkspaceBuildSmoke') {
     }
 }
 
+tasks.register('writeStandalonePackagedVisibleClientEvidenceReport') {
+    group = 'verification'
+    description = 'Writes the fail-closed packaged-client visual evidence report required for Ashfall standalone beta readiness.'
+
+    doLast {
+        def reportDir = file('reports/echo/standalone')
+        def captureManifestFile = new File(reportDir, 'packaged-visible-client-captures.json')
+        def reportFile = new File(reportDir, 'packaged-visible-client-evidence.json')
+        def generatedAt = java.time.Instant.now().toString()
+        reportDir.mkdirs()
+
+        def text = { Object value -> String.valueOf(value ?: '') }
+        def bool = { Object value -> Boolean.valueOf(String.valueOf(value ?: false)) }
+        def count = { Object value ->
+            if (value instanceof Number) {
+                return value.intValue()
+            }
+            def valueText = text(value)
+            valueText.isInteger() ? valueText.toInteger() : 0
+        }
+        def isEpochOrBlank = { Object value ->
+            def valueText = text(value).trim()
+            valueText.isEmpty() || valueText.startsWith('1970-01-01T00:00:00')
+        }
+        def resolveEvidenceFile = { Object rawPath ->
+            def pathText = text(rawPath).trim()
+            if (pathText.isEmpty()) {
+                return null
+            }
+            def candidate = file(pathText)
+            candidate.isAbsolute() ? candidate : new File(rootProject.projectDir, pathText)
+        }
+        def relativePath = { File candidate ->
+            if (candidate == null) {
+                return ''
+            }
+            try {
+                return rootProject.projectDir.toPath().relativize(candidate.toPath()).toString().replace('\\', '/')
+            } catch (IllegalArgumentException ignored) {
+                return candidate.absolutePath.replace('\\', '/')
+            }
+        }
+        def shaMatches = { File candidate, Object declared ->
+            def declaredText = text(declared).trim().toLowerCase(java.util.Locale.ROOT)
+            candidate != null
+                    && candidate.isFile()
+                    && declaredText.length() == 64
+                    && echoStandaloneSha256(candidate).equalsIgnoreCase(declaredText)
+        }
+        def capturePathFrom = { Object capture ->
+            if (!(capture instanceof Map)) {
+                return ''
+            }
+            def screenshot = capture.screenshot
+            if (screenshot instanceof Map) {
+                return text(screenshot.path ?: screenshot.file ?: screenshot.imagePath ?: screenshot.url)
+            }
+            text(capture.screenshotPath ?: capture.imagePath ?: capture.path ?: capture.file ?: screenshot)
+        }
+        def captureShaFrom = { Object capture ->
+            if (!(capture instanceof Map)) {
+                return ''
+            }
+            def screenshot = capture.screenshot
+            if (screenshot instanceof Map) {
+                return text(screenshot.sha256 ?: screenshot.screenshotSha256)
+            }
+            text(capture.screenshotSha256 ?: capture.sha256)
+        }
+        def listFrom = { Object value ->
+            value instanceof Collection ? value as List : []
+        }
+
+        def manifest = [:]
+        def manifestParseError = ''
+        if (captureManifestFile.isFile()) {
+            try {
+                manifest = new groovy.json.JsonSlurper().parse(captureManifestFile) as Map
+            } catch (Exception exception) {
+                manifestParseError = exception.message ?: exception.class.name
+                manifest = [:]
+            }
+        }
+        def manifestEvidence = manifest.evidence instanceof Map ? manifest.evidence : [:]
+
+        def rawCaptures = []
+        rawCaptures.addAll(listFrom(manifest.captures))
+        rawCaptures.addAll(listFrom(manifestEvidence.captures))
+        def capturesById = [:]
+        def duplicateCaptureIds = []
+        rawCaptures.findAll { it instanceof Map }.each { capture ->
+            def id = text(capture.id).trim()
+            if (id.isEmpty()) {
+                return
+            }
+            if (capturesById.containsKey(id)) {
+                duplicateCaptureIds << id
+                return
+            }
+            capturesById[id] = capture
+        }
+
+        def rawReceipts = []
+        rawReceipts.addAll(listFrom(manifest.adapterCoreReceipts))
+        rawReceipts.addAll(listFrom(manifest.mutationReceipts))
+        rawReceipts.addAll(listFrom(manifestEvidence.adapterCoreReceipts))
+        rawReceipts.addAll(listFrom(manifestEvidence.mutationReceipts))
+
+        def performanceReplay = manifest.performanceReplay instanceof Map
+                ? manifest.performanceReplay
+                : (manifest.performance instanceof Map ? manifest.performance : [:])
+
+        def requiredEvidence = [
+                [
+                        id: 'main_menu_module_diagnostics',
+                        label: 'Main menu and installed-module diagnostics',
+                        type: 'screenshot',
+                        requirement: 'Packaged strict client screenshot proves installed modules and Content Graph status are visible.'
+                ],
+                [
+                        id: 'creative_tab_list',
+                        label: 'Module-backed creative tab list',
+                        type: 'screenshot',
+                        requirement: 'Creative tabs must be rendered from installed module Content Graph data.'
+                ],
+                [
+                        id: 'module_backed_inventory',
+                        label: 'Module-backed inventory',
+                        type: 'screenshot',
+                        requirement: 'Inventory must show module items/blocks, not the legacy fallback grid.'
+                ],
+                [
+                        id: 'searchable_index',
+                        label: 'Searchable Index',
+                        type: 'screenshot',
+                        requirement: 'Index UI must search module-backed content.'
+                ],
+                [
+                        id: 'terminal_screen',
+                        label: 'Terminal screen',
+                        type: 'screenshot',
+                        requirement: 'Terminal registrations must render in the packaged client.'
+                ],
+                [
+                        id: 'lens_overlay',
+                        label: 'Lens overlay',
+                        type: 'screenshot',
+                        requirement: 'Lens overlay must render module hazard/threat/context data.'
+                ],
+                [
+                        id: 'hud_overlays',
+                        label: 'HUD overlays',
+                        type: 'screenshot',
+                        requirement: 'HUD widgets must render module-backed status and warnings.'
+                ],
+                [
+                        id: 'screencore_page',
+                        label: 'ScreenCore page',
+                        type: 'screenshot',
+                        requirement: 'ScreenCore registered pages must be visible from installed modules.'
+                ],
+                [
+                        id: 'ashfall_biome_view',
+                        label: 'Ashfall biome view',
+                        type: 'screenshot',
+                        requirement: 'World view must visibly contain Ashfall biome/worldgen identity.'
+                ],
+                [
+                        id: 'module_block_placement',
+                        label: 'Module block placement',
+                        type: 'screenshot',
+                        requirement: 'Placed block must come from module Content Graph data.'
+                ],
+                [
+                        id: 'module_item_usage',
+                        label: 'Module item usage',
+                        type: 'screenshot',
+                        requirement: 'Item usage must be module-backed and visible in the packaged client.'
+                ],
+                [
+                        id: 'module_entity_mob_view',
+                        label: 'Module entity or mob view',
+                        type: 'screenshot',
+                        requirement: 'Entity visuals must be module/asset-backed, not generic placeholders.'
+                ],
+                [
+                        id: 'module_structure_feature_view',
+                        label: 'Module structure or feature view',
+                        type: 'screenshot',
+                        requirement: 'Module structure/feature/worldgen output must be visible where supported.'
+                ],
+                [
+                        id: 'mission_objective_progress_ui',
+                        label: 'Mission/objective progress UI',
+                        type: 'screenshot',
+                        requirement: 'Mission/objective UI must be module-backed and visible.'
+                ],
+                [
+                        id: 'adaptercore_mutation_receipts',
+                        label: 'AdapterCore mutation receipt evidence',
+                        type: 'screenshot-with-receipts',
+                        requirement: 'Visible gameplay actions must produce non-metadata AdapterCore mutation receipts.'
+                ],
+                [
+                        id: 'save_load_visible_state',
+                        label: 'Save/load visible state',
+                        type: 'screenshot',
+                        requirement: 'Module-backed state must survive save/load and be visible after reload.'
+                ],
+                [
+                        id: 'performance_replay',
+                        label: 'Performance replay',
+                        type: 'performance',
+                        requirement: 'Replay must prove no render-thread jar scanning, Content Graph parsing, or texture decoding.'
+                ]
+        ]
+
+        def manifestChecks = [
+                [
+                        id: 'manifest.present',
+                        status: captureManifestFile.isFile() ? 'PASS' : 'MISSING',
+                        detail: captureManifestFile.isFile()
+                                ? 'Packaged visible-client capture manifest exists.'
+                                : 'Missing reports/echo/standalone/packaged-visible-client-captures.json.'
+                ],
+                [
+                        id: 'manifest.valid-json',
+                        status: captureManifestFile.isFile() && manifestParseError.isEmpty() ? 'PASS' : 'MISSING',
+                        detail: !captureManifestFile.isFile()
+                                ? 'Capture manifest was not parsed because it is missing.'
+                                : (manifestParseError.isEmpty() ? 'Capture manifest parsed.' : manifestParseError)
+                ],
+                [
+                        id: 'manifest.schema',
+                        status: text(manifest.schema) == 'echo.standalone.packaged_visible_client_captures.v1' ? 'PASS' : 'BLOCKED',
+                        detail: 'Expected schema echo.standalone.packaged_visible_client_captures.v1.'
+                ],
+                [
+                        id: 'manifest.status',
+                        status: text(manifest.status).equalsIgnoreCase('PASS') ? 'PASS' : 'BLOCKED',
+                        detail: 'Capture manifest must be status PASS.'
+                ],
+                [
+                        id: 'manifest.generated-at',
+                        status: isEpochOrBlank(manifest.generatedAt ?: manifest.capturedAt) ? 'BLOCKED' : 'PASS',
+                        detail: 'Capture manifest must use a concrete non-epoch timestamp.'
+                ],
+                [
+                        id: 'manifest.packaged-strict-mode',
+                        status: bool(manifest.packagedClient)
+                                && bool(manifest.strictPackMode)
+                                && !bool(manifest.safeMode)
+                                && !bool(manifest.devMode)
+                                && !bool(manifest.synthetic)
+                                && !bool(manifest.headlessOnly)
+                                ? 'PASS' : 'BLOCKED',
+                        detail: 'Evidence must come from the packaged strict client, not dev, safe-mode, synthetic, or headless-only runs.'
+                ],
+                [
+                        id: 'manifest.duplicate-captures',
+                        status: duplicateCaptureIds.isEmpty() ? 'PASS' : 'BLOCKED',
+                        detail: duplicateCaptureIds.isEmpty()
+                                ? 'No duplicate capture ids.'
+                                : "Duplicate capture ids: ${duplicateCaptureIds.unique().join(', ')}"
+                ]
+        ]
+
+        def captureChecks = requiredEvidence.collect { spec ->
+            def capture = capturesById[spec.id]
+            if (!(capture instanceof Map)) {
+                return [
+                        id: spec.id,
+                        label: spec.label,
+                        type: spec.type,
+                        status: 'MISSING',
+                        requirement: spec.requirement,
+                        detail: 'Required packaged visible-client evidence is missing.'
+                ]
+            }
+
+            if (spec.type == 'performance') {
+                def replay = performanceReplay ?: capture
+                def reportPath = text(replay.reportPath ?: replay.report ?: capture.reportPath ?: capture.report)
+                def replayReport = resolveEvidenceFile(reportPath)
+                def reportExists = replayReport == null || replayReport.isFile()
+                def replayPackaged = bool(replay.containsKey('packagedClient') ? replay.packagedClient : (capture.containsKey('packagedClient') ? capture.packagedClient : manifest.packagedClient))
+                def replayStrict = bool(replay.containsKey('strictPackMode') ? replay.strictPackMode : (capture.containsKey('strictPackMode') ? capture.strictPackMode : manifest.strictPackMode))
+                def replaySafeMode = bool(replay.containsKey('safeMode') ? replay.safeMode : (capture.containsKey('safeMode') ? capture.safeMode : manifest.safeMode))
+                def replaySynthetic = bool(replay.containsKey('synthetic') ? replay.synthetic : (capture.containsKey('synthetic') ? capture.synthetic : manifest.synthetic))
+                def replayHeadlessOnly = bool(replay.containsKey('headlessOnly') ? replay.headlessOnly : (capture.containsKey('headlessOnly') ? capture.headlessOnly : manifest.headlessOnly))
+                def passed = text(replay.status ?: capture.status).equalsIgnoreCase('PASS')
+                        && replayPackaged
+                        && replayStrict
+                        && !replaySafeMode
+                        && !replaySynthetic
+                        && !replayHeadlessOnly
+                        && !isEpochOrBlank(replay.generatedAt ?: replay.capturedAt ?: capture.generatedAt ?: capture.capturedAt)
+                        && reportExists
+                        && (bool(replay.noRenderThreadJarScanning) || bool(replay.noRenderThreadModuleLoading))
+                        && bool(replay.noRenderThreadGraphParsing)
+                        && bool(replay.noRenderThreadTextureDecoding)
+                        && !bool(replay.renderThreadJarScanningDetected)
+                        && !bool(replay.renderThreadGraphParsingDetected)
+                        && !bool(replay.renderThreadTextureDecodingDetected)
+                        && !bool(replay.placeholder)
+                        && !bool(capture.placeholder)
+                        && !bool(capture.skipped)
+                return [
+                        id: spec.id,
+                        label: spec.label,
+                        type: spec.type,
+                        status: passed ? 'PASS' : 'BLOCKED',
+                        requirement: spec.requirement,
+                        report: reportPath,
+                        reportExists: reportExists,
+                        noRenderThreadJarScanning: bool(replay.noRenderThreadJarScanning) || bool(replay.noRenderThreadModuleLoading),
+                        noRenderThreadGraphParsing: bool(replay.noRenderThreadGraphParsing),
+                        noRenderThreadTextureDecoding: bool(replay.noRenderThreadTextureDecoding),
+                        detail: passed
+                                ? 'Performance replay satisfies render-thread loading policy.'
+                                : 'Performance replay is missing, stale, placeholder, unsafe-mode, or does not prove render-thread loading work is absent.'
+                ]
+            }
+
+            def screenshotFile = resolveEvidenceFile(capturePathFrom(capture))
+            def screenshotExists = screenshotFile != null && screenshotFile.isFile()
+            def screenshotBytes = screenshotExists ? screenshotFile.length() : 0L
+            def screenshotShaMatches = shaMatches(screenshotFile, captureShaFrom(capture))
+            def capturePackaged = bool(capture.containsKey('packagedClient') ? capture.packagedClient : manifest.packagedClient)
+            def captureStrict = bool(capture.containsKey('strictPackMode') ? capture.strictPackMode : manifest.strictPackMode)
+            def playerVisible = bool(capture.containsKey('playerVisible') ? capture.playerVisible : (capture.containsKey('visible') ? capture.visible : true))
+            def basicPassed = text(capture.status).equalsIgnoreCase('PASS')
+                    && screenshotExists
+                    && screenshotBytes > 1024L
+                    && screenshotShaMatches
+                    && !isEpochOrBlank(capture.capturedAt ?: capture.generatedAt)
+                    && capturePackaged
+                    && captureStrict
+                    && playerVisible
+                    && !bool(capture.safeMode)
+                    && !bool(capture.devMode)
+                    && !bool(capture.synthetic)
+                    && !bool(capture.placeholder)
+                    && !bool(capture.headlessOnly)
+                    && !bool(capture.skipped)
+
+            def receiptList = []
+            receiptList.addAll(listFrom(capture.adapterCoreReceipts))
+            receiptList.addAll(listFrom(capture.mutationReceipts))
+            receiptList.addAll(rawReceipts.findAll { receipt ->
+                def visibleCaptureId = text(receipt.visibleCaptureId ?: receipt.captureId ?: receipt.screenshotCaptureId)
+                def captureIds = listFrom(receipt.captureIds).collect { text(it) }
+                visibleCaptureId == spec.id || captureIds.contains(spec.id)
+            })
+            def concreteReceipts = receiptList.findAll { receipt ->
+                def playerVisibleAction = receipt instanceof Map
+                        ? (receipt.containsKey('playerVisibleAction')
+                                ? receipt.playerVisibleAction
+                                : (receipt.containsKey('visibleGameplayAction') ? receipt.visibleGameplayAction : true))
+                        : false
+                text(receipt.id ?: receipt.receiptId).trim().length() > 0
+                        && text(receipt.action ?: receipt.event ?: receipt.domain).trim().length() > 0
+                        && !bool(receipt.metadataOnly)
+                        && !bool(receipt.synthetic)
+                        && !bool(receipt.placeholder)
+                        && bool(playerVisibleAction)
+            }
+            def receiptsPassed = spec.type != 'screenshot-with-receipts' || !concreteReceipts.isEmpty()
+            def passed = basicPassed && receiptsPassed
+
+            [
+                    id: spec.id,
+                    label: spec.label,
+                    type: spec.type,
+                    status: passed ? 'PASS' : 'BLOCKED',
+                    requirement: spec.requirement,
+                    screenshot: screenshotFile == null ? '' : relativePath(screenshotFile),
+                    screenshotExists: screenshotExists,
+                    screenshotBytes: screenshotBytes,
+                    screenshotSha256Matches: screenshotShaMatches,
+                    packagedClient: capturePackaged,
+                    strictPackMode: captureStrict,
+                    playerVisible: playerVisible,
+                    concreteReceiptCount: concreteReceipts.size(),
+                    detail: passed
+                            ? 'Packaged visible-client capture satisfies the evidence contract.'
+                            : (spec.type == 'screenshot-with-receipts'
+                                    ? 'Capture must include a real screenshot plus non-metadata AdapterCore receipts tied to visible gameplay actions.'
+                                    : 'Capture must include a real non-placeholder packaged strict-client screenshot with a matching SHA-256.')
+            ]
+        }
+
+        def checks = manifestChecks + captureChecks
+        def blockers = checks.findAll { it.status != 'PASS' }.collect {
+            [
+                    id: it.id,
+                    status: it.status,
+                    detail: it.detail,
+                    requirement: it.requirement ?: ''
+            ]
+        }
+        def status = blockers.isEmpty() ? 'PASS' : 'BLOCKED'
+        reportFile.text = echoStandaloneJson([
+                schema: 'echo.standalone.packaged_visible_client_evidence.v1',
+                generatedAt: generatedAt,
+                generator: 'writeStandalonePackagedVisibleClientEvidenceReport',
+                status: status,
+                summary: status == 'PASS'
+                        ? 'Packaged visible-client evidence proves Ashfall standalone module content, AdapterCore receipts, save/load, and render-thread loading policy.'
+                        : 'Packaged visible-client evidence is incomplete; beta readiness must remain blocked until real screenshots, receipts, and performance replay are captured from the strict packaged client.',
+                captureManifest: captureManifestFile.absolutePath.replace('\\', '/'),
+                captureManifestPresent: captureManifestFile.isFile(),
+                strictPackModeRequired: true,
+                safeModeAccepted: false,
+                devModeAccepted: false,
+                syntheticEvidenceAccepted: false,
+                headlessOnlyEvidenceAccepted: false,
+                requiredEvidenceCount: requiredEvidence.size(),
+                checksPassed: checks.count { it.status == 'PASS' },
+                blockerCount: blockers.size(),
+                requiredEvidence: requiredEvidence,
+                checks: checks,
+                blockers: blockers
+        ])
+    }
+}
+
+tasks.register('runStandalonePackagedVisibleClientEvidenceGate') {
+    group = 'verification'
+    description = 'Fails unless packaged Ashfall standalone visible-client screenshots and AdapterCore receipts satisfy beta readiness.'
+    dependsOn tasks.named('writeStandalonePackagedVisibleClientEvidenceReport')
+
+    doLast {
+        def report = file('reports/echo/standalone/packaged-visible-client-evidence.json')
+        if (!report.isFile()) {
+            throw new GradleException("Missing packaged visible-client evidence report: ${report}")
+        }
+        def parsed = new groovy.json.JsonSlurper().parse(report)
+        if (String.valueOf(parsed.status ?: '') != 'PASS') {
+            throw new GradleException("Packaged visible-client evidence blocked; see ${report}")
+        }
+    }
+}
+
 tasks.register('runStandaloneBetaReadinessGate') {
     group = 'verification'
     description = 'Aggregates concrete standalone beta evidence and replaces bootstrap beta placeholder reports.'
@@ -16141,9 +16728,11 @@ tasks.register('runStandaloneBetaReadinessGate') {
     dependsOn tasks.named('runStandaloneWindowedRuntimeSmoke')
     dependsOn tasks.named('runStandaloneLauncherSmoke')
     dependsOn tasks.named('runStandaloneFullWorkspaceBuildSmoke')
+    dependsOn tasks.named('writeStandalonePackagedVisibleClientEvidenceReport')
     if (echoStandaloneWindowLaunchOptIn.get().toString().toBoolean()) {
         dependsOn tasks.named('runStandalonePackagedOpenGlImageSmoke')
         dependsOn tasks.named('runStandalonePackagedOpenGlImageStrictRehearsal')
+        dependsOn tasks.named('runStandalonePackagedVisibleClientCapture')
     } else {
         dependsOn tasks.named('writeStandaloneVisibleWindowLaunchOptInReports')
     }
@@ -16250,6 +16839,8 @@ tasks.register('runStandaloneBetaReadinessGate') {
                         'packaging', false, ['PASS']),
                 reportCheck('packaged.strict-rehearsal', 'reports/echo/standalone/packaged-exe-wallclock-strict-rehearsal.json',
                         'packaging', false, ['PASS']),
+                reportCheck('packaged.visible-client-evidence', 'reports/echo/standalone/packaged-visible-client-evidence.json',
+                        'visible-client', true, ['PASS']),
                 reportCheck('manual.playtest', 'reports/echo/standalone/manual-playtest-report.json',
                         'human-playtest', false, ['PASS'])
         ]
@@ -16389,7 +16980,7 @@ tasks.register('runStandaloneBetaReadinessGate') {
 
         new File(reportDir, 'beta-readiness-checks.json').text = echoStandaloneJson([
                 schema      : 'echo.standalone.beta_readiness_checks.v1',
-                generatedAt : '1970-01-01T00:00:00Z',
+                generatedAt : generatedAt,
                 generator   : 'runStandaloneBetaReadinessGate',
                 status      : status,
                 total       : checks.size(),
@@ -16400,7 +16991,7 @@ tasks.register('runStandaloneBetaReadinessGate') {
         ])
         new File(reportDir, 'beta-readiness-playable-qa.json').text = echoStandaloneJson([
                 schema       : 'echo.standalone.beta_readiness_playable_qa.v1',
-                generatedAt  : '1970-01-01T00:00:00Z',
+                generatedAt  : generatedAt,
                 generator    : 'runStandaloneBetaReadinessGate',
                 status       : blockers.any { it.category in ['playable-loop', 'save-load', 'stability', 'crash-recovery'] } ? 'BLOCKED' : 'PASS',
                 evidenceTasks: checks.findAll { it.category in ['playable-loop', 'save-load', 'stability', 'crash-recovery'] }
@@ -16409,7 +17000,7 @@ tasks.register('runStandaloneBetaReadinessGate') {
         ])
         new File(reportDir, 'beta-readiness-support-bundle.json').text = echoStandaloneJson([
                 schema       : 'echo.standalone.beta_readiness_support_bundle.v1',
-                generatedAt  : '1970-01-01T00:00:00Z',
+                generatedAt  : generatedAt,
                 generator    : 'runStandaloneBetaReadinessGate',
                 status       : checks.find { it.id == 'launcher.support-bundle' }?.status == 'PASS' ? 'PASS' : 'BLOCKED',
                 evidenceTask : 'runStandaloneLauncherSmoke',
@@ -16417,7 +17008,7 @@ tasks.register('runStandaloneBetaReadinessGate') {
         ])
         new File(reportDir, 'beta-readiness-ci-policy.json').text = echoStandaloneJson([
                 schema                    : 'echo.standalone.beta_readiness_ci_policy.v1',
-                generatedAt               : '1970-01-01T00:00:00Z',
+                generatedAt               : generatedAt,
                 generator                 : 'runStandaloneBetaReadinessGate',
                 status                    : 'PASS',
                 summary                   : 'Beta readiness CI policy is current-run-safe: beta-blocking reports are backed by current Gradle task state and stale report JSON is blocked.',
@@ -16428,6 +17019,8 @@ tasks.register('runStandaloneBetaReadinessGate') {
                 staleReportCount          : staleChecks.size(),
                 currentRunEvidenceRequired: true,
                 staleReportsRejected      : true,
+                visibleClientEvidenceRequired: true,
+                headlessOnlyEvidenceAccepted: false,
                 bootstrapPlaceholdersAccepted: false,
                 fullWorkspaceBuildReady   : fullWorkspaceReady,
                 fullWorkspaceBuildCurrentRunAccepted: fullWorkspaceCurrentRunAccepted,
@@ -16435,12 +17028,13 @@ tasks.register('runStandaloneBetaReadinessGate') {
                 evidenceReports           : [
                         'reports/echo/standalone/beta-readiness-gate.json',
                         'reports/echo/standalone/beta-readiness-checks.json',
+                        'reports/echo/standalone/packaged-visible-client-evidence.json',
                         'reports/echo/standalone/full-workspace-build-smoke.json'
                 ]
         ])
         new File(reportDir, 'beta-native-loader-execution.json').text = echoStandaloneJson([
                 schema                          : 'echo.standalone.beta_native_loader_execution.v1',
-                generatedAt                     : '1970-01-01T00:00:00Z',
+                generatedAt                     : generatedAt,
                 generator                       : 'runStandaloneBetaReadinessGate',
                 status                          : nativeLoaderExecutionCheck.status,
                 standaloneBootPath              : 'echo-native-loader-abi-v1',
@@ -16461,7 +17055,7 @@ tasks.register('runStandaloneBetaReadinessGate') {
         ])
         new File(reportDir, 'beta-readiness-gate.json').text = echoStandaloneJson([
                 schema                    : 'echo.standalone.beta_readiness_gate.v2',
-                generatedAt               : '1970-01-01T00:00:00Z',
+                generatedAt               : generatedAt,
                 generator                 : 'runStandaloneBetaReadinessGate',
                 status                    : status,
                 summary                   : summary,
@@ -16472,7 +17066,9 @@ tasks.register('runStandaloneBetaReadinessGate') {
                 checksPassed              : checks.count { it.status == 'PASS' },
                 staleReportCount          : staleChecks.size(),
                 deterministicRuntimeGreen : blockers.isEmpty(),
-                currentRunEvidencePolicy  : 'Beta-blocking report aggregates must be backed by their current Gradle task state; stale report JSON is marked STALE and blocks readiness.',
+                currentRunEvidencePolicy  : 'Beta-blocking report aggregates must be backed by their current Gradle task state; stale report JSON is marked STALE and blocks readiness. Headless-only checks cannot replace packaged visible-client screenshots and gameplay receipts.',
+                visibleClientEvidenceRequired: true,
+                headlessOnlyEvidenceAccepted: false,
                 standaloneBootPath        : 'echo-native-loader-abi-v1',
                 standaloneNativeLoaderAbiUsed: nativeAbiReady,
                 officialNativeModulesExecuted: officialModulesExecuted,
@@ -16494,6 +17090,7 @@ tasks.register('runStandaloneBetaReadinessGate') {
                         'reports/echo/standalone/beta-readiness-playable-qa.json',
                         'reports/echo/standalone/beta-readiness-support-bundle.json',
                         'reports/echo/standalone/beta-native-loader-execution.json',
+                        'reports/echo/standalone/packaged-visible-client-evidence.json',
                         'reports/echo/standalone/full-workspace-build-smoke.json',
                         'reports/echo/standalone/real-module-execution-smoke.json',
                         'reports/echo/standalone/addon-archive-compatibility-smoke.json',

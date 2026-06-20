@@ -106,11 +106,19 @@ final class EchoClientRenderer {
     }
 
     void rebuildAtlas(EchoVoxelWorld world) {
-        rebuildAtlas(atlasSourceCache.source(world));
+        rebuildAtlas(world, EchoClientEntityCatalog.empty());
+    }
+
+    void rebuildAtlas(EchoVoxelWorld world, EchoClientEntityCatalog entityCatalog) {
+        rebuildAtlas(atlasSourceCache.source(world, entityCatalog));
     }
 
     boolean rebuildAtlasIfSourceChanged(EchoVoxelWorld world) {
-        AtlasSource source = atlasSourceCache.source(world);
+        return rebuildAtlasIfSourceChanged(world, EchoClientEntityCatalog.empty());
+    }
+
+    boolean rebuildAtlasIfSourceChanged(EchoVoxelWorld world, EchoClientEntityCatalog entityCatalog) {
+        AtlasSource source = atlasSourceCache.source(world, entityCatalog);
         if (atlasSourceReady && atlasSourceSignature == source.signature()) {
             atlasReuseCount++;
             return false;
@@ -125,7 +133,13 @@ final class EchoClientRenderer {
 
     private void rebuildAtlas(AtlasSource source) {
         atlas.delete();
-        atlas.build(source.colors(), source.atlasKeys(), source.blockIdsByAtlasKey(), source.blockModelRequests());
+        atlas.build(
+                source.colors(),
+                source.atlasKeys(),
+                source.blockIdsByAtlasKey(),
+                source.blockModelRequests(),
+                source.explicitTextureIdsByAtlasKey()
+        );
         atlasSourceSignature = source.signature();
         atlasSourceReady = true;
         atlasRebuildCount++;
@@ -294,6 +308,7 @@ final class EchoClientRenderer {
                 entityCatalog,
                 droppedItems,
                 particles,
+                atlas,
                 projectionMatrix,
                 view,
                 environment,
@@ -579,6 +594,7 @@ final class EchoClientRenderer {
             Map<String, Integer> colors,
             Map<String, String> atlasKeys,
             Map<String, String> blockIdsByAtlasKey,
+            Map<String, String> explicitTextureIdsByAtlasKey,
             List<EchoClientTextureAtlas.BlockModelRequest> blockModelRequests
     ) {
     }
@@ -589,7 +605,11 @@ final class EchoClientRenderer {
         private int lastCellScanCount;
 
         int sourceSignature(EchoVoxelWorld world) {
-            return source(world).signature();
+            return source(world, EchoClientEntityCatalog.empty()).signature();
+        }
+
+        int sourceSignature(EchoVoxelWorld world, EchoClientEntityCatalog entityCatalog) {
+            return source(world, entityCatalog).signature();
         }
 
         int lastChunkScanCount() {
@@ -601,6 +621,10 @@ final class EchoClientRenderer {
         }
 
         private AtlasSource source(EchoVoxelWorld world) {
+            return source(world, EchoClientEntityCatalog.empty());
+        }
+
+        private AtlasSource source(EchoVoxelWorld world, EchoClientEntityCatalog entityCatalog) {
             Objects.requireNonNull(world, "world");
             lastChunkScanCount = 0;
             lastCellScanCount = 0;
@@ -611,6 +635,7 @@ final class EchoClientRenderer {
                 builder.add(chunkSource(world, chunk));
             }
             chunks.keySet().removeIf(chunkId -> !seen.contains(chunkId));
+            builder.addEntityVisuals(entityCatalog);
             return builder.build();
         }
 
@@ -661,6 +686,7 @@ final class EchoClientRenderer {
         private final TreeMap<String, String> blockIdsByAtlasKey = new TreeMap<>();
         private final TreeMap<String, EchoClientTextureAtlas.BlockModelRequest> blockModelRequestsByKey =
                 new TreeMap<>();
+        private final TreeMap<String, String> explicitTextureIdsByAtlasKey = new TreeMap<>();
 
         private void addState(
                 int x,
@@ -700,6 +726,41 @@ final class EchoClientRenderer {
             ));
         }
 
+        private void addEntityVisuals(EchoClientEntityCatalog entityCatalog) {
+            EchoClientEntityCatalog catalog = entityCatalog == null
+                    ? EchoClientEntityCatalog.empty()
+                    : entityCatalog;
+            addEntityTile(
+                    EchoClientTextureAtlas.ENTITY_FALLBACK_ATLAS_KEY,
+                    0xFFFFFFFF,
+                    ""
+            );
+            for (EchoClientEntityCatalog.EntityVisualProfile profile : catalog.graphBackedVisualProfiles()) {
+                EchoClientEntityCatalog.RenderProfile renderProfile = profile.renderProfile();
+                String textureId = renderProfile.textureId();
+                if (textureId == null || textureId.isBlank()) {
+                    continue;
+                }
+                addEntityTile(
+                        EchoClientTextureAtlas.textureAtlasKey(textureId),
+                        renderProfile.argb(),
+                        textureId
+                );
+            }
+        }
+
+        private void addEntityTile(String atlasKey, int argb, String textureId) {
+            if (atlasKey == null || atlasKey.isBlank()) {
+                return;
+            }
+            String materialId = "entity:" + atlasKey;
+            colors.putIfAbsent(atlasKey, argb);
+            atlasKeys.putIfAbsent(materialId, atlasKey);
+            if (textureId != null && !textureId.isBlank()) {
+                explicitTextureIdsByAtlasKey.putIfAbsent(atlasKey, textureId.trim());
+            }
+        }
+
         private AtlasSource build() {
             List<EchoClientTextureAtlas.BlockModelRequest> blockModelRequests =
                     List.copyOf(blockModelRequestsByKey.values());
@@ -707,12 +768,14 @@ final class EchoClientRenderer {
             signature = 31 * signature + colors.hashCode();
             signature = 31 * signature + atlasKeys.hashCode();
             signature = 31 * signature + blockIdsByAtlasKey.hashCode();
+            signature = 31 * signature + explicitTextureIdsByAtlasKey.hashCode();
             signature = 31 * signature + blockModelRequests.hashCode();
             return new AtlasSource(
                     signature,
                     new LinkedHashMap<>(colors),
                     new LinkedHashMap<>(atlasKeys),
                     new LinkedHashMap<>(blockIdsByAtlasKey),
+                    new LinkedHashMap<>(explicitTextureIdsByAtlasKey),
                     blockModelRequests
             );
         }

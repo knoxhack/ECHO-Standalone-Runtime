@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public final class EchoStandaloneAlphaReadinessGate {
@@ -30,7 +31,9 @@ public final class EchoStandaloneAlphaReadinessGate {
             "docs/echo/standalone/ECHO_STANDALONE_COMPATIBILITY_MIGRATION.md",
             "docs/echo/standalone/ECHO_STANDALONE_VERTICAL_SLICE.md",
             "docs/echo/standalone/ECHO_STANDALONE_LAUNCHER_MVP.md",
-            "docs/echo/standalone/ECHO_STANDALONE_ALPHA_READINESS.md"
+            "docs/echo/standalone/ECHO_STANDALONE_ALPHA_READINESS.md",
+            "docs/ashfall-standalone-parity-contract.md",
+            "docs/ashfall-standalone-parity-checklist.json"
     );
     private static final List<String> REQUIRED_REPORTS = List.of(
             "reports/echo/standalone/runtime-architecture.json",
@@ -99,6 +102,8 @@ public final class EchoStandaloneAlphaReadinessGate {
                 "launcher support bundle manifest has all required entries"
         ));
 
+        checks.addAll(contentGraphParityChecks(root));
+
         EchoStandaloneAlphaReadinessStatus status = checks.stream()
                 .anyMatch(EchoStandaloneAlphaReadinessCheck::blocked)
                         ? EchoStandaloneAlphaReadinessStatus.BLOCKED
@@ -111,6 +116,63 @@ public final class EchoStandaloneAlphaReadinessGate {
         );
         services.register(EchoStandaloneAlphaReadinessResult.class, result);
         return result;
+    }
+
+    private static List<EchoStandaloneAlphaReadinessCheck> contentGraphParityChecks(Path root) {
+        ArrayList<EchoStandaloneAlphaReadinessCheck> checks = new ArrayList<>();
+        Path contractPath = root.resolve("docs/ashfall-standalone-parity-checklist.json");
+        boolean contractPresent = Files.isRegularFile(contractPath);
+        checks.add(new EchoStandaloneAlphaReadinessCheck(
+                "content_graph.parity_contract",
+                "content_graph",
+                contractPresent,
+                true,
+                contractPresent
+                        ? "Ashfall parity checklist is present: " + contractPath
+                        : "Missing Ashfall parity checklist: " + contractPath
+        ));
+
+        Path auditPath = root.resolve("build/reports/ashfall-content-graph-audit.json");
+        if (Files.isRegularFile(auditPath)) {
+            try {
+                String text = Files.readString(auditPath);
+                Object parsed = dev.echo.standalone.runtime.data.EchoDataJson.parse(text);
+                if (parsed instanceof Map<?, ?> map) {
+                    Object statusValue = map.get("status");
+                    String auditStatus = statusValue == null ? "" : String.valueOf(statusValue);
+                    boolean pass = "PASS".equals(auditStatus);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Map<String, Object>> domains = (Map<String, Map<String, Object>>) map.get("domains");
+                    List<String> failingDomains = new ArrayList<>();
+                    if (domains != null) {
+                        for (Map.Entry<String, Map<String, Object>> entry : domains.entrySet()) {
+                            Object passed = entry.getValue().get("passed");
+                            if (passed instanceof Boolean b && !b) {
+                                failingDomains.add(entry.getKey());
+                            }
+                        }
+                    }
+                    checks.add(new EchoStandaloneAlphaReadinessCheck(
+                            "content_graph.audit_report",
+                            "content_graph",
+                            pass,
+                            true,
+                            pass
+                                    ? "Content graph audit report is PASS: " + auditPath
+                                    : "Content graph audit report is BLOCKED for domains: " + failingDomains
+                    ));
+                }
+            } catch (Exception e) {
+                checks.add(new EchoStandaloneAlphaReadinessCheck(
+                        "content_graph.audit_report",
+                        "content_graph",
+                        false,
+                        true,
+                        "Failed to read content graph audit report: " + e.getMessage()
+                ));
+            }
+        }
+        return checks;
     }
 
     private static void addArtifactChecks(

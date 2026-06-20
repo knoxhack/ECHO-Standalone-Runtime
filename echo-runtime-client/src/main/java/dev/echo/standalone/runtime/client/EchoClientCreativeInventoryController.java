@@ -12,9 +12,11 @@ import dev.echo.standalone.runtime.world.EchoVoxelBlock;
 import dev.echo.standalone.runtime.world.EchoVoxelBlockState;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -26,6 +28,97 @@ final class EchoClientCreativeInventoryController {
 
     CreativeInventoryModel model(List<CreativeTab> tabs) {
         return new CreativeInventoryModel(tabs);
+    }
+
+    CreativeInventoryModel modelFromRuntimeContentRows(List<Map<String, Object>> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return model(List.of());
+        }
+        LinkedHashMap<String, CreativeTabBuilder> tabs = new LinkedHashMap<>();
+        LinkedHashMap<String, CreativeEntry> entries = new LinkedHashMap<>();
+        LinkedHashMap<String, LinkedHashSet<String>> explicitTabItemIds = new LinkedHashMap<>();
+
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> metadata = map(row.get("metadata"));
+            String contentId = firstText(row.get("contentId"), metadata.get("contentGraphId"));
+            String domain = firstText(row.get("domain"), metadata.get("domain"));
+            String contentKind = firstText(row.get("contentKind"), metadata.get("contentKind"));
+            String graphKind = firstText(metadata.get("contentGraphKind"), contentKind);
+            String moduleId = firstText(row.get("moduleId"), metadata.get("moduleId"), moduleFromContentId(contentId));
+            String displayName = firstText(row.get("displayName"), metadata.get("displayName"), contentId);
+
+            if (creativeTabRow(graphKind, domain, metadata)) {
+                String tabId = normalizeQualified(contentId, moduleId + ":content_graph");
+                CreativeTabBuilder builder = tabs.computeIfAbsent(
+                        tabId,
+                        ignored -> new CreativeTabBuilder(
+                                moduleId,
+                                tabId,
+                                firstText(metadata.get("titleKey"), displayName)
+                        )
+                );
+                builder.titleKey(firstText(metadata.get("titleKey"), displayName, builder.titleKey()));
+                for (String itemId : stringList(metadata.get("itemIds"))) {
+                    explicitTabItemIds.computeIfAbsent(tabId, ignored -> new LinkedHashSet<>())
+                            .add(normalizeQualified(itemId, moduleId + ":creative_entry"));
+                }
+                continue;
+            }
+
+            if (!creativeEntryRow(contentKind, domain, graphKind)) {
+                continue;
+            }
+            CreativeEntry entry = new CreativeEntry(
+                    moduleId,
+                    contentId,
+                    displayName,
+                    blockEntry(contentKind, domain, graphKind),
+                    true
+            );
+            entries.putIfAbsent(entry.itemId(), entry);
+        }
+
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> metadata = map(row.get("metadata"));
+            String contentId = normalizeQualified(
+                    firstText(row.get("contentId"), metadata.get("contentGraphId")),
+                    firstText(row.get("moduleId"), metadata.get("moduleId"), "echo") + ":creative_entry"
+            );
+            CreativeEntry entry = entries.get(contentId);
+            if (entry == null) {
+                continue;
+            }
+            for (String tabId : stringList(metadata.get("creativeTabs"))) {
+                CreativeTabBuilder builder = tabs.computeIfAbsent(
+                        normalizeQualified(tabId, entry.moduleId() + ":content_graph"),
+                        normalizedTabId -> new CreativeTabBuilder(
+                                moduleFromContentId(normalizedTabId).isBlank()
+                                        ? entry.moduleId()
+                                        : moduleFromContentId(normalizedTabId),
+                                normalizedTabId,
+                                displayNameFromId(normalizedTabId)
+                        )
+                );
+                builder.add(entry);
+            }
+        }
+
+        for (Map.Entry<String, LinkedHashSet<String>> itemIdsByTab : explicitTabItemIds.entrySet()) {
+            CreativeTabBuilder builder = tabs.get(itemIdsByTab.getKey());
+            if (builder == null) {
+                continue;
+            }
+            for (String itemId : itemIdsByTab.getValue()) {
+                CreativeEntry entry = entries.get(itemId);
+                if (entry != null) {
+                    builder.add(entry);
+                }
+            }
+        }
+
+        return model(tabs.values().stream()
+                .map(CreativeTabBuilder::build)
+                .toList());
     }
 
     CreativeSelectionResult selectEntry(
@@ -339,6 +432,136 @@ final class EchoClientCreativeInventoryController {
             return normalized;
         }
         return normalize(fallback);
+    }
+
+    private static boolean creativeTabRow(String graphKind, String domain, Map<String, Object> metadata) {
+        return "echo:creative_tab".equals(normalize(graphKind))
+                || Boolean.TRUE.equals(metadata.get("creativeTab"))
+                || ("inventory".equals(normalize(domain))
+                && "echo:creative_tab".equals(normalize(String.valueOf(metadata.get("contentGraphKind")))));
+    }
+
+    private static boolean creativeEntryRow(String contentKind, String domain, String graphKind) {
+        String kind = normalize(contentKind).replace('-', '_').replace('.', '_');
+        String normalizedDomain = normalize(domain);
+        String normalizedGraphKind = normalize(graphKind);
+        return kind.equals("block")
+                || kind.equals("item")
+                || normalizedDomain.equals("blocks")
+                || normalizedDomain.equals("items")
+                || normalizedGraphKind.equals("echo:block")
+                || normalizedGraphKind.equals("echo:item");
+    }
+
+    private static boolean blockEntry(String contentKind, String domain, String graphKind) {
+        String kind = normalize(contentKind).replace('-', '_').replace('.', '_');
+        return kind.equals("block")
+                || normalize(domain).equals("blocks")
+                || normalize(graphKind).equals("echo:block");
+    }
+
+    private static String moduleFromContentId(String contentId) {
+        String normalized = normalize(contentId);
+        int colon = normalized.indexOf(':');
+        return colon > 0 ? normalized.substring(0, colon) : "";
+    }
+
+    private static String displayNameFromId(String id) {
+        String normalized = normalize(id);
+        int colon = normalized.lastIndexOf(':');
+        if (colon >= 0 && colon + 1 < normalized.length()) {
+            normalized = normalized.substring(colon + 1);
+        }
+        int slash = normalized.lastIndexOf('/');
+        if (slash >= 0 && slash + 1 < normalized.length()) {
+            normalized = normalized.substring(slash + 1);
+        }
+        StringBuilder result = new StringBuilder();
+        for (String part : normalized.replace('-', '_').split("_+")) {
+            if (part.isBlank()) {
+                continue;
+            }
+            if (result.length() > 0) {
+                result.append(' ');
+            }
+            result.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+        }
+        return result.isEmpty() ? id : result.toString();
+    }
+
+    private static String firstText(Object... values) {
+        if (values == null) {
+            return "";
+        }
+        for (Object value : values) {
+            String text = value == null ? "" : String.valueOf(value).trim();
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        return "";
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> map(Object value) {
+        if (value instanceof Map<?, ?> raw) {
+            return (Map<String, Object>) raw;
+        }
+        return Map.of();
+    }
+
+    private static List<String> stringList(Object value) {
+        if (!(value instanceof Iterable<?> iterable)) {
+            return List.of();
+        }
+        ArrayList<String> result = new ArrayList<>();
+        for (Object item : iterable) {
+            String text = normalize(String.valueOf(item));
+            if (!text.isBlank()) {
+                result.add(text);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static final class CreativeTabBuilder {
+        private final String moduleId;
+        private final String tabId;
+        private final LinkedHashMap<String, CreativeEntry> entries = new LinkedHashMap<>();
+        private String titleKey;
+
+        private CreativeTabBuilder(String moduleId, String tabId, String titleKey) {
+            this.moduleId = normalize(moduleId);
+            this.tabId = normalizeQualified(tabId, this.moduleId + ":content_graph");
+            this.titleKey = titleKey == null ? "" : titleKey.trim();
+        }
+
+        private String titleKey() {
+            return titleKey;
+        }
+
+        private void titleKey(String titleKey) {
+            String clean = titleKey == null ? "" : titleKey.trim();
+            if (!clean.isBlank()) {
+                this.titleKey = clean;
+            }
+        }
+
+        private void add(CreativeEntry entry) {
+            if (entry != null) {
+                entries.putIfAbsent(entry.itemId(), entry);
+            }
+        }
+
+        private CreativeTab build() {
+            return new CreativeTab(
+                    moduleId,
+                    tabId,
+                    titleKey.isBlank() ? displayNameFromId(tabId) : titleKey,
+                    List.copyOf(entries.values()),
+                    true
+            );
+        }
     }
 
     private static final class PlaceOnceInput implements EchoClientGameplayInput {

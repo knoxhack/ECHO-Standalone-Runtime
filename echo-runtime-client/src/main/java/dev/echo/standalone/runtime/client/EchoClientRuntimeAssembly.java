@@ -24,6 +24,7 @@ final class EchoClientRuntimeAssembly {
     private final EchoClientFocusLossRuntimeController focusLossRuntime;
     private final EchoClientEngineRuntimeBridge runtimeBridge;
 
+    private EchoClientPackagedVisibleEvidenceRecorder visibleEvidenceRecorder;
     private EchoClientInput input;
     private EchoClientRenderer renderer;
     private EchoClientHud hud;
@@ -215,6 +216,20 @@ final class EchoClientRuntimeAssembly {
         renderer.resize(window.width(), window.height());
         runtimeServices.setAudio(audio);
         screenRuntime.showInitialMainMenu();
+        if (launchContext.visibleEvidenceCapture()) {
+            visibleEvidenceRecorder = new EchoClientPackagedVisibleEvidenceRecorder(
+                    launchContext,
+                    runtimeServices,
+                    moduleBootstrap,
+                    screenRuntime,
+                    screens,
+                    commands,
+                    window
+            );
+            System.out.println("[echo-client] packaged visible evidence capture armed: "
+                    + launchContext.evidenceManifest());
+            launchContext.appendInstanceLog("[echo-client] packaged visible evidence capture armed");
+        }
         if (launchContext.quickPlayNewWorld()) {
             System.out.println("[echo-client] quick play: new world requested");
             launchContext.appendInstanceLog("[echo-client] quick play: new world requested");
@@ -231,6 +246,18 @@ final class EchoClientRuntimeAssembly {
     void renderFrame(int fps, long frames, EchoClientFramePacingSnapshot framePacing) {
         musicRuntime.update(frames);
         renderRuntime.render(fps, frames, input, framePacing);
+    }
+
+    void prepareVisibleEvidenceCaptureFrame(long frames) {
+        if (visibleEvidenceRecorder != null) {
+            visibleEvidenceRecorder.prepareBeforeRender(frames);
+        }
+    }
+
+    void captureVisibleEvidenceFrame(long frames) {
+        if (visibleEvidenceRecorder != null) {
+            visibleEvidenceRecorder.captureAfterRender(frames);
+        }
     }
 
     void showFatalError(Throwable failure) {
@@ -289,6 +316,9 @@ final class EchoClientRuntimeAssembly {
     }
 
     void close() {
+        if (visibleEvidenceRecorder != null) {
+            visibleEvidenceRecorder.writeIncompleteIfNeeded();
+        }
         if (renderer != null) {
             renderer.delete();
         }

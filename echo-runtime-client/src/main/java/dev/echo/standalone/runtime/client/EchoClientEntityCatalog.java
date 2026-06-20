@@ -4,6 +4,7 @@ import dev.echo.standalone.runtime.entity.EchoEntityDefinition;
 import dev.echo.standalone.runtime.entity.EchoEntityKind;
 import dev.echo.standalone.runtime.world.EchoVoxelBiome;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +72,50 @@ record EchoClientEntityCatalog(
         return renderProfiles.getOrDefault(definitionId, RenderProfile.DEFAULT);
     }
 
+    Optional<EntityVisualProfile> firstGraphBackedSpawnProfile() {
+        for (SpawnRule rule : spawnRules) {
+            EchoEntityDefinition definition = rule.definition();
+            RenderProfile profile = renderProfile(definition.definitionId());
+            if (profile.graphBackedVisual() && !rule.biomeTags().isEmpty()) {
+                return Optional.of(new EntityVisualProfile(definition, profile, rule.biomeTags()));
+            }
+        }
+        return graphBackedVisualProfiles().stream().findFirst();
+    }
+
+    List<EntityVisualProfile> graphBackedVisualProfiles() {
+        ArrayList<EntityVisualProfile> profiles = new ArrayList<>();
+        for (Map.Entry<String, RenderProfile> entry : renderProfiles.entrySet()) {
+            RenderProfile profile = entry.getValue();
+            if (profile == null || !profile.graphBackedVisual()) {
+                continue;
+            }
+            EchoEntityDefinition definition = definitions.get(entry.getKey());
+            if (definition != null) {
+                profiles.add(new EntityVisualProfile(definition, profile, profile.spawnBiomeTags()));
+            }
+        }
+        return List.copyOf(profiles);
+    }
+
+    long graphBackedVisualProfileCount() {
+        return renderProfiles.values().stream()
+                .filter(RenderProfile::graphBackedVisual)
+                .count();
+    }
+
+    long graphBackedThreatProfileCount() {
+        return renderProfiles.values().stream()
+                .filter(RenderProfile::threatMetadataPresent)
+                .count();
+    }
+
+    long graphBackedSpawnRuleProfileCount() {
+        return renderProfiles.values().stream()
+                .filter(RenderProfile::spawnRuleMetadataPresent)
+                .count();
+    }
+
     static EchoEntityDefinition hostile(String id, String name, int maxHealth, String aiProfile) {
         return new EchoEntityDefinition(id, name, EchoEntityKind.HOSTILE, maxHealth, 1, aiProfile);
     }
@@ -104,11 +149,76 @@ record EchoClientEntityCatalog(
         }
     }
 
-    record RenderProfile(int argb, RenderShape shape) {
+    record EntityVisualProfile(
+            EchoEntityDefinition definition,
+            RenderProfile renderProfile,
+            List<String> spawnBiomeTags
+    ) {
+        EntityVisualProfile {
+            if (definition == null) {
+                throw new IllegalArgumentException("definition must not be null");
+            }
+            renderProfile = renderProfile == null ? RenderProfile.DEFAULT : renderProfile;
+            spawnBiomeTags = List.copyOf(spawnBiomeTags == null ? List.of() : spawnBiomeTags);
+        }
+
+        boolean graphBackedVisual() {
+            return renderProfile.graphBackedVisual();
+        }
+
+        boolean threatMetadataPresent() {
+            return renderProfile.threatMetadataPresent();
+        }
+
+        boolean spawnRuleMetadataPresent() {
+            return !spawnBiomeTags.isEmpty() || renderProfile.spawnRuleMetadataPresent();
+        }
+    }
+
+    record RenderProfile(
+            int argb,
+            RenderShape shape,
+            String modelId,
+            String textureId,
+            String animationId,
+            String renderProfileId,
+            boolean graphBackedVisual,
+            String threatProfile,
+            int threatLevel,
+            List<String> spawnBiomeTags
+    ) {
         static final RenderProfile DEFAULT = new RenderProfile(0xFF7FA35D, RenderShape.HUMANOID);
+
+        RenderProfile(int argb, RenderShape shape) {
+            this(argb, shape, "", "", "", "", false, "", 0, List.of());
+        }
 
         RenderProfile {
             shape = shape == null ? RenderShape.HUMANOID : shape;
+            modelId = clean(modelId);
+            textureId = clean(textureId);
+            animationId = clean(animationId);
+            renderProfileId = clean(renderProfileId);
+            graphBackedVisual = graphBackedVisual
+                    && (!modelId.isBlank() || !textureId.isBlank() || !animationId.isBlank());
+            threatProfile = clean(threatProfile);
+            threatLevel = Math.max(0, threatLevel);
+            spawnBiomeTags = List.copyOf(spawnBiomeTags == null ? List.of() : spawnBiomeTags.stream()
+                    .filter(tag -> tag != null && !tag.isBlank())
+                    .map(String::trim)
+                    .toList());
+        }
+
+        boolean threatMetadataPresent() {
+            return !threatProfile.isBlank() || threatLevel > 0;
+        }
+
+        boolean spawnRuleMetadataPresent() {
+            return !spawnBiomeTags.isEmpty();
+        }
+
+        private static String clean(String value) {
+            return value == null ? "" : value.trim();
         }
     }
 

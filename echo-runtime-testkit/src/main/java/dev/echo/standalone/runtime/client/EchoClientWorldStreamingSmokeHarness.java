@@ -377,6 +377,20 @@ public final class EchoClientWorldStreamingSmokeHarness {
         RuntimeWorldgenIds ids = importRuntimeWorldgenRows(services);
         require(services.session() == session,
                 "Runtime worldgen hot-import should refresh the active session in place");
+        EchoClientRuntimeWorldgenCatalog catalog = services.runtimeWorldgenCatalog();
+        require(catalog.structurePlacementCount() >= 1
+                        && catalog.featurePlacementCount() >= 1,
+                "Runtime worldgen catalog should expose structure and feature rows for visible evidence; "
+                        + catalog.detailSummaryForSmoke());
+        require(catalog.evidenceTargets().stream().anyMatch(target ->
+                        target.kind().equals("structure")
+                                && target.blockId().equals(ids.blockId())
+                                && target.runtimeId().equals(ids.structureRuntimeId()))
+                        && catalog.evidenceTargets().stream().anyMatch(target ->
+                        target.kind().equals("feature")
+                                && target.blockId().equals(ids.blockId())
+                                && target.runtimeId().equals(ids.featureRuntimeId())),
+                "Runtime worldgen catalog should expose structure and feature visible-evidence targets");
 
         EchoClientGameplay gameplay = new EchoClientGameplay();
         gameplay.init(session.world(), session.player(), session.hotbar());

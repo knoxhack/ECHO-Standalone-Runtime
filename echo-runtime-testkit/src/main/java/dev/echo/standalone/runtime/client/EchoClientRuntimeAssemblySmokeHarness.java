@@ -3,6 +3,14 @@ package dev.echo.standalone.runtime.client;
 import java.nio.file.Path;
 
 public final class EchoClientRuntimeAssemblySmokeHarness {
+    private static final Path DEFAULT_PACK_ROOT = Path.of(
+            "..",
+            "ECHO-Ashfall-Standalone-Edition",
+            "tmp",
+            "rebuild-official-modpack-assets",
+            "ashfall-standalone-edition"
+    ).toAbsolutePath().normalize();
+
     private EchoClientRuntimeAssemblySmokeHarness() {
     }
 
@@ -37,23 +45,65 @@ public final class EchoClientRuntimeAssemblySmokeHarness {
         require(!runtime.runtimeBridge().screenshotInputGate().consumeScreenshotRequest(),
                 "Runtime assembly bridge should be idle before native input is attached");
 
+        Path packRoot = DEFAULT_PACK_ROOT;
+        Path modulesRoot = packRoot.resolve("mods").toAbsolutePath().normalize();
+        Path packManifest = packRoot.resolve(".echo").resolve("pack-manifest.json").toAbsolutePath().normalize();
+        Path evidenceOutput = Path.of("build", "tmp", "visible-evidence").toAbsolutePath().normalize();
+        Path evidenceManifest = Path.of(
+                "reports",
+                "echo",
+                "standalone",
+                "packaged-visible-client-captures.json"
+        ).toAbsolutePath().normalize();
         EchoClientLaunchContext launchContext = EchoClientLaunchContext.parse(new String[] {
                 "--live", "C:\\Echo\\Runtime",
                 "--profileId", "ashfall-standalone-edition",
-                "--installPath", "C:\\Echo\\Instances\\Ashfall Standalone Edition",
-                "--packManifest", "C:\\Echo\\Instances\\Ashfall Standalone Edition\\.echo\\installed-manifest.json",
-                "--devAccount", "EchoDev"
+                "--installPath", packRoot.toString(),
+                "--packManifest", packManifest.toString(),
+                "--pack-root", packRoot.toString(),
+                "--modules-root", modulesRoot.toString(),
+                "--devAccount", "EchoDev",
+                "--visible-evidence-capture",
+                "--packaged-client-evidence",
+                "--evidence-output", evidenceOutput.toString(),
+                "--evidence-manifest", evidenceManifest.toString()
         });
-        EchoClientRuntimeAssembly contextualRuntime = EchoClientRuntimeAssembly.create(800, 450, launchContext);
+        require(launchContext.installPath().equals(packRoot),
+                "Launch context should normalize launcher install path context");
+        require(launchContext.visibleEvidenceCapture(),
+                "Launch context should retain visible evidence capture mode");
+        require(launchContext.packagedClientEvidence(),
+                "Launch context should retain packaged-client evidence mode");
+        require(launchContext.evidenceOutputRoot().equals(evidenceOutput),
+                "Launch context should normalize visible evidence output root");
+        require(launchContext.evidenceManifest().equals(evidenceManifest),
+                "Launch context should normalize visible evidence manifest path");
+
+        EchoClientLaunchContext contextualLaunchContext = new EchoClientLaunchContext(
+                false,
+                null,
+                "ashfall-standalone-edition",
+                null,
+                null,
+                null,
+                null,
+                "EchoDev",
+                false,
+                false,
+                false,
+                false,
+                null,
+                null
+        );
+        EchoClientRuntimeAssembly contextualRuntime = EchoClientRuntimeAssembly.create(800, 450, contextualLaunchContext);
         contextualRuntime.screenRuntime().showInitialMainMenu();
         EchoClientScreenSnapshot contextualTitle = contextualRuntime.screens().snapshot(false);
         require(contextualRuntime.launchContext().hasPackContext(),
                 "Runtime assembly should retain launcher pack context");
         require(contextualTitle.subtitle().contains("ashfall-standalone-edition"),
                 "Main menu should surface standalone launch profile context");
-        require(contextualRuntime.launchContext().installPath().equals(
-                        Path.of("C:\\Echo\\Instances\\Ashfall Standalone Edition").toAbsolutePath().normalize()),
-                "Runtime assembly should normalize launcher install path context");
+        require(!contextualRuntime.launchContext().strictPackMode(),
+                "Runtime assembly smoke should not trigger strict installed-pack module execution");
 
         System.out.println("client runtime assembly smoke PASS width=" + runtime.window().width()
                 + " title=" + title.kind());
