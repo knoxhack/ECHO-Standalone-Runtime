@@ -1,0 +1,57 @@
+{
+  "schema": "echo.standalone.beta.static-audit.v1",
+  "target": {
+    "runtimeRepo": "knoxhack/ECHO-Standalone-Runtime",
+    "runtimeCommit": "188852c567b51178a31898ec9698959c3b5fb7bc",
+    "ashfallRepo": "knoxhack/ECHO-Ashfall-Standalone-Edition",
+    "ashfallCommit": "ef3d4897b742ea02c505e4a37e90d8c0b5ac0d50"
+  },
+  "status": "BLOCKED",
+  "blockers": [
+    {
+      "id": "launch.neoforge-contract",
+      "severity": "P0",
+      "summary": "Standalone manifest launches NeoForge/FML client."
+    },
+    {
+      "id": "client.modules.not-executed",
+      "severity": "P0",
+      "summary": "LWJGL client uses descriptor-only scan and bypasses executable module boot."
+    },
+    {
+      "id": "client.installed-root-discovery",
+      "severity": "P0",
+      "summary": "Root and asset discovery is biased toward source checkout layouts."
+    },
+    {
+      "id": "evidence.bootstrap-pass",
+      "severity": "P0",
+      "summary": "Missing reports may be bootstrapped and alpha gate checks existence."
+    },
+    {
+      "id": "evidence.skipped-task-pass",
+      "severity": "P0",
+      "summary": "Beta task check can mark skipped tasks PASS."
+    },
+    {
+      "id": "frame.double-limiter",
+      "severity": "P1",
+      "summary": "VSync and manual 60 Hz sleep can both limit the same frame."
+    },
+    {
+      "id": "render.synchronous-chunk-work",
+      "severity": "P1",
+      "summary": "Chunk generation, CPU meshing, and mesh conversion can block the game/render thread."
+    },
+    {
+      "id": "parity.inventory-vs-gameplay",
+      "severity": "P1",
+      "summary": "Feature inventory count is not equivalent to visible executed gameplay parity."
+    },
+    {
+      "id": "soak.simulated-time",
+      "severity": "P1",
+      "summary": "Deterministic simulated soak is not wall-clock packaged gameplay proof."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "pack": "fixture",
+  "minecraft": "Standalone",
+  "loader": "echo-standalone-runtime",
+  "launch": {
+    "mainClass": "dev.echo.standalone.runtime.client.EchoClientMain",
+    "gameArgs": [
+      "--pack-root",
+      "${game_directory}",
+      "--modules-root",
+      "${game_directory}/mods"
+    ],
+    "jvmArgs": [
+      "--enable-native-access=ALL-UNNAMED"
+    ]
+  },
+  "modules": [
+    "echoexample"
+  ],
+  "files": [
+    {
+      "id": "echoexample",
+      "moduleId": "echoexample",
+      "artifactFamily": "standalone",
+      "assetName": "echoexample-1.0.0-standalone.jar",
+      "path": "mods/echoexample-1.0.0-standalone.jar",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size": 1
+    }
+  ],
+  "moduleRequirements": [
+    {
+      "moduleId": "echoexample",
+      "artifactFamily": "standalone"
+    }
+  ]
+}

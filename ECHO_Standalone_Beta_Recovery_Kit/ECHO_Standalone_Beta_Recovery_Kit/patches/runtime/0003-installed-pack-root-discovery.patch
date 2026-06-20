@@ -1,0 +1,155 @@
+diff --git a/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientMain.java b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientMain.java
+index 1111111..2222222 100644
+--- a/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientMain.java
++++ b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientMain.java
+@@ -7,7 +7,11 @@
+  */
+ public final class EchoClientMain {
+     public static void main(String[] args) {
++        EchoClientLaunchOptions launchOptions = EchoClientLaunchOptions.parse(args);
++        launchOptions.applySystemProperties();
+         System.out.println("[echo-client] starting ECHO standalone client (LWJGL " + Version.getVersion() + ")");
++        System.out.println("[echo-client] packRoot=" + launchOptions.packRoot()
++                + " modulesRoot=" + launchOptions.modulesRoot());
+         EchoClientEngine engine = new EchoClientEngine();
+         try {
+             engine.start();
+diff --git a/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientLaunchOptions.java b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientLaunchOptions.java
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientLaunchOptions.java
+@@ -0,0 +1,55 @@
++package dev.echo.standalone.runtime.client;
++
++import java.nio.file.Path;
++
++record EchoClientLaunchOptions(Path packRoot, Path modulesRoot, boolean safeMode) {
++    private static final String PACK_ROOT_PROPERTY = "echo.pack.root";
++    private static final String MODULES_ROOT_PROPERTY = "echo.modules.root";
++
++    static EchoClientLaunchOptions parse(String[] args) {
++        Path packRoot = configuredPath(PACK_ROOT_PROPERTY, "ECHO_PACK_ROOT");
++        Path modulesRoot = configuredPath(MODULES_ROOT_PROPERTY, "ECHO_MODULES_ROOT");
++        boolean safeMode = false;
++        String[] safeArgs = args == null ? new String[0] : args;
++        for (int i = 0; i < safeArgs.length; i++) {
++            String argument = safeArgs[i] == null ? "" : safeArgs[i].trim();
++            switch (argument) {
++                case "--pack-root" -> packRoot = requiredPath(safeArgs, ++i, argument);
++                case "--modules-root" -> modulesRoot = requiredPath(safeArgs, ++i, argument);
++                case "--safe-mode" -> safeMode = true;
++                case "" -> { }
++                default -> throw new IllegalArgumentException("Unknown ECHO Standalone argument: " + argument);
++            }
++        }
++        Path normalizedPackRoot = normalize(packRoot == null ? Path.of(".") : packRoot);
++        Path normalizedModulesRoot = normalize(
++                modulesRoot == null ? normalizedPackRoot.resolve("mods") : modulesRoot
++        );
++        return new EchoClientLaunchOptions(normalizedPackRoot, normalizedModulesRoot, safeMode);
++    }
++
++    void applySystemProperties() {
++        System.setProperty(PACK_ROOT_PROPERTY, packRoot.toString());
++        System.setProperty(MODULES_ROOT_PROPERTY, modulesRoot.toString());
++        System.setProperty("echo.safe.mode", Boolean.toString(safeMode));
++    }
++
++    private static Path requiredPath(String[] args, int index, String option) {
++        if (index >= args.length || args[index] == null || args[index].isBlank()) {
++            throw new IllegalArgumentException("Missing path after " + option);
++        }
++        return Path.of(args[index]);
++    }
++
++    private static Path configuredPath(String property, String environment) {
++        String value = System.getProperty(property, "").trim();
++        if (value.isBlank()) {
++            value = System.getenv(environment);
++        }
++        return value == null || value.isBlank() ? null : Path.of(value);
++    }
++
++    private static Path normalize(Path path) {
++        return path.toAbsolutePath().normalize();
++    }
++}
+diff --git a/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientWorkspaceRoots.java b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientWorkspaceRoots.java
+index 1111111..2222222 100644
+--- a/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientWorkspaceRoots.java
++++ b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientWorkspaceRoots.java
+@@ -13,12 +13,15 @@
+     private static final String MODULES_REPO_NAME = "ECHO-Modules";
+     private static final String MODULES_ROOT_PROPERTY = "echo.modules.root";
+     private static final String MODULES_ROOT_ENV = "ECHO_MODULES_ROOT";
++    private static final String PACK_ROOT_PROPERTY = "echo.pack.root";
++    private static final String PACK_ROOT_ENV = "ECHO_PACK_ROOT";
+ 
+     private EchoClientWorkspaceRoots() {
+     }
+ 
+     static List<Path> launchAnchors() {
+         LinkedHashSet<Path> anchors = new LinkedHashSet<>();
++        addAnchor(anchors, configuredPath(PACK_ROOT_PROPERTY, PACK_ROOT_ENV));
+         addAnchor(anchors, Path.of(System.getProperty("user.dir", ".")));
+         addAnchor(anchors, Path.of("."));
+         CodeSource codeSource = EchoClientWorkspaceRoots.class.getProtectionDomain().getCodeSource();
+@@ -74,6 +77,8 @@
+     static List<Path> echoModuleAddonRoots(List<Path> anchors) {
+         LinkedHashSet<Path> roots = new LinkedHashSet<>();
+         addIfDirectory(roots, configuredModulesRoot());
++        Path packRoot = configuredPath(PACK_ROOT_PROPERTY, PACK_ROOT_ENV);
++        addIfDirectory(roots, packRoot == null ? null : packRoot.resolve("mods"));
+         for (Path echoRoot : echoWorkspaceRoots(anchors)) {
+             addIfDirectory(roots, echoRoot.resolve("addons"));
+             addIfDirectory(roots, echoRoot.resolve(MODULES_REPO_NAME).resolve("addons"));
+@@ -91,6 +96,9 @@
+     private static void addStandaloneRoots(LinkedHashSet<Path> roots, Path anchor) {
+         Path current = directoryAnchor(anchor);
+         while (current != null) {
++            if (installedPackLike(current)) {
++                roots.add(current.toAbsolutePath().normalize());
++            }
+             if (standaloneLike(current)) {
+                 roots.add(current);
+             }
+@@ -130,14 +138,19 @@
+     }
+ 
+     private static Path configuredModulesRoot() {
+-        String configured = System.getProperty(MODULES_ROOT_PROPERTY, "").trim();
++        return configuredPath(MODULES_ROOT_PROPERTY, MODULES_ROOT_ENV);
++    }
++
++    private static Path configuredPath(String property, String environment) {
++        String configured = System.getProperty(property, "").trim();
+         if (configured.isBlank()) {
+-            configured = System.getenv(MODULES_ROOT_ENV);
++            configured = System.getenv(environment);
+         }
+-        if (configured == null || configured.isBlank()) {
+-            return null;
+-        }
+-        return Path.of(configured);
++        return configured == null || configured.isBlank() ? null : Path.of(configured);
++    }
++
++    private static boolean installedPackLike(Path path) {
++        return path != null && Files.isDirectory(path.resolve("mods"));
+     }
+ 
+     private static Path directoryAnchor(Path anchor) {
+diff --git a/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientResourcePackService.java b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientResourcePackService.java
+index 1111111..2222222 100644
+--- a/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientResourcePackService.java
++++ b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientResourcePackService.java
+@@ -112,4 +112,8 @@
+         for (Path addonsRoot : EchoClientWorkspaceRoots.echoModuleAddonRoots(launchAnchors)) {
+             addModuleResourceRoots(result, addonsRoot);
++            if (addonsRoot.getFileName() != null
++                    && addonsRoot.getFileName().toString().equalsIgnoreCase("mods")) {
++                addChildren(result, addonsRoot);
++            }
+         }
+         for (Path standaloneRoot : EchoClientWorkspaceRoots.standaloneRuntimeRoots(launchAnchors)) {

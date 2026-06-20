@@ -109,6 +109,10 @@ final class EchoClientResourcePackService {
         }
         for (Path addonsRoot : EchoClientWorkspaceRoots.echoModuleAddonRoots(launchAnchors)) {
             addModuleResourceRoots(result, addonsRoot);
+            if (addonsRoot.getFileName() != null
+                    && addonsRoot.getFileName().toString().equalsIgnoreCase("mods")) {
+                addChildren(result, addonsRoot);
+            }
         }
         for (Path standaloneRoot : EchoClientWorkspaceRoots.standaloneRuntimeRoots(launchAnchors)) {
             addChildren(result, standaloneRoot.resolve("resourcepacks"));

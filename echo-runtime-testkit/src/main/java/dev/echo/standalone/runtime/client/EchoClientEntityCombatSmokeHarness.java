@@ -31,8 +31,8 @@ public final class EchoClientEntityCombatSmokeHarness {
         EchoClientGameSession session =
                 EchoClientWorldSessionFactory.defaultFactory().newWorld("entity-combat-direct").gameSession();
         equipStarterTool(session);
-        orientForCombat(session);
         EchoWorldPosition targetPosition = combatTargetPosition(session);
+        orientForCombat(session, targetPosition);
         session.entityStore().register(hostile(TEST_ENTITY_ID, targetPosition));
 
         int beforeXp = session.progressionState().experience();
@@ -42,7 +42,9 @@ public final class EchoClientEntityCombatSmokeHarness {
         EchoClientEntityAttackResult attack = session.attackLookedAtEntity(null);
 
         require(attack.hit() && attack.killed(),
-                "Direct session attack should hit and kill the looked-at hostile");
+                "Direct session attack should hit and kill the looked-at hostile: attack=" + attack
+                        + " player=" + session.player().state()
+                        + " target=" + targetPosition);
         require(attack.damage() >= 6 && attack.healthBefore() == 6 && attack.healthAfter() == 0,
                 "Tool-backed entity attack should apply lethal combat damage");
         require(session.entityStore().find(new EchoEntityId(TEST_ENTITY_ID)).isEmpty(),
@@ -62,8 +64,8 @@ public final class EchoClientEntityCombatSmokeHarness {
         EchoClientGameSession session =
                 EchoClientWorldSessionFactory.defaultFactory().newWorld("entity-combat-gameplay").gameSession();
         equipStarterTool(session);
-        orientForCombat(session);
         EchoWorldPosition targetPosition = combatTargetPosition(session);
+        orientForCombat(session, targetPosition);
         session.entityStore().register(hostile(TEST_ENTITY_ID, targetPosition));
         EchoClientGameplay gameplay = new EchoClientGameplay();
         gameplay.init(session.world(), session.player(), session.hotbar());
@@ -73,7 +75,12 @@ public final class EchoClientEntityCombatSmokeHarness {
         gameplay.tick(EchoVoxelPlayerInput.idle(), new BreakOnceInput(1), 1.0D / 60.0D, session);
 
         require(session.entityStore().find(new EchoEntityId(TEST_ENTITY_ID)).isEmpty(),
-                "Gameplay left-click should route through entity combat before block breaking");
+                "Gameplay left-click should route through entity combat before block breaking: player="
+                        + session.player().state()
+                        + " target=" + targetPosition
+                        + " voxelTarget=" + gameplay.target()
+                        + " breakProgress=" + gameplay.breakProgress()
+                        + " worldDirty=" + gameplay.isWorldDirty());
         require(session.progressionState().experience() == beforeXp + 10,
                 "Gameplay left-click combat should award hostile kill XP");
         require(session.droppedItemQuantity() == beforeDrops + 2,
@@ -91,11 +98,17 @@ public final class EchoClientEntityCombatSmokeHarness {
                 "Entity combat smoke should select a live starter tool");
     }
 
-    private static void orientForCombat(EchoClientGameSession session) {
+    private static void orientForCombat(EchoClientGameSession session, EchoWorldPosition targetPosition) {
         EchoVoxelPlayerState state = session.player().state();
+        double dx = targetPosition.x() + 0.5D - state.x();
+        double dy = targetPosition.y() + 0.86D - state.eyeY();
+        double dz = targetPosition.z() + 0.5D - state.z();
+        double horizontalDistance = Math.hypot(dx, dz);
+        double targetYaw = Math.toDegrees(Math.atan2(dx, dz));
+        double targetPitch = Math.toDegrees(Math.atan2(dy, horizontalDistance));
         session.player().tick(
                 session.world(),
-                EchoVoxelPlayerInput.look(-state.yawDegrees(), -12.0D - state.pitchDegrees()),
+                EchoVoxelPlayerInput.look(targetYaw - state.yawDegrees(), targetPitch - state.pitchDegrees()),
                 0.0D
         );
     }
@@ -103,8 +116,13 @@ public final class EchoClientEntityCombatSmokeHarness {
     private static EchoWorldPosition combatTargetPosition(EchoClientGameSession session) {
         EchoVoxelPlayerState player = session.player().state();
         int x = (int) Math.floor(player.x());
+        int standingY = (int) Math.floor(player.y());
         for (int distance = 2; distance <= 4; distance++) {
             int z = (int) Math.floor(player.z() + distance);
+            if (session.world().blockStateAt(x, standingY, z).air()
+                    && session.world().blockStateAt(x, standingY + 1, z).air()) {
+                return new EchoWorldPosition(x, standingY, z);
+            }
             int y = EchoClientEntityAi.surfaceSpawnY(session.world(), x, z);
             if (y >= 0 && session.world().blockStateAt(x, y, z).air()) {
                 return new EchoWorldPosition(x, y, z);

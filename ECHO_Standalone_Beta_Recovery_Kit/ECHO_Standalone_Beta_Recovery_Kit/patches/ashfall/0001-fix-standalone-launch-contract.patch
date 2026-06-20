@@ -1,0 +1,36 @@
+diff --git a/release-manifest.template.json b/release-manifest.template.json
+index 1111111..2222222 100644
+--- a/release-manifest.template.json
++++ b/release-manifest.template.json
+@@ -13,22 +13,18 @@
+     "requiredJava": "25+"
+   },
+   "launch": {
+-    "mainClass": "net.neoforged.fml.startup.Client",
++    "mainClass": "dev.echo.standalone.runtime.client.EchoClientMain",
+     "gameArgs": [
+-      "--fml.neoForgeVersion",
+-      "26.1.2.43-beta",
+-      "--fml.mcVersion",
+-      "26.1.2",
+-      "--fml.neoFormVersion",
+-      "1"
++      "--pack-root",
++      "${game_directory}",
++      "--modules-root",
++      "${game_directory}/mods"
+     ],
+     "jvmArgs": [
+-      "-Djava.net.preferIPv6Addresses=system",
+-      "-DlibraryDirectory=${library_directory}",
+-      "--add-opens",
+-      "java.base/java.lang.invoke=ALL-UNNAMED",
+-      "--add-exports",
+-      "jdk.naming.dns/com.sun.jndi.dns=java.naming"
++      "--enable-native-access=ALL-UNNAMED",
++      "-Dfile.encoding=UTF-8",
++      "-Decho.pack.root=${game_directory}",
++      "-Decho.modules.root=${game_directory}/mods"
+     ]
+   },
+   "modules": [

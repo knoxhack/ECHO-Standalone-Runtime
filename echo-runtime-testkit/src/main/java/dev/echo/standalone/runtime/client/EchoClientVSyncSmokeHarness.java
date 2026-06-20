@@ -10,6 +10,7 @@ public final class EchoClientVSyncSmokeHarness {
 
     public static void main(String[] args) throws IOException {
         requireDefaultAndSwapInterval();
+        requireEnginePacingPolicy();
         requireVideoSettingsToggleAndPersistence();
         requireRuntimeWindowTargetApplication();
         System.out.println("client vsync smoke PASS default=on toggled=off interval=1/0");
@@ -22,6 +23,13 @@ public final class EchoClientVSyncSmokeHarness {
                 "Enabled VSync should request GLFW swap interval 1");
         require(EchoGlfwWindow.swapIntervalForVSync(false) == 0,
                 "Disabled VSync should request GLFW swap interval 0");
+    }
+
+    private static void requireEnginePacingPolicy() {
+        require(!EchoClientEngine.shouldManuallyPace(true),
+                "The engine must not sleep after a VSync-blocked buffer swap");
+        require(EchoClientEngine.shouldManuallyPace(false),
+                "The engine should use its manual limiter when VSync is disabled");
     }
 
     private static void requireVideoSettingsToggleAndPersistence() throws IOException {

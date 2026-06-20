@@ -16,7 +16,8 @@ import java.util.Map;
 final class EchoClientRuntimeServices {
     private final EchoClientGameplay gameplay = new EchoClientGameplay();
     private final EchoClientSaveSlotService saveSlots;
-    private final EchoClientModScanService modScan = new EchoClientModScanService();
+    private final EchoClientModScanService modScan;
+    private final EchoClientModuleBootstrapResult moduleBootstrap;
     private final EchoClientResourcePackService resourcePacks;
     private final EchoClientWorkbenchRecipeService workbenchRecipes = new EchoClientWorkbenchRecipeService();
     private final EchoClientSupportBundleService supportBundles;
@@ -51,23 +52,48 @@ final class EchoClientRuntimeServices {
     }
 
     EchoClientRuntimeServices(EchoClientSaveSlotService saveSlots) {
-        this(saveSlots, EchoClientWorldSessionFactory.defaultFactory(), new EchoClientResourcePackService());
+        this(
+                saveSlots,
+                EchoClientWorldSessionFactory.defaultFactory(),
+                new EchoClientResourcePackService(),
+                EchoClientModuleBootstrapResult.inactive()
+        );
     }
 
     EchoClientRuntimeServices(
             EchoClientSaveSlotService saveSlots,
             EchoClientResourcePackService resourcePacks
     ) {
-        this(saveSlots, EchoClientWorldSessionFactory.defaultFactory(), resourcePacks);
+        this(
+                saveSlots,
+                EchoClientWorldSessionFactory.defaultFactory(),
+                resourcePacks,
+                EchoClientModuleBootstrapResult.inactive()
+        );
     }
 
     static EchoClientRuntimeServices forTemplate(EchoClientWorldTemplate template) {
-        return forTemplate(template, null);
+        return forTemplate(template, null, EchoClientModuleBootstrapResult.inactive());
     }
 
     static EchoClientRuntimeServices forTemplate(
             EchoClientWorldTemplate template,
             java.nio.file.Path saveRoot
+    ) {
+        return forTemplate(template, saveRoot, EchoClientModuleBootstrapResult.inactive());
+    }
+
+    static EchoClientRuntimeServices forTemplate(
+            EchoClientWorldTemplate template,
+            EchoClientModuleBootstrapResult moduleBootstrap
+    ) {
+        return forTemplate(template, null, moduleBootstrap);
+    }
+
+    static EchoClientRuntimeServices forTemplate(
+            EchoClientWorldTemplate template,
+            java.nio.file.Path saveRoot,
+            EchoClientModuleBootstrapResult moduleBootstrap
     ) {
         EchoClientWorldTemplate safeTemplate = template == null
                 ? EchoClientWorldTemplates.defaultTemplate()
@@ -78,7 +104,8 @@ final class EchoClientRuntimeServices {
         return new EchoClientRuntimeServices(
                 EchoClientSaveSlotService.open(root, safeTemplate),
                 EchoClientWorldSessionFactory.forTemplate(safeTemplate),
-                new EchoClientResourcePackService()
+                new EchoClientResourcePackService(),
+                moduleBootstrap
         );
     }
 
@@ -89,11 +116,16 @@ final class EchoClientRuntimeServices {
     private EchoClientRuntimeServices(
             EchoClientSaveSlotService saveSlots,
             EchoClientWorldSessionFactory worldSessions,
-            EchoClientResourcePackService resourcePacks
+            EchoClientResourcePackService resourcePacks,
+            EchoClientModuleBootstrapResult moduleBootstrap
     ) {
         this.saveSlots = saveSlots == null ? EchoClientSaveSlotService.openDefault() : saveSlots;
         this.supportBundles = new EchoClientSupportBundleService(this.saveSlots.saveRoot());
         this.worldSessions = worldSessions == null ? EchoClientWorldSessionFactory.defaultFactory() : worldSessions;
+        this.moduleBootstrap = moduleBootstrap == null
+                ? EchoClientModuleBootstrapResult.inactive()
+                : moduleBootstrap;
+        this.modScan = this.moduleBootstrap.active() ? null : new EchoClientModScanService();
         this.resourcePacks = resourcePacks == null ? new EchoClientResourcePackService() : resourcePacks;
         this.baseEntityCatalog = this.worldSessions.template().entityCatalog();
         this.baseHazardCatalog = this.worldSessions.template().hazardCatalog();
@@ -110,6 +142,7 @@ final class EchoClientRuntimeServices {
         dataWorldCoreRegions.refresh(this.resourcePacks.assets());
         dataWorldCoreHazards.refresh(this.resourcePacks.assets());
         refreshWorldSessionFactory();
+        importAdapterCoreContentRegistrations(this.moduleBootstrap.adapterCoreContentRows());
     }
 
     private static java.nio.file.Path defaultSaveRoot(EchoClientWorldTemplate template) {
@@ -214,7 +247,7 @@ final class EchoClientRuntimeServices {
     }
 
     EchoClientModScanSummary modScanSummary() {
-        return modScan.summary();
+        return moduleBootstrap.active() ? moduleBootstrap.modScanSummary() : modScan.summary();
     }
 
     EchoClientRuntimeContentSummary runtimeContentSummary() {
@@ -227,6 +260,9 @@ final class EchoClientRuntimeServices {
     }
 
     void refreshModScan() {
+        if (moduleBootstrap.active()) {
+            return;
+        }
         modScan.refresh();
     }
 
@@ -637,14 +673,14 @@ final class EchoClientRuntimeServices {
                 return false;
             }
         }
-        EchoClientSaveEnvironmentCompatibility environmentCompatibility =
-                saveSlots.saveEnvironmentCompatibility(slotId, currentSaveEnvironmentMetadata());
-        if (!environmentCompatibility.compatible()) {
-            return false;
-        }
         EchoClientRuntimeContentCompatibility compatibility =
                 saveSlots.runtimeContentCompatibility(slotId, runtimeContentRegistrations.registrations(""));
         if (!compatibility.compatible()) {
+            return false;
+        }
+        EchoClientSaveEnvironmentCompatibility environmentCompatibility =
+                saveSlots.saveEnvironmentCompatibility(slotId, currentSaveEnvironmentMetadata());
+        if (!environmentCompatibility.compatible()) {
             return false;
         }
         restoreRuntimeContentRows(compatibility.savedRows());
@@ -780,7 +816,7 @@ final class EchoClientRuntimeServices {
 
     private Map<String, String> currentSaveEnvironmentMetadata() {
         return EchoClientSaveEnvironmentFingerprint.metadata(
-                modScan.summary(),
+                modScanSummary(),
                 resourcePacks.resourcePacks()
         );
     }

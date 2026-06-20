@@ -110,7 +110,7 @@ tasks.register('verifyReleaseIndexProductRouting', Exec) {
 
 tasks.register('bootstrapStandaloneEvidenceReports') {
     group = 'verification'
-    description = 'Creates deterministic missing standalone evidence reports required by local verification gates.'
+    description = 'Creates deterministic fail-closed placeholders for missing standalone evidence.'
     outputs.dir file('reports/echo/standalone')
 
     doLast {
@@ -147,8 +147,9 @@ tasks.register('bootstrapStandaloneEvidenceReports') {
             if (target.isFile() && externalPlaceholder != null) {
                 try {
                     def existing = new groovy.json.JsonSlurper().parse(target)
+                    def existingStatus = String.valueOf(existing.status ?: '')
                     rewriteUnsafePlaceholder = existing.schema == 'echo.standalone.evidence.bootstrap.v1'
-                            && String.valueOf(existing.status ?: '') == 'PASS'
+                            && ['PASS', 'READY'].contains(existingStatus)
                 } catch (Exception ignored) {
                     rewriteUnsafePlaceholder = false
                 }
@@ -157,12 +158,12 @@ tasks.register('bootstrapStandaloneEvidenceReports') {
                 target.parentFile.mkdirs()
                 target.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
                         schema     : 'echo.standalone.evidence.bootstrap.v1',
-                        status     : externalPlaceholder?.status ?: 'PASS',
+                        status     : externalPlaceholder?.status ?: 'BLOCKED_MISSING_EVIDENCE',
                         artifact   : relativePath,
                         generatedBy: 'bootstrapStandaloneEvidenceReports',
                         generatedAt: '1970-01-01T00:00:00Z',
                         note       : externalPlaceholder?.note
-                                ?: 'Deterministic local checkout evidence placeholder; specialized smoke tasks may overwrite this report.'
+                                ?: 'Fail-closed placeholder only. A specialized smoke task must overwrite it before any readiness gate may pass.'
                 ])) + System.lineSeparator()
             }
         }
@@ -1576,6 +1577,7 @@ tasks.register('verifyStandaloneModuleRuntime') {
     dependsOn tasks.named('runStandaloneModuleRuntimeSmoke')
     dependsOn tasks.named('runStandaloneNativeLoaderAbiSmoke')
     dependsOn tasks.named('runStandaloneRealModuleExecutionSmoke')
+    dependsOn tasks.named('runStandaloneStrictPackBootstrapTests')
     dependsOn tasks.named('runStandaloneAddonArchiveCompatibilitySmoke')
 
     doLast {
@@ -1752,6 +1754,15 @@ tasks.register('runStandaloneRealModuleExecutionSmoke', JavaExec) {
     mainClass = 'dev.echo.standalone.runtime.testkit.EchoRuntimeRealModuleExecutionSmokeHarness'
     workingDir = rootProject.projectDir
     args echoModulesRepoRoot.get()
+}
+
+tasks.register('runStandaloneStrictPackBootstrapTests', JavaExec) {
+    group = 'verification'
+    description = 'Runs strict installed-pack client bootstrap tests for module execution, validation failures, safe mode, reload idempotence, and unload cleanup.'
+    dependsOn ':echo-runtime-testkit:classes'
+    classpath = project(':echo-runtime-testkit').sourceSets.main.runtimeClasspath
+    mainClass = 'dev.echo.standalone.runtime.client.EchoClientStrictPackBootstrapHarness'
+    workingDir = rootProject.projectDir
 }
 
 tasks.register('runStandaloneAddonArchiveCompatibilitySmoke', JavaExec) {
@@ -14517,6 +14528,22 @@ tasks.register('runStandaloneBetaDistributionReleaseContractSmoke') {
                 strict30mWindowReport,
                 strict60mWindowReport
         ].any { bool(it.windowLaunchOptInRequired) }
+        if (windowLaunchBlocked) {
+            checks << [
+                    id    : 'distribution.visible-window-evidence',
+                    category: 'exe-smoke',
+                    report: 'reports/echo/standalone/packaged-exe-wallclock-smoke.json',
+                    status: 'BLOCKED_WINDOW_LAUNCH_OPT_IN_REQUIRED',
+                    detail: [
+                            portableInstallStatus : text(portableInstall.status ?: 'UNKNOWN'),
+                            packagedSmokeStatus   : text(smoke.status ?: 'UNKNOWN'),
+                            strictRehearsalStatus : text(strict.status ?: 'UNKNOWN'),
+                            strict30mStatus       : text(strict30mWindowReport.status ?: 'UNKNOWN'),
+                            strict60mStatus       : text(strict60mWindowReport.status ?: 'UNKNOWN'),
+                            requiredNextAction    : 'Run visible packaged EXE probes and 30/60 minute monitor evidence with -PechoStandaloneAllowWindowLaunch=true on the target Windows machine.'
+                    ]
+            ]
+        }
         def failed = checks.findAll { it.status != 'PASS' }
         def reportPayload = [
                 schema                   : 'echo.standalone.beta_distribution_release_contract.v1',
@@ -15962,19 +15989,56 @@ tasks.register('runStandaloneFullWorkspaceBuildSmoke') {
                 '--rerun-tasks',
                 '--console=plain'
         ]
-        def start = System.nanoTime()
-        def process = new ProcessBuilder(command)
-                .directory(workspaceRoot)
-                .redirectErrorStream(true)
-                .start()
-        def outputText = process.inputStream.getText('UTF-8')
-        def exitCode = process.waitFor()
-        def durationMillis = ((System.nanoTime() - start) / 1_000_000L) as long
+        def outputTailFor = { String text ->
+            def lines = (text ?: '').replace('\r\n', '\n').replace('\r', '\n').readLines()
+            lines.size() > 40 ? lines.subList(lines.size() - 40, lines.size()) : lines
+        }
+        def transientNetworkFailure = { String text ->
+            def safeText = text ?: ''
+            safeText.contains('createMinecraftArtifacts')
+                    && [
+                            'UnresolvedAddressException',
+                            'UnknownHostException',
+                            'HttpTimeoutException',
+                            'ConnectException',
+                            'Connection reset',
+                            'No route to host',
+                            'Temporary failure in name resolution'
+                    ].any { safeText.contains(it) }
+        }
+        def attempts = []
+        def outputText = ''
+        def exitCode = -1
+        def durationMillis = 0L
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            def start = System.nanoTime()
+            def process = new ProcessBuilder(command)
+                    .directory(workspaceRoot)
+                    .redirectErrorStream(true)
+                    .start()
+            outputText = process.inputStream.getText('UTF-8')
+            exitCode = process.waitFor()
+            def attemptDurationMillis = ((System.nanoTime() - start) / 1_000_000L) as long
+            durationMillis += attemptDurationMillis
+            def retryable = transientNetworkFailure(outputText)
+            attempts.add([
+                    attempt                : attempt,
+                    exitCode               : exitCode,
+                    durationMillis         : attemptDurationMillis,
+                    transientNetworkFailure: retryable,
+                    outputTail             : outputTailFor(outputText)
+            ])
+            if (exitCode == 0 && outputText.contains('BUILD SUCCESSFUL')) {
+                break
+            }
+            if (attempt == 1 && retryable) {
+                Thread.sleep(1500L)
+                continue
+            }
+            break
+        }
         def passed = exitCode == 0 && outputText.contains('BUILD SUCCESSFUL')
-        def outputLines = outputText.replace('\r\n', '\n').replace('\r', '\n').readLines()
-        def outputTail = outputLines.size() > 40
-                ? outputLines.subList(outputLines.size() - 40, outputLines.size())
-                : outputLines
+        def outputTail = outputTailFor(outputText)
         def payload = [
                 schema: 'echo.standalone.full_workspace_build_smoke.v1',
                 generatedAt: '1970-01-01T00:00:00Z',
@@ -15999,13 +16063,15 @@ tasks.register('runStandaloneFullWorkspaceBuildSmoke') {
                 echoAddonSet: 'all',
                 exitCode: exitCode,
                 durationMillis: durationMillis,
+                retryAttempts: attempts,
                 evidence: [
                         buildSuccessful: outputText.contains('BUILD SUCCESSFUL'),
                         fullWorkspaceTask: outputText.contains(':buildEchoWorkspace') || outputText.contains('buildEchoWorkspace'),
                         daemonDisabled: true,
                         detectedWorkspaceOwnsBuildEchoWorkspace: hasBuildEchoWorkspaceTask(workspaceRoot),
                         configurationCacheDisabled: true,
-                        parallelExecutionDisabled: true
+                        parallelExecutionDisabled: true,
+                        transientNetworkRetryUsed: attempts.size() > 1
                 ],
                 outputTail: outputTail
         ]
@@ -16082,16 +16148,21 @@ tasks.register('runStandaloneBetaReadinessGate') {
         }
         def taskCheck = { String id, String taskName, String category, boolean betaBlocking ->
             def task = tasks.named(taskName).get()
+            def executed = !task.state.skipped && (task.state.didWork || task.state.upToDate)
+            def passed = task.state.failure == null && executed
             [
                     id          : id,
                     category    : category,
                     source      : 'gradle-task',
                     task        : taskName,
-                    status      : task.state.failure == null ? 'PASS' : 'FAILED',
+                    status      : passed ? 'PASS' : (task.state.skipped ? 'SKIPPED' : 'FAILED'),
                     betaBlocking: betaBlocking,
                     didWork     : task.state.didWork,
+                    upToDate    : task.state.upToDate,
                     skipped     : task.state.skipped,
-                    failure     : task.state.failure == null ? '' : task.state.failure.message
+                    failure     : task.state.failure == null
+                            ? (executed ? '' : 'Task did not execute and produced no current-run evidence')
+                            : task.state.failure.message
             ]
         }
         def reportCheck = { String id, String relativePath, String category, boolean betaBlocking, List acceptedStatuses ->
@@ -16116,6 +16187,7 @@ tasks.register('runStandaloneBetaReadinessGate') {
         def checks = [
                 taskCheck('native-loader.abi', 'runStandaloneNativeLoaderAbiSmoke', 'native-loader', true),
                 taskCheck('modules.real-execution', 'runStandaloneRealModuleExecutionSmoke', 'real-modules', true),
+                taskCheck('modules.strict-pack-bootstrap', 'runStandaloneStrictPackBootstrapTests', 'real-modules', true),
                 taskCheck('addons.folder-jar-zip-echo-addon', 'runStandaloneAddonArchiveCompatibilitySmoke', 'addons', true),
                 taskCheck('adaptercore.module-coverage', 'runStandaloneAdapterCoreModuleCoverageSmoke', 'adaptercore', true),
                 taskCheck('adaptercore.ashfall-parity', 'runStandaloneAshfallAdapterCoreParitySmoke', 'adaptercore', true),

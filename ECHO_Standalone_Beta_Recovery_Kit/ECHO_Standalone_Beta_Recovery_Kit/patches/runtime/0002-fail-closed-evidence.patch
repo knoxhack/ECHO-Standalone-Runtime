@@ -1,0 +1,57 @@
+diff --git a/build.gradle b/build.gradle
+index 1111111..2222222 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -113,4 +113,4 @@
+ tasks.register('bootstrapStandaloneEvidenceReports') {
+     group = 'verification'
+-    description = 'Creates deterministic missing standalone evidence reports required by local verification gates.'
++    description = 'Creates deterministic fail-closed placeholders for missing standalone evidence.'
+     outputs.dir file('reports/echo/standalone')
+@@ -148,8 +148,9 @@
+             if (target.isFile() && externalPlaceholder != null) {
+                 try {
+                     def existing = new groovy.json.JsonSlurper().parse(target)
++                    def existingStatus = String.valueOf(existing.status ?: '')
+                     rewriteUnsafePlaceholder = existing.schema == 'echo.standalone.evidence.bootstrap.v1'
+-                            && String.valueOf(existing.status ?: '') == 'PASS'
++                            && ['PASS', 'READY'].contains(existingStatus)
+                 } catch (Exception ignored) {
+                     rewriteUnsafePlaceholder = false
+                 }
+@@ -11,11 +12,11 @@
+                 target.parentFile.mkdirs()
+                 target.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
+                         schema     : 'echo.standalone.evidence.bootstrap.v1',
+-                        status     : externalPlaceholder?.status ?: 'PASS',
++                        status     : externalPlaceholder?.status ?: 'BLOCKED_MISSING_EVIDENCE',
+                         artifact   : relativePath,
+                         generatedBy: 'bootstrapStandaloneEvidenceReports',
+                         generatedAt: '1970-01-01T00:00:00Z',
+                         note       : externalPlaceholder?.note
+-                                ?: 'Deterministic local checkout evidence placeholder; specialized smoke tasks may overwrite this report.'
++                                ?: 'Fail-closed placeholder only. A specialized smoke task must overwrite it before any readiness gate may pass.'
+                 ])) + System.lineSeparator()
+             }
+@@ -16082,14 +16082,19 @@
+         def taskCheck = { String id, String taskName, String category, boolean betaBlocking ->
+             def task = tasks.named(taskName).get()
++            def executed = !task.state.skipped && (task.state.didWork || task.state.upToDate)
++            def passed = task.state.failure == null && executed
+             [
+                     id          : id,
+                     category    : category,
+                     source      : 'gradle-task',
+                     task        : taskName,
+-                    status      : task.state.failure == null ? 'PASS' : 'FAILED',
++                    status      : passed ? 'PASS' : (task.state.skipped ? 'SKIPPED' : 'FAILED'),
+                     betaBlocking: betaBlocking,
+                     didWork     : task.state.didWork,
++                    upToDate    : task.state.upToDate,
+                     skipped     : task.state.skipped,
+-                    failure     : task.state.failure == null ? '' : task.state.failure.message
++                    failure     : task.state.failure == null
++                            ? (executed ? '' : 'Task did not execute and produced no current-run evidence')
++                            : task.state.failure.message
+             ]
+         }

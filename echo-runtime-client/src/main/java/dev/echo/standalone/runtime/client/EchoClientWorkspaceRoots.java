@@ -13,12 +13,16 @@ final class EchoClientWorkspaceRoots {
     private static final String MODULES_REPO_NAME = "ECHO-Modules";
     private static final String MODULES_ROOT_PROPERTY = "echo.modules.root";
     private static final String MODULES_ROOT_ENV = "ECHO_MODULES_ROOT";
+    private static final String PACK_ROOT_PROPERTY = "echo.pack.root";
+    private static final String PACK_ROOT_ENV = "ECHO_PACK_ROOT";
 
     private EchoClientWorkspaceRoots() {
     }
 
     static List<Path> launchAnchors() {
         LinkedHashSet<Path> anchors = new LinkedHashSet<>();
+        addAnchor(anchors, configuredPath(PACK_ROOT_PROPERTY, PACK_ROOT_ENV));
+        addAnchor(anchors, configuredPath(MODULES_ROOT_PROPERTY, MODULES_ROOT_ENV));
         addAnchor(anchors, Path.of(System.getProperty("user.dir", ".")));
         addAnchor(anchors, Path.of("."));
         CodeSource codeSource = EchoClientWorkspaceRoots.class.getProtectionDomain().getCodeSource();
@@ -74,6 +78,8 @@ final class EchoClientWorkspaceRoots {
     static List<Path> echoModuleAddonRoots(List<Path> anchors) {
         LinkedHashSet<Path> roots = new LinkedHashSet<>();
         addIfDirectory(roots, configuredModulesRoot());
+        Path packRoot = configuredPath(PACK_ROOT_PROPERTY, PACK_ROOT_ENV);
+        addIfDirectory(roots, packRoot == null ? null : packRoot.resolve("mods"));
         for (Path echoRoot : echoWorkspaceRoots(anchors)) {
             addIfDirectory(roots, echoRoot.resolve("addons"));
             addIfDirectory(roots, echoRoot.resolve(MODULES_REPO_NAME).resolve("addons"));
@@ -91,6 +97,9 @@ final class EchoClientWorkspaceRoots {
     private static void addStandaloneRoots(LinkedHashSet<Path> roots, Path anchor) {
         Path current = directoryAnchor(anchor);
         while (current != null) {
+            if (installedPackLike(current)) {
+                roots.add(current.toAbsolutePath().normalize());
+            }
             if (standaloneLike(current)) {
                 roots.add(current);
             }
@@ -130,14 +139,19 @@ final class EchoClientWorkspaceRoots {
     }
 
     private static Path configuredModulesRoot() {
-        String configured = System.getProperty(MODULES_ROOT_PROPERTY, "").trim();
+        return configuredPath(MODULES_ROOT_PROPERTY, MODULES_ROOT_ENV);
+    }
+
+    private static Path configuredPath(String property, String environment) {
+        String configured = System.getProperty(property, "").trim();
         if (configured.isBlank()) {
-            configured = System.getenv(MODULES_ROOT_ENV);
+            configured = System.getenv(environment);
         }
-        if (configured == null || configured.isBlank()) {
-            return null;
-        }
-        return Path.of(configured);
+        return configured == null || configured.isBlank() ? null : Path.of(configured);
+    }
+
+    private static boolean installedPackLike(Path path) {
+        return path != null && Files.isDirectory(path.resolve("mods"));
     }
 
     private static Path directoryAnchor(Path anchor) {

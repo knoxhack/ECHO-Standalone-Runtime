@@ -4,6 +4,7 @@ final class EchoClientRuntimeAssembly {
     private final EchoClientWorldTemplate worldTemplate;
     private final EchoGlfwWindow window;
     private final EchoClientRuntimeServices runtimeServices;
+    private final EchoClientModuleBootstrapResult moduleBootstrap;
     private final EchoClientLaunchContext launchContext;
     private final EchoClientScreenController screens;
     private final EchoClientSettingsController settingsController;
@@ -32,6 +33,7 @@ final class EchoClientRuntimeAssembly {
             EchoClientWorldTemplate worldTemplate,
             EchoGlfwWindow window,
             EchoClientRuntimeServices runtimeServices,
+            EchoClientModuleBootstrapResult moduleBootstrap,
             EchoClientLaunchContext launchContext,
             EchoClientScreenController screens,
             EchoClientSettingsController settingsController,
@@ -54,6 +56,9 @@ final class EchoClientRuntimeAssembly {
         this.worldTemplate = worldTemplate;
         this.window = window;
         this.runtimeServices = runtimeServices;
+        this.moduleBootstrap = moduleBootstrap == null
+                ? EchoClientModuleBootstrapResult.inactive()
+                : moduleBootstrap;
         this.launchContext = launchContext == null ? EchoClientLaunchContext.empty() : launchContext;
         this.screens = screens;
         this.settingsController = settingsController;
@@ -102,9 +107,11 @@ final class EchoClientRuntimeAssembly {
         EchoClientLaunchContext safeLaunchContext = launchContext == null
                 ? EchoClientLaunchContext.empty()
                 : launchContext;
+        safeLaunchContext.applySystemProperties();
+        EchoClientModuleBootstrapResult moduleBootstrap = EchoClientModuleBootstrap.boot(safeLaunchContext);
         EchoClientWorldPresentation presentation = safeTemplate.presentation();
         EchoGlfwWindow window = new EchoGlfwWindow(presentation.windowTitle(), initialWidth, initialHeight);
-        EchoClientRuntimeServices runtimeServices = EchoClientRuntimeServices.forTemplate(safeTemplate);
+        EchoClientRuntimeServices runtimeServices = EchoClientRuntimeServices.forTemplate(safeTemplate, moduleBootstrap);
         EchoClientSettingsStore settingsStore = EchoClientSettingsStore.openDefault(presentation);
         EchoClientScreenController screens =
                 new EchoClientScreenController(
@@ -168,6 +175,7 @@ final class EchoClientRuntimeAssembly {
                 worldTemplate,
                 window,
                 runtimeServices,
+                moduleBootstrap,
                 safeLaunchContext,
                 screens,
                 settingsController,
@@ -292,6 +300,7 @@ final class EchoClientRuntimeAssembly {
             audio.close();
         }
         window.close();
+        moduleBootstrap.close();
     }
 
     EchoGlfwWindow window() {

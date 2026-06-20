@@ -1,0 +1,79 @@
+diff --git a/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientEngine.java b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientEngine.java
+index 1111111..2222222 100644
+--- a/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientEngine.java
++++ b/echo-runtime-client/src/main/java/dev/echo/standalone/runtime/client/EchoClientEngine.java
+@@ -17,6 +17,7 @@
+     private final EchoClientRuntimeAssembly runtime;
+     private final EchoClientFramePacingMonitor framePacing = new EchoClientFramePacingMonitor();
+ 
+-    private long frames;
++    private long frameSequence;
++    private long fpsFrames;
+     private double fpsTimer;
+     private int fps;
+@@ -55,21 +55,28 @@
+                     accumulator -= FIXED_TIMESTEP;
+                     updates++;
+                 }
++                if (updates == MAX_UPDATES_PER_FRAME && accumulator >= FIXED_TIMESTEP) {
++                    // Drop a runaway backlog instead of carrying a permanent spiral-of-death stutter.
++                    accumulator %= FIXED_TIMESTEP;
++                }
+ 
+                 runtime.resizeRendererIfNeeded();
+-                runtime.renderFrame(fps, frames, framePacing.snapshot());
++                runtime.renderFrame(fps, frameSequence, framePacing.snapshot());
+                 runtime.screenshotRuntime().captureIfRequested();
+                 runtime.window().swapBuffers();
+             } catch (Throwable failure) {
+                 accumulator = 0.0D;
+                 showFatalErrorFrame(failure);
+             }
+-            double sleepSeconds = paceFrame(current);
++            // glfwSwapBuffers already blocks when swap interval is 1. Sleeping again creates
++            // competing frame limiters and can produce uneven or half-rate pacing.
++            double sleepSeconds = shouldManuallyPace(runtime.window().vSync()) ? paceFrame(current) : 0.0D;
+             framePacing.record(frameTime, now() - current, updates, sleepSeconds, accumulator);
+ 
+-            frames++;
++            frameSequence++;
++            fpsFrames++;
+             if (fpsTimer >= 1.0D) {
+-                fps = (int) frames;
+-                frames = 0;
++                fps = (int) fpsFrames;
++                fpsFrames = 0;
+                 fpsTimer -= 1.0D;
+             }
+@@ -96,4 +96,8 @@
+         return System.nanoTime() / 1_000_000_000.0D;
+     }
+ 
++    static boolean shouldManuallyPace(boolean vSync) {
++        return !vSync;
++    }
++
+     private static double paceFrame(double frameStartSeconds) {
+diff --git a/echo-runtime-testkit/src/main/java/dev/echo/standalone/runtime/client/EchoClientVSyncSmokeHarness.java b/echo-runtime-testkit/src/main/java/dev/echo/standalone/runtime/client/EchoClientVSyncSmokeHarness.java
+index 1111111..2222222 100644
+--- a/echo-runtime-testkit/src/main/java/dev/echo/standalone/runtime/client/EchoClientVSyncSmokeHarness.java
++++ b/echo-runtime-testkit/src/main/java/dev/echo/standalone/runtime/client/EchoClientVSyncSmokeHarness.java
+@@ -13,5 +13,6 @@
+     public static void main(String[] args) throws IOException {
+         requireDefaultAndSwapInterval();
++        requireEnginePacingPolicy();
+         requireVideoSettingsToggleAndPersistence();
+         requireRuntimeWindowTargetApplication();
+         System.out.println("client vsync smoke PASS default=on toggled=off interval=1/0");
+@@ -24,4 +24,11 @@
+                 "Disabled VSync should request GLFW swap interval 0");
+     }
+ 
++    private static void requireEnginePacingPolicy() {
++        require(!EchoClientEngine.shouldManuallyPace(true),
++                "The engine must not sleep after a VSync-blocked buffer swap");
++        require(EchoClientEngine.shouldManuallyPace(false),
++                "The engine should use its manual limiter when VSync is disabled");
++    }
++
+     private static void requireVideoSettingsToggleAndPersistence() throws IOException {

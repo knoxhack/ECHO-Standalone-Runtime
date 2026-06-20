@@ -34,8 +34,8 @@ public final class EchoClientEntityInteractionSmokeHarness {
     private static void requireDirectNpcInteraction() {
         EchoClientGameSession session =
                 EchoClientWorldSessionFactory.defaultFactory().newWorld("entity-interaction-direct").gameSession();
-        orientForInteraction(session);
         EchoWorldPosition position = interactionTargetPosition(session);
+        orientForInteraction(session, position);
         session.entityStore().register(entity(NPC_ENTITY_ID, NPC_DEFINITION_ID, "Crash Survivor", EchoEntityKind.NPC, position));
 
         EchoClientEntityInteractionResult interaction = session.interactLookedAtEntity(null);
@@ -57,13 +57,14 @@ public final class EchoClientEntityInteractionSmokeHarness {
         EchoClientGameSession session =
                 EchoClientWorldSessionFactory.defaultFactory().newWorld("entity-interaction-gameplay").gameSession();
         selectEmptyHand(session, 7);
-        orientForInteraction(session);
+        EchoWorldPosition position = interactionTargetPosition(session);
+        orientForInteraction(session, position);
         session.entityStore().register(entity(
                 NPC_ENTITY_ID,
                 NPC_DEFINITION_ID,
                 "Crash Survivor",
                 EchoEntityKind.NPC,
-                interactionTargetPosition(session)
+                position
         ));
         EchoClientGameplay gameplay = new EchoClientGameplay();
         gameplay.init(session.world(), session.player(), session.hotbar());
@@ -88,13 +89,14 @@ public final class EchoClientEntityInteractionSmokeHarness {
     private static void requireHostileNotInteractable() {
         EchoClientGameSession session =
                 EchoClientWorldSessionFactory.defaultFactory().newWorld("entity-interaction-hostile").gameSession();
-        orientForInteraction(session);
+        EchoWorldPosition position = interactionTargetPosition(session);
+        orientForInteraction(session, position);
         session.entityStore().register(entity(
                 HOSTILE_ENTITY_ID,
                 "echoashfallprotocol:rad_zombie",
                 "Rad Zombie",
                 EchoEntityKind.HOSTILE,
-                interactionTargetPosition(session)
+                position
         ));
 
         EchoClientEntityInteractionResult interaction = session.interactLookedAtEntity(null);
@@ -126,11 +128,17 @@ public final class EchoClientEntityInteractionSmokeHarness {
         session.player().selectSlot(slot);
     }
 
-    private static void orientForInteraction(EchoClientGameSession session) {
+    private static void orientForInteraction(EchoClientGameSession session, EchoWorldPosition targetPosition) {
         EchoVoxelPlayerState state = session.player().state();
+        double dx = targetPosition.x() + 0.5D - state.x();
+        double dy = targetPosition.y() + 0.6D - state.eyeY();
+        double dz = targetPosition.z() + 0.5D - state.z();
+        double horizontalDistance = Math.hypot(dx, dz);
+        double targetYaw = Math.toDegrees(Math.atan2(dx, dz));
+        double targetPitch = Math.toDegrees(Math.atan2(dy, horizontalDistance));
         session.player().tick(
                 session.world(),
-                EchoVoxelPlayerInput.look(-state.yawDegrees(), -12.0D - state.pitchDegrees()),
+                EchoVoxelPlayerInput.look(targetYaw - state.yawDegrees(), targetPitch - state.pitchDegrees()),
                 0.0D
         );
     }
@@ -138,8 +146,13 @@ public final class EchoClientEntityInteractionSmokeHarness {
     private static EchoWorldPosition interactionTargetPosition(EchoClientGameSession session) {
         EchoVoxelPlayerState player = session.player().state();
         int x = (int) Math.floor(player.x());
+        int standingY = (int) Math.floor(player.y());
         for (int distance = 2; distance <= 4; distance++) {
             int z = (int) Math.floor(player.z() + distance);
+            if (session.world().blockStateAt(x, standingY, z).air()
+                    && session.world().blockStateAt(x, standingY + 1, z).air()) {
+                return new EchoWorldPosition(x, standingY, z);
+            }
             int y = EchoClientEntityAi.surfaceSpawnY(session.world(), x, z);
             if (y >= 0 && session.world().blockStateAt(x, y, z).air()) {
                 return new EchoWorldPosition(x, y, z);

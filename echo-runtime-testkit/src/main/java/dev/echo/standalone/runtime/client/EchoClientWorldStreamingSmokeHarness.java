@@ -34,9 +34,18 @@ public final class EchoClientWorldStreamingSmokeHarness {
                 "Initial stream should cache at least the active loaded region");
 
         EchoVoxelPlayerState spawn = session.player().state();
+        int widerView = defaultView + 1;
+        EchoClientWorldStreamResult prefetch = session.streamAroundPlayer(widerView);
+        require(prefetch.viewDistanceChanged(), "Expanding the view should prefetch neighbor traversal cache");
+        require(prefetch.loadedChunksChanged(), "Expanding the view should load the prefetch ring");
+        EchoClientWorldStreamResult resetView = session.streamAroundPlayer(defaultView);
+        require(resetView.viewDistanceChanged(), "Returning to the default view should reset the active radius");
+        require(resetView.loadedChunksChanged(), "Returning to the default view should prune active chunks");
+
         int loadedBeforeNeighbor = session.world().loadedChunkCount();
         int cachedBeforeNeighbor = session.cachedChunkCount();
-        movePlayer(session, gameplay, spawn.x(), spawn.y(), 1.5D);
+        double neighborZ = adjacentChunkCenterZ(spawn, session.world().chunkSize());
+        movePlayer(session, gameplay, spawn.x(), spawn.y(), neighborZ);
         EchoClientWorldStreamResult neighbor = session.streamAroundPlayer(defaultView);
         require(neighbor.playerChunkChanged(), "Moving to an already loaded neighboring chunk should be reported");
         require(neighbor.renderRegionChanged(), "Moving to a loaded neighboring chunk should refresh render meshes");
@@ -47,13 +56,12 @@ public final class EchoClientWorldStreamingSmokeHarness {
         require(session.world().loadedChunkCount() == loadedBeforeNeighbor,
                 "Loaded neighbor traversal should keep the active view radius stable");
         requireClose(session.player().state().x(), spawn.x(), "loaded neighbor x");
-        requireClose(session.player().state().z(), 1.5D, "loaded neighbor z");
+        requireClose(session.player().state().z(), neighborZ, "loaded neighbor z");
 
         EchoClientWorldStreamResult idle = session.streamAroundPlayer(defaultView);
         require(!idle.renderRegionChanged(), "Streaming twice in the same chunk should be idle");
 
         int loadedBeforeWider = session.world().loadedChunkCount();
-        int widerView = defaultView + 1;
         EchoClientWorldStreamResult wider = session.streamAroundPlayer(widerView);
         require(wider.viewDistanceChanged(), "Changing chunk view in the same chunk should be reported");
         require(wider.renderRegionChanged(), "Changing chunk view should refresh render meshes");
@@ -741,6 +749,12 @@ public final class EchoClientWorldStreamingSmokeHarness {
             String regionRuntimeId,
             String biomeRuntimeId
     ) {
+    }
+
+    private static double adjacentChunkCenterZ(EchoVoxelPlayerState origin, int chunkSize) {
+        int safeChunkSize = Math.max(1, chunkSize);
+        int originChunkZ = Math.floorDiv((int) Math.floor(origin.z()), safeChunkSize);
+        return (originChunkZ + 1) * (double) safeChunkSize + 0.5D;
     }
 
     private static void movePlayer(

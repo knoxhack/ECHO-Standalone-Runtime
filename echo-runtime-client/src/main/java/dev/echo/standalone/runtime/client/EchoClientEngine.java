@@ -15,7 +15,8 @@ final class EchoClientEngine {
     private final EchoClientRuntimeAssembly runtime;
     private final EchoClientFramePacingMonitor framePacing = new EchoClientFramePacingMonitor();
 
-    private long frames;
+    private long frameSequence;
+    private long fpsFrames;
     private double fpsTimer;
     private int fps;
 
@@ -57,22 +58,26 @@ final class EchoClientEngine {
                     accumulator -= FIXED_TIMESTEP;
                     updates++;
                 }
+                if (updates == MAX_UPDATES_PER_FRAME && accumulator >= FIXED_TIMESTEP) {
+                    accumulator %= FIXED_TIMESTEP;
+                }
 
                 runtime.resizeRendererIfNeeded();
-                runtime.renderFrame(fps, frames, framePacing.snapshot());
+                runtime.renderFrame(fps, frameSequence, framePacing.snapshot());
                 runtime.screenshotRuntime().captureIfRequested();
                 runtime.window().swapBuffers();
             } catch (Throwable failure) {
                 accumulator = 0.0D;
                 showFatalErrorFrame(failure);
             }
-            double sleepSeconds = paceFrame(current);
+            double sleepSeconds = shouldManuallyPace(runtime.window().vSync()) ? paceFrame(current) : 0.0D;
             framePacing.record(frameTime, now() - current, updates, sleepSeconds, accumulator);
 
-            frames++;
+            frameSequence++;
+            fpsFrames++;
             if (fpsTimer >= 1.0D) {
-                fps = (int) frames;
-                frames = 0;
+                fps = (int) fpsFrames;
+                fpsFrames = 0;
                 fpsTimer -= 1.0D;
             }
         }
@@ -82,7 +87,7 @@ final class EchoClientEngine {
         failure.printStackTrace(System.err);
         runtime.showFatalError(failure);
         try {
-            runtime.renderFrame(fps, frames, framePacing.snapshot());
+            runtime.renderFrame(fps, frameSequence, framePacing.snapshot());
             runtime.window().swapBuffers();
         } catch (Throwable renderFailure) {
             failure.addSuppressed(renderFailure);
@@ -96,6 +101,10 @@ final class EchoClientEngine {
 
     private static double now() {
         return System.nanoTime() / 1_000_000_000.0D;
+    }
+
+    static boolean shouldManuallyPace(boolean vSync) {
+        return !vSync;
     }
 
     private static double paceFrame(double frameStartSeconds) {
