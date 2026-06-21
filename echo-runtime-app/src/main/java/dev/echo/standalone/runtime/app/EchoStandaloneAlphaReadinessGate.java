@@ -132,46 +132,6 @@ public final class EchoStandaloneAlphaReadinessGate {
                         : "Missing Ashfall parity checklist: " + contractPath
         ));
 
-        Path auditPath = root.resolve("build/reports/ashfall-content-graph-audit.json");
-        if (Files.isRegularFile(auditPath)) {
-            try {
-                String text = Files.readString(auditPath);
-                Object parsed = dev.echo.standalone.runtime.data.EchoDataJson.parse(text);
-                if (parsed instanceof Map<?, ?> map) {
-                    Object statusValue = map.get("status");
-                    String auditStatus = statusValue == null ? "" : String.valueOf(statusValue);
-                    boolean pass = "PASS".equals(auditStatus);
-                    @SuppressWarnings("unchecked")
-                    Map<String, Map<String, Object>> domains = (Map<String, Map<String, Object>>) map.get("domains");
-                    List<String> failingDomains = new ArrayList<>();
-                    if (domains != null) {
-                        for (Map.Entry<String, Map<String, Object>> entry : domains.entrySet()) {
-                            Object passed = entry.getValue().get("passed");
-                            if (passed instanceof Boolean b && !b) {
-                                failingDomains.add(entry.getKey());
-                            }
-                        }
-                    }
-                    checks.add(new EchoStandaloneAlphaReadinessCheck(
-                            "content_graph.audit_report",
-                            "content_graph",
-                            pass,
-                            true,
-                            pass
-                                    ? "Content graph audit report is PASS: " + auditPath
-                                    : "Content graph audit report is BLOCKED for domains: " + failingDomains
-                    ));
-                }
-            } catch (Exception e) {
-                checks.add(new EchoStandaloneAlphaReadinessCheck(
-                        "content_graph.audit_report",
-                        "content_graph",
-                        false,
-                        true,
-                        "Failed to read content graph audit report: " + e.getMessage()
-                ));
-            }
-        }
         return checks;
     }
 

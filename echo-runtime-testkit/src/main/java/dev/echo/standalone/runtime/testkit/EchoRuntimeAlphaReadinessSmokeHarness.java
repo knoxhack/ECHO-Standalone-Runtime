@@ -36,8 +36,8 @@ public final class EchoRuntimeAlphaReadinessSmokeHarness {
                 "ready helper should report true");
         require(ready.blockedCount() == 0,
                 "ready workspace should have no blocking failures");
-        require(ready.checkCount() == 48,
-                "alpha readiness gate should evaluate forty-eight checks");
+        require(ready.checkCount() == 51,
+                "alpha readiness gate should evaluate fifty-one checks");
         require(ready.passedCount() == ready.checkCount(),
                 "all readiness checks should pass");
         require(ready.launcherResult().verification().ready(),
@@ -52,6 +52,13 @@ public final class EchoRuntimeAlphaReadinessSmokeHarness {
         require(ready.checks().stream().anyMatch(check -> check.checkId()
                         .equals("reports.reports/echo/standalone/runtime-alpha-readiness.json")),
                 "alpha readiness report should be checked");
+        require(ready.checks().stream().anyMatch(check -> check.checkId()
+                        .equals("docs.docs/ashfall-standalone-parity-contract.md")),
+                "ashfall parity contract should be checked");
+        require(ready.checks().stream().anyMatch(check -> check.checkId()
+                        .equals("docs.docs/ashfall-standalone-parity-checklist.json")),
+                "ashfall parity checklist should be checked");
+
 
         writeReadinessReports(workspaceRoot, ready);
         require(!Files.readString(
