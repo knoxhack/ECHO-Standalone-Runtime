@@ -514,7 +514,11 @@ final class EchoClientTextureAtlas {
             Map<String, String> blockIdsByAtlasKey,
             java.util.List<BlockModelRequest> blockModelRequests
     ) {
-        return planTileRequests(materialColors, atlasKeys, blockIdsByAtlasKey, blockModelRequests, Map.of()).size();
+        return (int) planTileRequests(materialColors, atlasKeys, blockIdsByAtlasKey, blockModelRequests, Map.of())
+                .keySet()
+                .stream()
+                .filter(key -> !ENTITY_FALLBACK_ATLAS_KEY.equals(key))
+                .count();
     }
 
     public void delete() {
@@ -733,12 +737,32 @@ final class EchoClientTextureAtlas {
         if (plan == null || !plan.resolved()) {
             return false;
         }
+        boolean directionalTexturesCoverAllFaces = true;
         for (EchoVoxelMeshDirection direction : EchoVoxelMeshDirection.values()) {
             if (plan.textureId(direction).isEmpty()) {
-                return false;
+                directionalTexturesCoverAllFaces = false;
+                break;
             }
         }
-        return true;
+        return directionalTexturesCoverAllFaces || modelElementsCoverAllDirections(plan.modelElementDefinitions());
+    }
+
+    private static boolean modelElementsCoverAllDirections(List<EchoBlockModelElement> modelElementDefinitions) {
+        if (modelElementDefinitions == null || modelElementDefinitions.isEmpty()) {
+            return false;
+        }
+        java.util.EnumSet<EchoVoxelMeshDirection> covered = java.util.EnumSet.noneOf(EchoVoxelMeshDirection.class);
+        for (EchoBlockModelElement element : modelElementDefinitions) {
+            if (element == null || element.textureIdsByFace().isEmpty()) {
+                continue;
+            }
+            for (EchoVoxelMeshDirection direction : EchoVoxelMeshDirection.values()) {
+                if (element.textureIdForFace(faceName(direction)).filter(texture -> !texture.isBlank()).isPresent()) {
+                    covered.add(direction);
+                }
+            }
+        }
+        return covered.size() == EchoVoxelMeshDirection.values().length;
     }
 
     BlockRenderPlan planBlockModel(BlockModelRequest request) {

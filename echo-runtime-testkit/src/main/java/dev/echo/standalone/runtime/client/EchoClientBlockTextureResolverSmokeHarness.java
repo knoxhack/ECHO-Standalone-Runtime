@@ -474,7 +474,9 @@ public final class EchoClientBlockTextureResolverSmokeHarness {
                 ))
         );
         require(plannedModelTileCount == 1 && atlas.lastRemovedBaseAtlasRequestCount() == 1,
-                "Fully model-resolved blocks should not keep a duplicate base material atlas tile");
+                "Fully model-resolved blocks should not keep a duplicate base material atlas tile"
+                        + " planned=" + plannedModelTileCount
+                        + " removed=" + atlas.lastRemovedBaseAtlasRequestCount());
         requireMissingChecker(
                 atlas.loadOrGenerateTile("minecraft-texture/facetest/block/does_not_exist", "", 0xFFFFFFFF,
                         "facetest:block/does_not_exist"),

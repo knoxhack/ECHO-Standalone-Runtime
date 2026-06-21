@@ -23,8 +23,15 @@ public record EchoVoxelCollisionBox(
         }
     }
 
+    /**
+     * Returns a collision box for the given block. Blocks that are solid or block motion use the
+     * full-block box; air and non-solid/non-motion-blocking blocks use the empty box.
+     */
     public static EchoVoxelCollisionBox forBlock(EchoVoxelBlock block) {
-        return block != null && block.solid() && !block.air() ? FULL_BLOCK : EMPTY;
+        if (block == null || block.air()) {
+            return EMPTY;
+        }
+        return block.solid() || block.blocksMotion() ? FULL_BLOCK : EMPTY;
     }
 
     public boolean empty() {

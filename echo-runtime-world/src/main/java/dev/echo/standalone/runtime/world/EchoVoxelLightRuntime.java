@@ -148,21 +148,29 @@ public final class EchoVoxelLightRuntime {
 
     public static int lightEmission(EchoVoxelBlockState state) {
         Objects.requireNonNull(state, "state");
+        EchoVoxelBlock block = state.block();
+        if (block.behavior().isPresent()) {
+            return block.lightEmission();
+        }
         return state.property("lightEmission")
                 .or(() -> state.property("emission"))
                 .map(EchoVoxelLightRuntime::parseLight)
-                .orElseGet(() -> inferredLightEmission(state.block()));
+                .orElseGet(() -> inferredLightEmission(block));
     }
 
     public static int lightOpacity(EchoVoxelBlockState state) {
         Objects.requireNonNull(state, "state");
+        EchoVoxelBlock block = state.block();
+        if (block.behavior().isPresent()) {
+            return block.lightOpacity();
+        }
         return state.property("lightOpacity")
                 .map(EchoVoxelLightRuntime::parseLight)
                 .orElseGet(() -> {
                     if (state.air()) {
                         return 0;
                     }
-                    return state.block().opaque() ? MAX_LIGHT : 1;
+                    return block.opaque() ? MAX_LIGHT : 1;
                 });
     }
 

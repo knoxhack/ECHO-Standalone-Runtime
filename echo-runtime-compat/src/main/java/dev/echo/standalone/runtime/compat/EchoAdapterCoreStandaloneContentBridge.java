@@ -1,8 +1,10 @@
 package dev.echo.standalone.runtime.compat;
 
+import dev.echo.standalone.runtime.contracts.voxel.EchoBlockBehaviorContract;
 import dev.echo.standalone.runtime.data.EchoDataRegistryStore;
 import dev.echo.standalone.runtime.world.EchoVoxelBlock;
 import dev.echo.standalone.runtime.world.EchoVoxelMaterialPattern;
+import dev.echo.standalone.runtime.world.block.behavior.EchoBlockBehavior;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -4743,6 +4745,7 @@ public final class EchoAdapterCoreStandaloneContentBridge {
             EchoVoxelMaterialPattern materialPattern,
             double hardness
     ) {
+        EchoBlockBehaviorContract behavior = behaviorFor(liveVoxelId, hardness, materialPattern, true, true);
         return entry(
                 moduleId,
                 contentId,
@@ -4763,7 +4766,8 @@ public final class EchoAdapterCoreStandaloneContentBridge {
                         materialPattern,
                         true,
                         true,
-                        hardness
+                        hardness,
+                        behavior
                 )
         );
     }
@@ -5020,6 +5024,123 @@ public final class EchoAdapterCoreStandaloneContentBridge {
             return EchoVoxelMaterialPattern.CACHE_PANEL;
         }
         return EchoVoxelMaterialPattern.FLAT;
+    }
+
+    private static EchoBlockBehaviorContract behaviorFor(
+            String blockId,
+            double hardness,
+            EchoVoxelMaterialPattern pattern,
+            boolean solid,
+            boolean opaque
+    ) {
+        String normalized = blockId.toLowerCase();
+        String tool = "";
+        boolean requiresTool = false;
+        boolean flammable = false;
+        int fireSpread = 0;
+        int lightEmission = 0;
+
+        if (normalized.contains("torch") || normalized.contains("lantern") || normalized.contains("lamp")) {
+            lightEmission = 14;
+        } else if (normalized.contains("glow") || normalized.contains("crystal") || normalized.contains("fissure")) {
+            lightEmission = 10;
+        }
+
+        if (normalized.contains("log")
+                || normalized.contains("wood")
+                || normalized.contains("plank")
+                || normalized.contains("beam")
+                || normalized.contains("post")
+                || normalized.contains("shelf")
+                || normalized.contains("workbench")
+                || normalized.contains("thatch")) {
+            tool = "axe";
+            requiresTool = false;
+            flammable = true;
+            fireSpread = 5;
+        } else if (normalized.contains("leaves")
+                || normalized.contains("bush")
+                || normalized.contains("fern")
+                || normalized.contains("grass")
+                || normalized.contains("reed")
+                || normalized.contains("wheat")
+                || normalized.contains("sapling")
+                || normalized.contains("moss")
+                || normalized.contains("fungus")) {
+            tool = "hoe";
+            requiresTool = false;
+            flammable = true;
+            fireSpread = 30;
+        } else if (normalized.contains("soil")
+                || normalized.contains("dirt")
+                || normalized.contains("mud")
+                || normalized.contains("ash")
+                || normalized.contains("sand")
+                || normalized.contains("clay")
+                || normalized.contains("gravel")) {
+            tool = "shovel";
+            requiresTool = false;
+        } else if (normalized.contains("stone")
+                || normalized.contains("concrete")
+                || normalized.contains("brick")
+                || normalized.contains("granite")
+                || normalized.contains("limestone")
+                || normalized.contains("shale")
+                || normalized.contains("basalt")
+                || normalized.contains("slag")
+                || normalized.contains("ore")
+                || normalized.contains("crystal")
+                || normalized.contains("rubble")
+                || normalized.contains("waystone")
+                || normalized.contains("deepstone")) {
+            tool = "pickaxe";
+            requiresTool = hardness >= 1.0D;
+        } else if (normalized.contains("metal")
+                || normalized.contains("rust")
+                || normalized.contains("scrap")
+                || normalized.contains("pipe")
+                || normalized.contains("rebar")
+                || normalized.contains("hull")
+                || normalized.contains("cable")
+                || normalized.contains("machine")
+                || normalized.contains("generator")
+                || normalized.contains("battery")
+                || normalized.contains("grinder")
+                || normalized.contains("refiner")
+                || normalized.contains("synthesizer")
+                || normalized.contains("miner")
+                || normalized.contains("controller")
+                || normalized.contains("dynamo")
+                || normalized.contains("press")
+                || normalized.contains("lab")) {
+            tool = "pickaxe";
+            requiresTool = true;
+        }
+
+        boolean blocksMotion = solid && !normalized.contains("grass") && !normalized.contains("bush")
+                && !normalized.contains("fern") && !normalized.contains("reed")
+                && !normalized.contains("sapling") && !normalized.contains("wheat")
+                && !normalized.contains("tall_grass");
+
+        return new EchoBlockBehavior(
+                blockId,
+                hardness,
+                Math.max(0.0D, hardness * 2.5D),
+                tool,
+                requiresTool ? 1 : 0,
+                lightEmission,
+                opaque ? 15 : (solid ? 1 : 0),
+                0.6D,
+                1.0D,
+                1.0D,
+                false,
+                solid,
+                opaque,
+                requiresTool,
+                blocksMotion,
+                flammable,
+                fireSpread
+        );
     }
 
     private static double environmentHardness(String blockId) {

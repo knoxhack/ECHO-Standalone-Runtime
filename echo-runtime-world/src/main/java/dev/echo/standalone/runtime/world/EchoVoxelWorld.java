@@ -171,7 +171,20 @@ public record EchoVoxelWorld(
             int y,
             int z,
             double accumulatedSeconds,
-            double toolSpeed
+            double toolSpeed,
+            String toolClass
+    ) {
+        return attemptBreakBlock(x, y, z, accumulatedSeconds, toolSpeed, toolClass, true);
+    }
+
+    private EchoVoxelBlockBreakResult attemptBreakBlock(
+            int x,
+            int y,
+            int z,
+            double accumulatedSeconds,
+            double toolSpeed,
+            String toolClass,
+            boolean enforceToolRequirement
     ) {
         if (!Double.isFinite(accumulatedSeconds) || accumulatedSeconds < 0.0D) {
             throw new IllegalArgumentException("accumulatedSeconds must be finite and non-negative");
@@ -184,6 +197,19 @@ public record EchoVoxelWorld(
             return new EchoVoxelBlockBreakResult(x, y, z, block, accumulatedSeconds, 0.0D, 1.0D, false, "air");
         }
         double requiredSeconds = breakDurationSeconds(block, toolSpeed);
+        if (enforceToolRequirement && block.requiresTool() && !matchesHarvestTool(block, toolClass)) {
+            return new EchoVoxelBlockBreakResult(
+                    x,
+                    y,
+                    z,
+                    block,
+                    accumulatedSeconds,
+                    requiredSeconds,
+                    0.0D,
+                    false,
+                    "wrong_tool"
+            );
+        }
         double progress = clamp(accumulatedSeconds / requiredSeconds, 0.0D, 1.0D);
         if (progress < 1.0D) {
             return new EchoVoxelBlockBreakResult(
@@ -210,6 +236,19 @@ public record EchoVoxelWorld(
                 changed,
                 changed ? "broken" : "outside_loaded_chunk"
         );
+    }
+
+    /**
+     * Backward-compatible overload that does not enforce harvest-tool requirements.
+     */
+    public EchoVoxelBlockBreakResult attemptBreakBlock(
+            int x,
+            int y,
+            int z,
+            double accumulatedSeconds,
+            double toolSpeed
+    ) {
+        return attemptBreakBlock(x, y, z, accumulatedSeconds, toolSpeed, "", false);
     }
 
     public Optional<EchoVoxelHit> raycast(
@@ -496,10 +535,15 @@ public record EchoVoxelWorld(
 
     private double breakDurationSeconds(EchoVoxelBlock block, double toolSpeed) {
         double hardness = block.hardness();
-        if (behaviorRegistry.isPresent()) {
-            hardness = behaviorRegistry.orElseThrow().get(block.id()).destroyTime();
-        }
         return Math.max(0.12D, (0.22D + hardness * 0.58D) / toolSpeed);
+    }
+
+    private boolean matchesHarvestTool(EchoVoxelBlock block, String toolClass) {
+        if (toolClass == null || toolClass.isBlank()) {
+            return false;
+        }
+        String required = block.harvestTool();
+        return required.isBlank() || required.equalsIgnoreCase(toolClass.trim());
     }
 
     private static double clamp(double value, double minimum, double maximum) {
